@@ -1,0 +1,17 @@
+<?= $this->extend('admin/admin_layout') ?>
+<?= $this->section('content') ?>
+<div class="mb-6"><h1 class="text-3xl font-bold tracking-[-.025em] text-slate-900">Dashboard</h1><p class="text-slate-500">Operational overview for McKinley West Cats.</p></div>
+<div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+    <?php foreach ($stats as $stat): ?>
+        <div class="card"><div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-<?= esc($stat['tone']) ?>-50 text-<?= esc($stat['tone']) ?>-600"><i data-lucide="<?= esc($stat['icon']) ?>" class="h-5 w-5"></i></div><div class="text-2xl font-bold text-slate-900"><?= esc($stat['value']) ?></div><div class="text-sm font-medium text-slate-500"><?= esc($stat['label']) ?></div></div>
+    <?php endforeach; ?>
+</div>
+<div class="mt-6 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
+    <div class="card"><div class="mb-5"><h2 class="text-lg font-bold">Monthly Adoption Pipeline</h2><p class="text-sm text-slate-500">Intake to adopted journey.</p></div><div class="grid grid-cols-2 gap-3 sm:grid-cols-4"><?php foreach ($pipeline as $step): ?><div class="rounded-xl border border-<?= esc($step['tone']) ?>-100 bg-<?= esc($step['tone']) ?>-50 p-4"><div class="text-2xl font-bold text-<?= esc($step['tone']) ?>-700"><?= esc($step['value']) ?></div><div class="mt-1 text-xs font-semibold text-slate-600"><?= esc($step['label']) ?></div></div><?php endforeach; ?></div></div>
+    <div class="card"><h2 class="text-lg font-bold">Compliance Health</h2><div class="mt-6 flex items-center gap-6"><div class="text-5xl font-bold text-rescue-600"><?= esc($compliance) ?>%</div><div class="text-sm text-slate-500">Average adopter compliance score across active adopters.</div></div><div class="mt-6 h-3 rounded-full bg-slate-100"><div class="h-3 rounded-full bg-adopted-500" style="width:<?= esc($compliance) ?>%"></div></div></div>
+</div>
+<div class="mt-6 grid gap-6 xl:grid-cols-2">
+    <div class="card"><h2 class="mb-4 text-lg font-bold">Recent Applications</h2><div class="overflow-x-auto rounded-xl border border-slate-200"><table class="min-w-[620px] w-full text-sm"><thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500"><tr><th class="px-4 py-3 text-left">Applicant</th><th class="px-4 py-3 text-left">Cat</th><th class="px-4 py-3 text-left">Score</th><th class="px-4 py-3 text-left">Status</th></tr></thead><tbody><?php if (empty($recentApplications)): ?><tr><td colspan="4" class="px-4 py-8 text-center text-slate-500">No applications yet.</td></tr><?php else: foreach ($recentApplications as $app): ?><tr class="border-t"><td class="px-4 py-3 font-semibold"><?= esc($app['applicant_name']) ?></td><td class="px-4 py-3"><?= esc($app['animal_name'] ?: '—') ?></td><td class="px-4 py-3"><?= esc($app['compatibility_score']) ?>%</td><td class="px-4 py-3"><?= statusBadge($app['status']) ?></td></tr><?php endforeach; endif; ?></tbody></table></div></div>
+    <div class="card"><h2 class="mb-4 text-lg font-bold">Upcoming Tasks</h2><div class="space-y-3"><?php foreach ($tasks as $task): ?><div class="rounded-xl border border-slate-200 p-4"><div class="flex items-start justify-between"><div><div class="font-semibold"><?= esc($task['title']) ?></div><div class="text-sm text-slate-500"><?= esc($task['task_date']) ?> <?= esc(substr((string) $task['task_time'], 0, 5)) ?> · <?= esc($task['volunteer_name'] ?: 'Unassigned') ?></div></div><?= statusBadge($task['priority']) ?></div></div><?php endforeach; ?></div></div>
+</div>
+<?= $this->endSection() ?>

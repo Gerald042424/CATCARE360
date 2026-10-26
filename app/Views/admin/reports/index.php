@@ -1,0 +1,5 @@
+<?= $this->extend('admin/admin_layout') ?>
+<?= $this->section('content') ?>
+<div class="mb-6"><h1 class="text-3xl font-bold tracking-[-.025em]">Reports</h1><p class="text-slate-500">Export descriptive operational records as CSV.</p></div>
+<div class="grid gap-6 lg:grid-cols-3"><?php foreach ($reports as $report): ?><article class="card"><div class="flex h-11 w-11 items-center justify-center rounded-xl bg-rescue-50 text-rescue-600"><i data-lucide="file-bar-chart" class="h-5 w-5"></i></div><h2 class="mt-5 text-lg font-bold"><?= esc($report['title']) ?></h2><p class="mt-2 min-h-12 text-sm leading-6 text-slate-500"><?= esc($report['description']) ?></p><p class="mt-5 text-2xl font-bold text-slate-900"><?= esc($report['count']) ?></p><p class="text-xs font-semibold uppercase tracking-wide text-slate-400">records</p><a href="<?= site_url('admin/reports/export/' . $report['type']) ?>" class="btn btn-primary mt-5 w-full justify-center"><i data-lucide="download" class="h-4 w-4"></i>Export CSV</a></article><?php endforeach; ?></div>
+<?= $this->endSection() ?>

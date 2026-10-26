@@ -1,0 +1,67 @@
+<?= $this->extend('layouts/adopter') ?>
+<?= $this->section('adopter_content') ?>
+<?php
+$input = 'w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none focus:ring-2 focus:ring-rescue-500/20';
+$docs = ['selfie'=>['Selfie with Government ID','Face and ID must be clearly visible. Blank, plain, or black photos are rejected.','camera'],'gov_id'=>['Government-Issued ID','Capture your PhilHealth, passport, driver’s license, or national ID.','credit-card'],'address_proof'=>['Proof of Address','Capture a current utility bill, lease, or bank statement. Blank, plain, or black photos are rejected.','file-text'],'home_photos'=>['Home / Living Space Photos','Capture the area where the cat will live. Blank, plain, or black photos are rejected.','house']];
+?>
+<div class="mx-auto max-w-3xl px-6 py-12"><a href="<?= site_url('adopter/home') ?>" class="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500"><i data-lucide="arrow-left" class="h-4 w-4"></i>Back to Cats</a><div class="mb-10"><h1 class="text-3xl font-semibold text-slate-900">Adoption Application</h1><p class="mt-2 font-medium text-slate-500">Take the first step to bringing your new best friend home.</p></div><?php if (session('error')): ?><div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700"><?= esc(session('error')) ?></div><?php endif ?>
+<form id="adoptionApplication" method="post" action="<?= site_url('adopter/apply') ?>" enctype="multipart/form-data" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><?= csrf_field() ?><input type="hidden" name="cat_id" value="<?= (int)$catId ?>"><input id="verificationMetadata" type="hidden" name="verification_metadata"><div class="space-y-10 p-6 sm:p-8">
+<section><div class="mb-6 flex items-center gap-3 border-b border-slate-100 pb-4"><i data-lucide="user-circle" class="h-5 w-5 text-rescue-600"></i><h2 class="text-xl font-semibold text-slate-900">Personal Information</h2></div><div class="space-y-5"><div><label class="mb-2 block text-sm font-medium">Full Name *</label><input required name="full_name" value="<?= esc(old('full_name',$adopter['name']??'')) ?>" class="<?= $input ?>"></div><div><label class="mb-2 block text-sm font-medium">Address *</label><input required name="address" value="<?= esc(old('address',$adopter['address']??'')) ?>" class="<?= $input ?>"></div><div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-2 block text-sm font-medium">Phone Number *</label><input required name="phone" value="<?= esc(old('phone',$adopter['phone']??'')) ?>" class="<?= $input ?>"></div><div><label class="mb-2 block text-sm font-medium">Occupation *</label><input required name="occupation" value="<?= esc(old('occupation',$adopter['occupation']??'')) ?>" class="<?= $input ?>"></div></div><div><label class="mb-2 block text-sm font-medium">Specific Cat *</label><?php if($cat): ?><div class="rounded-xl border border-rescue-100 bg-rescue-50 p-3 font-semibold text-rescue-900"><?= esc($cat['name']) ?> <a class="ml-3 text-sm text-rescue-600" href="<?= site_url('adopter/apply') ?>">Change</a></div><?php else: ?><input required name="cat_description" value="<?= esc(old('cat_description')) ?>" placeholder="Cat name, color, or location" class="<?= $input ?>"><?php endif ?></div></div></section>
+<section class="border-t border-slate-100 pt-8"><div class="mb-3 flex items-center gap-3 border-b border-slate-100 pb-4"><i data-lucide="heart-handshake" class="h-5 w-5 text-rescue-600"></i><div><h2 class="text-xl font-semibold text-slate-900">Cat Care Assessment</h2><p class="mt-1 text-sm text-slate-500">Answers are assessed by relevant, practical care plans—not length or grammar.</p></div></div><div class="space-y-5"><?php foreach ($assessmentCriteria as $key => $criterion): ?><fieldset class="rounded-xl border border-slate-200 bg-slate-50/60 p-4"><legend class="sr-only"><?= esc($criterion['label']) ?></legend><label for="assessment_<?= esc($key) ?>" class="block text-sm font-semibold text-slate-900"><?= esc($criterion['label']) ?></label><p class="mt-1 text-sm leading-6 text-slate-600"><?= esc($criterion['question']) ?></p><?php if (! empty($criterion['indicators'])): ?><details class="mt-3 text-xs text-slate-600"><summary class="cursor-pointer font-semibold text-rescue-700">What this question considers</summary><ul class="mt-2 list-disc space-y-1 pl-5"><?php foreach ($criterion['indicators'] as $indicator): ?><li><?= esc($indicator) ?></li><?php endforeach ?></ul></details><?php endif ?><textarea id="assessment_<?= esc($key) ?>" required maxlength="3000" name="assessment_<?= esc($key) ?>" rows="4" class="<?= $input ?> mt-3 resize-y" placeholder="Your answer…"><?= esc(old('assessment_' . $key)) ?></textarea></fieldset><?php endforeach ?></div></section>
+<section id="liveVerification" class="border-t border-slate-100 pt-8"><div class="mb-2 flex items-center gap-3 border-b border-slate-100 pb-4"><i data-lucide="shield-check" class="h-5 w-5 text-rescue-600"></i><div><h2 class="text-xl font-semibold text-slate-900">Live Verification Photos</h2><p class="mt-1 text-sm text-slate-500">Camera only. Each photo is stamped with date, time, address, and GPS location.</p></div></div><div id="captureError" class="mb-4 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700"></div><div class="space-y-4"><?php foreach($docs as $key=>[$label,$help,$icon]): ?><article class="verification-capture rounded-xl border border-slate-200 bg-slate-50 p-4" data-key="<?= $key ?>"><div class="flex justify-between gap-3"><div><h3 class="font-semibold text-slate-900"><?= $label ?> *</h3><p class="mt-1 text-xs text-slate-500"><?= $help ?></p></div><span class="capture-state rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600">Not captured</span></div><input class="capture-file" type="file" name="verification_documents[<?= $key ?>]" accept="image/jpeg" hidden><video class="camera-stream mt-4 hidden max-h-80 w-full rounded-lg bg-black object-contain" autoplay playsinline muted></video><canvas class="capture-canvas hidden"></canvas><button type="button" class="capture-preview-wrap mt-4 hidden w-full overflow-hidden rounded-lg border border-adopted-200 bg-white text-left"><img class="capture-preview block max-h-80 w-full object-contain" alt="Captured verification photo"><span class="block bg-adopted-50 px-3 py-2 text-xs font-medium text-adopted-800">Click to zoom and check this photo.</span></button><div class="mt-4 flex flex-wrap gap-2"><button type="button" class="start-camera rounded-lg bg-rescue-600 px-4 py-2 text-sm font-semibold text-white">Open camera</button><button type="button" class="switch-camera hidden rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold">Switch front/back</button><button type="button" class="capture-photo rounded-lg bg-adopted-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled>Capture photo</button><button type="button" class="retake-photo hidden rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800">Retake</button></div><p class="location-status mt-3 text-xs font-medium text-slate-500">Open the camera, then capture and allow location access.</p></article><?php endforeach ?></div></section>
+<div class="flex justify-end border-t border-slate-100 pt-6"><button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-rescue-600 px-8 py-3 text-sm font-medium text-white"><span>Submit Application</span></button></div></div></form></div>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var cats = <?= json_encode(array_map(static fn (array $item): array => ['id' => (int) $item['id'], 'name' => $item['name'], 'breed' => $item['breed'], 'age' => $item['age'], 'image' => $item['image_url'] ? base_url($item['image_url']) : 'https://images.unsplash.com/photo-1574158622682-e40ad296ce3f?auto=format&fit=crop&w=160&q=80'], $availableCats), JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var initial = <?= (int) $catId ?>;
+    var label = Array.from(document.querySelectorAll('label')).find(function (item) { return item.textContent.trim().indexOf('Specific Cat') === 0; });
+    if (!label) return;
+    var holder = label.parentElement;
+    var selected = initial ? [initial] : [];
+    function esc(value) { var node = document.createElement('span'); node.textContent = value || ''; return node.innerHTML; }
+    function render() {
+        var chosen = cats.filter(function (cat) { return selected.indexOf(cat.id) !== -1; });
+        holder.innerHTML = '<div class="mb-2 flex items-center justify-between"><label class="block text-sm font-medium">Specific Cat <span class="text-red-500">*</span></label><button type="button" id="addAnotherCat" class="text-sm font-semibold text-rescue-600">Add another cat</button></div><p class="mb-3 text-xs text-slate-500">Choose one or more available cats for this application.</p><div id="selectedCats" class="space-y-2"></div><div id="catChooser" class="mt-3 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="grid gap-2 sm:grid-cols-2"></div></div>';
+        var selectedBox = document.getElementById('selectedCats');
+        chosen.forEach(function (cat) { selectedBox.insertAdjacentHTML('beforeend', '<div class="flex items-center gap-3 rounded-xl border border-rescue-100 bg-rescue-50 p-3"><input type="hidden" name="cat_ids[]" value="' + cat.id + '"><img src="' + esc(cat.image) + '" class="h-12 w-12 rounded-lg border border-rescue-200 object-cover" alt="' + esc(cat.name) + '"><div class="min-w-0"><p class="font-semibold text-rescue-950">' + esc(cat.name) + '</p><p class="text-xs text-rescue-700">' + esc(cat.breed) + ' · ' + esc(cat.age) + '</p></div><button type="button" data-remove="' + cat.id + '" class="ml-auto rounded-lg p-2 text-red-600 hover:bg-red-100">Remove</button></div>'); });
+        if (!chosen.length) selectedBox.innerHTML = '<input required name="cat_description" placeholder="Choose a cat below, or enter its name/color/location" class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm">';
+        var grid = document.querySelector('#catChooser .grid');
+        cats.forEach(function (cat) { var active = selected.indexOf(cat.id) !== -1; grid.insertAdjacentHTML('beforeend', '<button type="button" data-pick="' + cat.id + '" class="flex items-center gap-3 rounded-lg border bg-white p-2 text-left ' + (active ? 'border-rescue-500' : 'border-slate-200') + '"><img src="' + esc(cat.image) + '" class="h-10 w-10 rounded object-cover"><span><b class="block text-sm">' + esc(cat.name) + '</b><small class="text-slate-500">' + esc(cat.breed) + '</small></span></button>'); });
+        document.getElementById('addAnotherCat').onclick = function () { document.getElementById('catChooser').classList.toggle('hidden'); };
+        holder.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { selected = selected.filter(function (id) { return id !== Number(button.dataset.remove); }); render(); }; });
+        holder.querySelectorAll('[data-pick]').forEach(function (button) { button.onclick = function () { var id = Number(button.dataset.pick); if (selected.indexOf(id) === -1) selected.push(id); render(); document.getElementById('catChooser').classList.remove('hidden'); }; });
+    }
+    render();
+});
+</script>
+<script><?= file_get_contents(FCPATH . 'js/adoption-live-capture.js') ?></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('adoptionApplication');
+    var button = form && form.querySelector('button[type="submit"]');
+    if (!form || !button) return;
+
+    // Chrome can retain an old submit listener from a previously loaded form.
+    // Submit directly after validating so no listener can leave the UI loading.
+    button.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (!form.reportValidity()) return;
+        var cards = form.querySelectorAll('.verification-capture');
+        var valid = cards.length === 4 && Array.prototype.every.call(cards, function (card) {
+            return card.querySelector('.capture-file').files.length === 1;
+        }) && document.getElementById('verificationMetadata').value;
+        if (!valid) {
+            var error = document.getElementById('captureError');
+            error.textContent = 'Capture all four live verification photos before submitting.';
+            error.classList.remove('hidden');
+            document.getElementById('liveVerification').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        button.disabled = true;
+        button.querySelector('span').textContent = 'Submitting application…';
+        HTMLFormElement.prototype.submit.call(form);
+    }, true);
+});
+</script>
+<?= $this->endSection() ?>
