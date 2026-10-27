@@ -9,21 +9,11 @@ class CatCareSeeder extends Seeder
     public function run()
     {
         $now = date('Y-m-d H:i:s');
-        $adminPassword = (string) (getenv('DEMO_ADMIN_PASSWORD') ?: env('demo.admin.password', ''));
         $adopterPassword = (string) (getenv('DEMO_ADOPTER_PASSWORD') ?: env('demo.adopter.password', ''));
         $volunteerPassword = (string) (getenv('DEMO_VOLUNTEER_PASSWORD') ?: env('demo.volunteer.password', ''));
-        if ($adminPassword === '' || $adopterPassword === '' || $volunteerPassword === '') {
-            throw new \RuntimeException('Set all DEMO_*_PASSWORD environment variables before running the demo seed.');
+        if ($adopterPassword === '' || $volunteerPassword === '') {
+            throw new \RuntimeException('Set DEMO_ADOPTER_PASSWORD and DEMO_VOLUNTEER_PASSWORD before running the demo seed.');
         }
-
-        $this->db->table('admin_users')->ignore(true)->insert([
-            'username' => 'admin',
-            'password_hash' => password_hash($adminPassword, PASSWORD_DEFAULT),
-            'name' => 'Admin User',
-            'role' => 'admin',
-            'created_at' => $now,
-            'updated_at' => $now,
-        ]);
 
         $this->db->table('animals')->insertBatch([
             ['name' => 'Luna', 'species' => 'Cat', 'breed' => 'Maine Coon', 'age' => '3 years', 'weight' => '4.2kg', 'status' => 'Available', 'stage' => 'Adoption Ready', 'health' => 'Healthy', 'intake_date' => '2024-01-15', 'behavior_notes' => 'Playful and energetic', 'medical_notes' => 'Vaccinated, dewormed', 'image_url' => 'https://images.unsplash.com/photo-1574158622682-e40e69881006?auto=format&fit=crop&w=900&q=80', 'created_at' => $now, 'updated_at' => $now],
