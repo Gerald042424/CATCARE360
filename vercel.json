@@ -1,9 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": null,
   "services": {
     "catcare360": {
       "root": ".",
+      "runtime": "container",
       "entrypoint": "Dockerfile.vercel"
     }
   },
