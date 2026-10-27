@@ -9,7 +9,7 @@ sed -ri "s/<VirtualHost \*:[0-9]+>/<VirtualHost *:${port}>/" /etc/apache2/sites-
 
 # Creates only migrations that have not yet run. On TiDB this initializes the
 # empty demo database once; later launches simply continue to Apache.
-if ! php -d display_errors=stderr -d log_errors=1 -d error_log=/dev/stderr spark migrate --all --no-interaction >&2; then
+if ! CI_ENVIRONMENT=development php -d display_errors=stderr -d log_errors=1 -d error_log=/dev/stderr spark migrate --all --no-interaction >&2; then
     echo "CatCare 360 startup failed while initializing the database schema."
     # Send only framework startup diagnostics to Vercel. Redact connection
     # credentials before emitting the log stream.
