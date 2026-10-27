@@ -19,7 +19,8 @@ RUN composer dump-autoload --no-dev --optimize --classmap-authoritative
 
 FROM php:8.2-apache
 
-ENV CI_ENVIRONMENT=production
+ENV CI_ENVIRONMENT=production \
+    APP_RUNTIME=vercel
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends libicu-dev \

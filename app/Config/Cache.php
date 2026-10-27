@@ -14,6 +14,19 @@ use CodeIgniter\Config\BaseConfig;
 
 class Cache extends BaseConfig
 {
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Vercel container files are read-only at runtime. The application
+        // keeps its durable state in TiDB, so use in-memory no-op caching
+        // rather than attempting to create files under writable/cache.
+        if (getenv('APP_RUNTIME') === 'vercel') {
+            $this->handler       = 'dummy';
+            $this->backupHandler = 'dummy';
+        }
+    }
+
     /**
      * --------------------------------------------------------------------------
      * Primary Handler
