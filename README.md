@@ -91,10 +91,9 @@ php spark db:seed CatCareSeeder
 
 ## Vercel deployment
 
-The repository uses one Vercel Service named `catcare-app`, built from
-`Dockerfile.vercel`. Set the project framework to **Services** so Vercel runs
-the PHP application container instead of serving the PHP entry file as a
-static asset.
+The repository uses Vercel's PHP serverless runtime. Keep the Vercel project
+framework set to **Other**; `api/index.php` delegates requests to the standard
+CodeIgniter front controller in `public/index.php`.
 
 Configure these Production environment variables in the Vercel project before
 deploying. The database must be reachable from the public internet and support

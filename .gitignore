@@ -130,3 +130,4 @@ _modules/*
 /phpunit.xml
 
 .vercel
+.env*
