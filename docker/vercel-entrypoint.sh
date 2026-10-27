@@ -7,6 +7,11 @@ port="${PORT:-8080}"
 sed -ri "s/^Listen [0-9]+$/Listen ${port}/" /etc/apache2/ports.conf
 sed -ri "s/<VirtualHost \*:[0-9]+>/<VirtualHost *:${port}>/" /etc/apache2/sites-available/000-default.conf
 
+# The container image itself is immutable on Vercel. CodeIgniter's cache,
+# session/log paths and uploaded demo files therefore live under /tmp.
+mkdir -p /tmp/catcare-writable/cache /tmp/catcare-writable/logs /tmp/catcare-writable/session /tmp/catcare-uploads
+chmod -R a+rwx /tmp/catcare-writable /tmp/catcare-uploads
+
 # Creates only migrations that have not yet run. On TiDB this initializes the
 # empty demo database once; later launches simply continue to Apache.
 # Run only the command-line migration in development mode so Spark emits the

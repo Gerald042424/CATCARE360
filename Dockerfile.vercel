@@ -33,8 +33,11 @@ WORKDIR /var/www/html
 COPY --from=dependencies --chown=www-data:www-data /app ./
 COPY docker/vercel-entrypoint.sh /usr/local/bin/vercel-entrypoint
 
-RUN mkdir -p /var/www/html/public/uploads \
-    && chown -R www-data:www-data /var/www/html/writable /var/www/html/public/uploads \
+# Vercel's deployed image filesystem is read-only. Keep CI's transient files
+# and uploaded defense-demo files in its writable per-instance /tmp area.
+RUN rm -rf /var/www/html/writable /var/www/html/public/uploads \
+    && ln -s /tmp/catcare-writable /var/www/html/writable \
+    && ln -s /tmp/catcare-uploads /var/www/html/public/uploads \
     && chmod +x /usr/local/bin/vercel-entrypoint
 
 EXPOSE 8080
