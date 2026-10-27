@@ -12,11 +12,18 @@ sed -ri "s/<VirtualHost \*:[0-9]+>/<VirtualHost *:${port}>/" /etc/apache2/sites-
 # Do not override CI_ENVIRONMENT here. Forcing "development" makes CI validate
 # a CLI base URL before it can connect to TiDB, even when production is set in
 # Vercel's environment variables.
-if ! php -d display_errors=stderr -d log_errors=1 -d error_log=/dev/stderr spark migrate --all --no-interaction >&2; then
+if ! migration_output=$(php -d display_errors=stderr -d log_errors=1 -d error_log=/dev/stderr spark migrate --all --no-interaction 2>&1); then
     echo "CatCare 360 startup failed while initializing the database schema."
+    # Vercel retains only a limited number of output lines per invocation.
+    # Print the beginning, where Spark places the actual exception message,
+    # instead of a long trailing stack trace.
+    printf '%s\n' "$migration_output" \
+        | sed -E 's/(password|pwd|token|secret)[^[:space:]]*/\1=[REDACTED]/Ig' \
+        | head -n 24 \
+        >&2
     # Send only framework startup diagnostics to Vercel. Redact connection
     # credentials before emitting the log stream.
-    tail -n 120 writable/logs/log-*.log 2>/dev/null \
+    tail -n 5 writable/logs/log-*.log 2>/dev/null \
         | sed -E 's/(password|pwd|token|secret)[^[:space:]]*/\1=[REDACTED]/Ig' \
         >&2 || true
     exit 1
