@@ -1,0 +1,29 @@
+FROM composer:2 AS dependencies
+
+WORKDIR /app
+
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+
+COPY . ./
+RUN composer dump-autoload --no-dev --optimize --classmap-authoritative
+
+
+FROM php:8.2-apache
+
+ENV CI_ENVIRONMENT=production
+
+RUN docker-php-ext-install mysqli pdo_mysql \
+    && a2enmod rewrite \
+    && sed -ri 's!/var/www/html!/var/www/html/public!g' /etc/apache2/sites-available/*.conf
+
+WORKDIR /var/www/html
+COPY --from=dependencies --chown=www-data:www-data /app ./
+COPY docker/vercel-entrypoint.sh /usr/local/bin/vercel-entrypoint
+
+RUN mkdir -p /var/www/html/public/uploads \
+    && chown -R www-data:www-data /var/www/html/writable /var/www/html/public/uploads \
+    && chmod +x /usr/local/bin/vercel-entrypoint
+
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/vercel-entrypoint"]

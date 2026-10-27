@@ -1,0 +1,15 @@
+.env
+.git
+.agents
+.codex
+vendor
+writable/cache
+writable/debugbar
+writable/logs
+writable/session
+writable/uploads
+public/uploads
+tests
+build
+Dockerfile
+README.md
