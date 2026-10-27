@@ -89,6 +89,31 @@ php spark db:seed CatCareSeeder
 6. Run `php spark migrate --all` for database migrations.
 7. Replace development seed records and credentials before public use.
 
+## Vercel deployment
+
+The repository includes `Dockerfile.vercel`, which Vercel detects and deploys
+as the application container. Keep the project framework set to **Other**;
+the app is a single container and does not require Vercel Services.
+
+Configure these Production environment variables in the Vercel project before
+deploying. The database must be reachable from the public internet and support
+TLS when `DATABASE_DEFAULT_ENCRYPT` is set to `true`.
+
+```text
+APP_BASE_URL=https://your-project.vercel.app
+DATABASE_DEFAULT_HOSTNAME=your-database-host
+DATABASE_DEFAULT_DATABASE=your-database-name
+DATABASE_DEFAULT_USERNAME=your-database-user
+DATABASE_DEFAULT_PASSWORD=your-database-password
+DATABASE_DEFAULT_PORT=3306
+DATABASE_DEFAULT_ENCRYPT=true
+SESSION_DRIVER=CodeIgniter\Session\Handlers\DatabaseHandler
+SESSION_SAVEPATH=ci_sessions
+```
+
+Do not add the local `.env` file to Vercel: it contains development settings
+and is intentionally excluded from the container build.
+
 ## Repository safety
 
 - `.env` is excluded because it contains sensitive configuration.

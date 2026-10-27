@@ -195,6 +195,35 @@ class Database extends Config
     {
         parent::__construct();
 
+        // Vercel only accepts shell-style variable names. CodeIgniter's
+        // automatic configuration override expects lowercase names such as
+        // `database_default_hostname`, so production variables conventionally
+        // named `DATABASE_DEFAULT_HOSTNAME` would otherwise be ignored.
+        $environmentMappings = [
+            'DATABASE_DEFAULT_HOSTNAME' => 'hostname',
+            'DATABASE_DEFAULT_USERNAME' => 'username',
+            'DATABASE_DEFAULT_PASSWORD' => 'password',
+            'DATABASE_DEFAULT_DATABASE' => 'database',
+            'DATABASE_DEFAULT_DB_DRIVER' => 'DBDriver',
+            'DATABASE_DEFAULT_PORT'     => 'port',
+            'DATABASE_DEFAULT_ENCRYPT'  => 'encrypt',
+        ];
+
+        foreach ($environmentMappings as $environmentName => $property) {
+            $value = getenv($environmentName);
+            if ($value === false || $value === '') {
+                continue;
+            }
+
+            if ($property === 'port') {
+                $this->default[$property] = (int) $value;
+            } elseif ($property === 'encrypt') {
+                $this->default[$property] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+            } else {
+                $this->default[$property] = $value;
+            }
+        }
+
         // Ensure that we always set the database group to 'tests' if
         // we are currently running an automated test suite, so that
         // we don't overwrite live data on accident.
