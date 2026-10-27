@@ -9,10 +9,14 @@ class CatCareSeeder extends Seeder
     public function run()
     {
         $now = date('Y-m-d H:i:s');
+        $adminPassword = (string) env('demo.admin.password', '');
+        if ($adminPassword === '') {
+            throw new \RuntimeException('Set demo.admin.password before running the demo seed.');
+        }
 
         $this->db->table('admin_users')->ignore(true)->insert([
             'username' => 'admin',
-            'password_hash' => password_hash('admin123', PASSWORD_DEFAULT),
+            'password_hash' => password_hash($adminPassword, PASSWORD_DEFAULT),
             'name' => 'Admin User',
             'role' => 'admin',
             'created_at' => $now,

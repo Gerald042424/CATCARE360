@@ -7,4 +7,8 @@ port="${PORT:-8080}"
 sed -ri "s/^Listen [0-9]+$/Listen ${port}/" /etc/apache2/ports.conf
 sed -ri "s/<VirtualHost \*:[0-9]+>/<VirtualHost *:${port}>/" /etc/apache2/sites-available/000-default.conf
 
+# Creates only migrations that have not yet run. On TiDB this initializes the
+# empty demo database once; later launches simply continue to Apache.
+php spark migrate --all --no-interaction
+
 exec apache2-foreground

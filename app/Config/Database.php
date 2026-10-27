@@ -37,6 +37,7 @@ class Database extends Config
         'charset'      => 'utf8mb4',
         'DBCollat'     => 'utf8mb4_general_ci',
         'swapPre'      => '',
+        // TiDB Cloud public endpoints require encrypted MySQL connections.
         'encrypt'      => false,
         'compress'     => false,
         'strictOn'     => false,
@@ -193,6 +194,16 @@ class Database extends Config
     public function __construct()
     {
         parent::__construct();
+
+        // Read environment values at runtime: property defaults must remain
+        // compile-time constants in PHP configuration classes.
+        $this->default['hostname'] = env('database.default.hostname', $this->default['hostname']);
+        $this->default['username'] = env('database.default.username', $this->default['username']);
+        $this->default['password'] = env('database.default.password', $this->default['password']);
+        $this->default['database'] = env('database.default.database', $this->default['database']);
+        $this->default['port'] = (int) env('database.default.port', $this->default['port']);
+        $this->default['encrypt'] = filter_var(env('database.default.encrypt', $this->default['encrypt']), FILTER_VALIDATE_BOOL);
+        $this->default['DBDebug'] = filter_var(env('database.default.DBDebug', $this->default['DBDebug']), FILTER_VALIDATE_BOOL);
 
         // Ensure that we always set the database group to 'tests' if
         // we are currently running an automated test suite, so that

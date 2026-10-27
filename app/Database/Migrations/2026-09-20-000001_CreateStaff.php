@@ -8,6 +8,11 @@ class CreateStaff extends Migration
 {
     public function up()
     {
+        $staffPassword = (string) env('demo.staff.password', '');
+        if ($staffPassword === '') {
+            throw new \RuntimeException('Set demo.staff.password before creating the hosted demo database.');
+        }
+
         $this->forge->addField([
             'id' => ['type' => 'INT', 'unsigned' => true, 'auto_increment' => true],
             'name' => ['type' => 'VARCHAR', 'constraint' => 150, 'null' => false],
@@ -24,7 +29,7 @@ class CreateStaff extends Migration
         $this->db->table('staff')->ignore(true)->insert([
             'name' => 'Admin',
             'email' => 'staff@catcare360.org',
-            'password_hash' => password_hash('password123', PASSWORD_DEFAULT),
+            'password_hash' => password_hash($staffPassword, PASSWORD_DEFAULT),
             'role' => 'admin',
             'is_active' => 1,
             'created_at' => date('Y-m-d H:i:s'),
