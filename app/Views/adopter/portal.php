@@ -78,7 +78,7 @@
                             <div id="photoError" class="mt-2 text-sm text-red-600 hidden"></div>
 
                             <div class="mt-3">
-                                <img id="photoPreview" src="" alt="Preview" class="hidden w-full max-h-64 rounded-lg object-cover border border-slate-200">
+                                <img id="photoPreview" src="" alt="Preview — click to view fullscreen" class="hidden w-full max-h-64 cursor-zoom-in rounded-lg border border-slate-200 object-cover">
                             </div>
 
                             <p class="mt-2 text-xs text-slate-500">For authenticity, only a live photo captured in this page is accepted. The final photo is stamped with your profile address, GPS, date, time, and measured accuracy. Existing gallery files cannot be uploaded.</p>

@@ -33,6 +33,17 @@
 
     if (!startBtn) return;
 
+    function showFullscreenPreview() {
+        if (!preview || !preview.src) return;
+        var modal = document.createElement('div');
+        modal.className = 'fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4';
+        modal.innerHTML = '<button type="button" class="absolute right-5 top-5 rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-800">Close</button><img class="max-h-full max-w-full rounded-lg object-contain" alt="Captured update preview">';
+        modal.querySelector('img').src = preview.src;
+        modal.querySelector('button').onclick = function () { modal.remove(); };
+        modal.onclick = function (event) { if (event.target === modal) modal.remove(); };
+        document.body.appendChild(modal);
+    }
+
     function showPhotoError(message) {
         if (!photoError) return;
         photoError.textContent = message;
@@ -214,6 +225,9 @@
         captureBtn.classList.remove('hidden');
         requestCamera();
     });
+
+    preview.addEventListener('click', showFullscreenPreview);
+    preview.addEventListener('touchend', function (event) { event.preventDefault(); showFullscreenPreview(); }, { passive: false });
 
     locationBtn.addEventListener('click', captureLocation);
 

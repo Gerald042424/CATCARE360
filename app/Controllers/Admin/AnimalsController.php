@@ -13,15 +13,27 @@ class AnimalsController extends BaseController
     public function index(): string
     {
         $model = new AnimalModel();
-        $search = $this->request->getGet('search');
-        if ($search) {
+        $search = trim((string) $this->request->getGet('search'));
+        $filters = [
+            'status' => trim((string) $this->request->getGet('status')),
+            'health' => trim((string) $this->request->getGet('health')),
+            'gender' => trim((string) $this->request->getGet('gender')),
+            'breed' => trim((string) $this->request->getGet('breed')),
+        ];
+        if ($search !== '') {
             $model->groupStart()->like('name', $search)->orLike('breed', $search)->groupEnd();
         }
+        foreach (['status', 'health', 'gender', 'breed'] as $field) {
+            if ($filters[$field] !== '') $model->where($field, $filters[$field]);
+        }
+        $breeds = (new AnimalModel())->select('breed')->where('breed IS NOT NULL', null, false)->where('breed !=', '')->groupBy('breed')->orderBy('breed', 'ASC')->findAll();
 
         return view('admin/animals/index', [
             'title' => 'Cat Management',
             'animals' => $model->orderBy('created_at', 'DESC')->findAll(),
             'search' => $search,
+            'filters' => $filters,
+            'breeds' => array_values(array_unique(array_column($breeds, 'breed'))),
         ]);
     }
 

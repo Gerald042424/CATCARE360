@@ -19,6 +19,8 @@
 </div>
 <div x-cloak x-show="settings" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4"><form method="post" action="<?= site_url('volunteer/settings') ?>" class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"><?= csrf_field() ?><div class="mb-5 flex items-center justify-between"><h2 class="text-lg font-bold">Settings</h2><button type="button" @click="settings=false"><i data-lucide="x"></i></button></div><label class="mb-4 flex gap-3 text-sm"><input type="checkbox" name="notif_email" value="1" checked class="mt-1">Receive email task reminders</label><label class="mb-6 flex gap-3 text-sm"><input type="checkbox" name="privacy_mode" value="1" class="mt-1">Use privacy mode for profile details</label><button class="btn btn-primary w-full justify-center">Save Settings</button></form></div>
 <?= $this->renderSection('scripts') ?>
+<style>select[name="category"] option[value="Adoption"]{display:none!important}</style>
+<script>(function(){function applyVolunteerTaskRules(){document.querySelectorAll('select[name="category"] option[value="Adoption"]').forEach(function(option){option.remove();});var outcome=document.querySelector('select[name="outcome"]');if(outcome){var input=document.createElement('input');input.type='hidden';input.name='outcome';input.value='completed';outcome.closest('div').replaceWith(input);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyVolunteerTaskRules);else applyVolunteerTaskRules();})();</script>
 <script>lucide.createIcons();</script>
 </body>
 </html>

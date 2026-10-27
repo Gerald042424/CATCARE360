@@ -9,6 +9,7 @@ use App\Models\AnimalModel;
 use App\Models\ApplicationCatModel;
 use App\Services\DocumentOcrService;
 use App\Services\AdoptionAssessmentService;
+use App\Models\AdoptionAssessmentFlagModel;
 
 class ApplicationController extends BaseController
 {
@@ -35,7 +36,7 @@ class ApplicationController extends BaseController
             'catId' => $catId,
             'adopter' => $adopter,
             'availableCats' => (new AnimalModel())->where('status', 'Available')->orderBy('name', 'ASC')->findAll(),
-            'assessmentCriteria' => (new AdoptionAssessmentService())->criteria(),
+            'assessmentGroups' => (new AdoptionAssessmentService())->groups(),
             'errors' => session('errors') ?? [],
         ]);
     }
@@ -53,8 +54,9 @@ class ApplicationController extends BaseController
             'phone' => 'required|max_length[30]',
             'occupation' => 'required|max_length[100]',
         ];
-        foreach ((new AdoptionAssessmentService())->criteria() as $key => $_criterion) {
-            $rules['assessment_' . $key] = 'required|max_length[3000]';
+        foreach ((new AdoptionAssessmentService())->groups() as $key => $_group) {
+            $rules['assessment_' . $key . '_main'] = 'required|max_length[3000]';
+            foreach ($_group['subquestions'] ?? [] as $index => $_subquestion) $rules['assessment_' . $key . '_sub_' . ($index + 1)] = 'required|max_length[2000]';
         }
         $post = $this->request->getPost();
         $catIds = array_values(array_unique(array_filter(array_map('intval', (array) ($post['cat_ids'] ?? [])))));
@@ -94,16 +96,15 @@ class ApplicationController extends BaseController
             $verificationFiles[$field] = $file;
         }
 
-        // Screen the live Government ID before saving an application. A failed
-        // screen returns the applicant here to retake the photo.
-        $ocrScreening = (new DocumentOcrService())->screen(
-            $verificationFiles['gov_id']->getTempName(),
-            'gov_id',
-            trim((string) $post['full_name'])
-        );
-        if (! $ocrScreening['passed']) {
-            return redirect()->back()->withInput()->with('error', $ocrScreening['message'] . ' Please retake your Government ID photo.');
+        // Only Government ID and proof of address need readable text. A selfie
+        // and home photo only need to be real, well-lit live captures. The ID
+        // cannot be accepted unless OCR can confirm its text and name match.
+        $ocrService = new DocumentOcrService(); $ocrResults = [];
+        foreach (['gov_id', 'address_proof'] as $documentType) {
+            $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']));
+            if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Government ID name and proof-of-address text were read successfully; selfie and home photos passed live image-quality checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();
@@ -119,12 +120,10 @@ class ApplicationController extends BaseController
             'housing_type' => null,
             'compatibility_score' => 0,
             'assessment_status' => 'Processing',
-            // Legacy column name retained for the existing database schema. Q11 is
-            // evaluated by safety measures, never by an indoor-only requirement.
-            'indoor_living_compliance' => (new AdoptionAssessmentService())->inferredWelfareStatus((string) ($post['assessment_indoor_living'] ?? ''), 'safe_living'),
-            'humane_housing_compliance' => (new AdoptionAssessmentService())->inferredWelfareStatus((string) ($post['assessment_humane_housing'] ?? ''), 'humane'),
-            'existing_pet_concern' => (new AdoptionAssessmentService())->hasExistingPetConcern((string) ($post['assessment_existing_pets'] ?? '')) ? 1 : 0,
-            'caretaker_when_away' => trim((string) ($post['assessment_backup_caregiver'] ?? '')),
+            'indoor_living_compliance' => 'Pending Staff Review',
+            'humane_housing_compliance' => 'Pending Staff Review',
+            'existing_pet_concern' => 0,
+            'caretaker_when_away' => trim((string) ($post['assessment_backup'] ?? '')),
             'verification_metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES),
             'ocr_status' => $ocrScreening['status'],
             'ocr_message' => $ocrScreening['message'],
@@ -136,6 +135,18 @@ class ApplicationController extends BaseController
         }
         $assessmentService = new AdoptionAssessmentService();
         $assessmentService->createResponses($applicationId, $post);
+        $groupAnswers = [];
+        foreach ($assessmentService->groups() as $group => $definition) {
+            $parts = ['Main answer: ' . trim((string) ($post['assessment_' . $group . '_main'] ?? ''))];
+            foreach ($definition['subquestions'] ?? [] as $index => $_subquestion) $parts[] = 'Subquestion ' . ($index + 1) . ': ' . trim((string) ($post['assessment_' . $group . '_sub_' . ($index + 1)] ?? ''));
+            $groupAnswers[$group] = implode("\n\n", $parts);
+        }
+        foreach ($assessmentService->flags($groupAnswers) as [$group, $status, $reason, $criterion]) {
+            (new AdoptionAssessmentFlagModel())->insert(['application_id' => $applicationId, 'question_group' => $group, 'status' => $status, 'reason' => $reason, 'criterion_key' => $criterion, 'related_answers' => $groupAnswers[$group] ?? null]);
+        }
+        foreach ($assessmentService->consistencyFlags($post) as [$group, $status, $reason, $criterion, $relatedAnswers]) {
+            (new AdoptionAssessmentFlagModel())->insert(['application_id' => $applicationId, 'question_group' => $group, 'status' => $status, 'reason' => $reason, 'criterion_key' => $criterion, 'related_answers' => $relatedAnswers]);
+        }
         $assessment = $assessmentService->calculate((new \App\Models\AdoptionAssessmentModel())->where('application_id', $applicationId)->findAll());
         $applicationModel->update($applicationId, [
             'assessment_score' => $assessment['score'],
@@ -248,18 +259,21 @@ class ApplicationController extends BaseController
 
         $width = imagesx($image);
         $height = imagesy($image);
-        $samples = 0; $sum = 0.0; $sumSquares = 0.0;
+        $samples = 0; $sum = 0.0; $sumSquares = 0.0; $darkSamples = 0;
         // Ignore the lower GPS/time overlay: it must not validate a plain frame.
         for ($y = (int) ($height * 0.10); $y < (int) ($height * 0.68); $y += max(1, (int) ($height / 12))) {
             for ($x = (int) ($width * 0.10); $x < (int) ($width * 0.90); $x += max(1, (int) ($width / 12))) {
                 $rgb = imagecolorat($image, $x, $y);
                 $brightness = ((($rgb >> 16) & 0xFF) * 0.299) + ((($rgb >> 8) & 0xFF) * 0.587) + (($rgb & 0xFF) * 0.114);
                 $sum += $brightness; $sumSquares += $brightness * $brightness; ++$samples;
+                if ($brightness < 45) ++$darkSamples;
             }
         }
         imagedestroy($image);
         $mean = $sum / max(1, $samples);
         $variance = ($sumSquares / max(1, $samples)) - ($mean ** 2);
-        return $mean < 18 || $variance < 25;
+        // Reject lens-covered/very dim frames even if a small bright GPS stamp
+        // or light reflection raises the average slightly.
+        return $mean < 45 || ($darkSamples / max(1, $samples)) > 0.82 || $variance < 25;
     }
 }

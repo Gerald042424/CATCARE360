@@ -507,6 +507,14 @@ class PortalController extends BaseController
         foreach ((new AdoptionAssessmentService())->criteria() as $key => $criterion) {
             $application['assessment_rows'][] = array_merge($criterion, $rowsByKey[$key] ?? ['criterion_key' => $key, 'response' => '', 'rating' => null, 'earned_points' => null]);
         }
+        $application['assessment_rows'][] = array_merge([
+            'criterion_key' => 'overall_reflection',
+            'label' => '6. Overall Readiness and Responsible Follow-Through',
+            'weight' => 0,
+            'response' => 'Not provided — this application was submitted before the reflection section was saved separately.',
+            'rating' => null,
+            'earned_points' => 0,
+        ], $rowsByKey['overall_reflection'] ?? []);
 
         return view('adopter/application_progress', [
             'title' => 'Application Progress',

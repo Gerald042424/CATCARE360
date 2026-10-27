@@ -56,7 +56,10 @@ if (! function_exists('recalculateAdopterMonitoringCompliance')) {
         $verifiedExpected = count(array_intersect_key($verified, $expected));
         $expectedCount = count($expected);
         $missed = max(0, $expectedCount - $verifiedExpected);
-        $score = $expectedCount > 0 ? (int) round(($verifiedExpected / $expectedCount) * 100) : 100;
+        // There is no compliance percentage before the first required
+        // checkpoint is due. The UI presents this as "Not due yet / On track"
+        // instead of a misleading 100% after an early voluntary update.
+        $score = $expectedCount > 0 ? (int) round(($verifiedExpected / $expectedCount) * 100) : 0;
 
         $db->table('adopters')->where('id', $adopterId)->update([
             'compliance_score' => $score,

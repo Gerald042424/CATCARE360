@@ -54,6 +54,7 @@ $routes->group('admin', ['filter' => 'staffAuth'], static function (RouteCollect
     $routes->post('animals/(:num)/delete', 'Admin\AnimalsController::delete/$1');
 
     $routes->get('applications', 'Admin\ApplicationsController::index');
+    $routes->get('applications/(:num)/assessment', 'Admin\ApplicationsController::assessment/$1');
     $routes->match(['get', 'post'], 'applications/(:num)', 'Admin\ApplicationsController::detail/$1');
     $routes->post('applications/(:num)/cats/(:num)', 'Admin\ApplicationsController::catStatus/$1/$2');
     $routes->post('applications/(:num)/documents/(:num)', 'Admin\ApplicationsController::document/$1/$2');

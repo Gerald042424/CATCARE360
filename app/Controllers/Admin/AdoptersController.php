@@ -10,6 +10,7 @@ class AdoptersController extends BaseController
 {
     public function index(): string
     {
+        helper('monitoring');
         $db = db_connect();
 
         $adopters = $db->table('adopters')->orderBy('created_at', 'DESC')->get()->getResultArray();
@@ -22,6 +23,12 @@ class AdoptersController extends BaseController
 
         foreach ($adopters as &$adopter) {
             $adopter['adopted_cats'] = array_values(array_filter($adoptions, static fn (array $adoption): bool => (int) $adoption['adopter_id'] === (int) $adopter['id']));
+            $adopter['monitoring_due_count'] = 0;
+            foreach ($adopter['adopted_cats'] as $adoption) {
+                foreach (monitoringCheckpoints($adoption['adoption_date'] ?? null) as $dueDate) {
+                    if ($dueDate <= date('Y-m-d')) ++$adopter['monitoring_due_count'];
+                }
+            }
         }
         unset($adopter);
 
@@ -50,12 +57,17 @@ class AdoptersController extends BaseController
             return redirect()->back()->with('success', 'Adopter profile updated.');
         }
 
+        helper('monitoring');
         $db = db_connect();
+        $adoptions = $db->table('adoptions')->select('adoptions.*, animals.name, animals.breed, animals.image_url')->join('animals', 'animals.id = adoptions.animal_id')->where('adopter_id', $id)->get()->getResultArray();
+        $monitoringDueCount = 0;
+        foreach ($adoptions as $adoption) foreach (monitoringCheckpoints($adoption['adoption_date'] ?? null) as $dueDate) if ($dueDate <= date('Y-m-d')) ++$monitoringDueCount;
 
         return view('admin/adopters/profile', [
             'title' => 'Adopter Profile',
             'adopter' => $adopter,
-            'adoptions' => $db->table('adoptions')->select('adoptions.*, animals.name, animals.breed, animals.image_url')->join('animals', 'animals.id = adoptions.animal_id')->where('adopter_id', $id)->get()->getResultArray(),
+            'adoptions' => $adoptions,
+            'monitoringDueCount' => $monitoringDueCount,
             'submissions' => $db->table('monitoring_submissions')->where('adopter_id', $id)->orderBy('submission_date', 'DESC')->get()->getResultArray(),
         ]);
     }

@@ -84,6 +84,8 @@ class TasksController extends BaseController
 
         if ($this->request->getMethod() === 'POST') {
             $data = $this->request->getPost(['title', 'description', 'category', 'priority', 'status', 'assigned_to', 'animal_id', 'task_date', 'task_time', 'location']);
+            if (($data['category'] ?? '') === 'Adoption') return redirect()->back()->withInput()->with('error', 'Adoption is handled through the adopter workflow and is not a volunteer task category.');
+            if (! $id) $data['status'] = 'Pending';
             $data['assigned_to'] = $data['assigned_to'] ?: null;
             $data['animal_id'] = $data['animal_id'] ?: null;
             $previousVolunteerId = (int) ($task['assigned_to'] ?? 0);
@@ -116,7 +118,7 @@ class TasksController extends BaseController
             return redirect()->to('/admin/tasks')->with($emailSent === false ? 'error' : 'success', $message);
         }
 
-        return view('admin/tasks/form', [
+        return view('admin/tasks/task_form', [
             'title' => $id ? 'Edit Task' : 'New Task',
             'task' => $task,
             'volunteers' => (new VolunteerModel())->orderBy('name')->findAll(),
