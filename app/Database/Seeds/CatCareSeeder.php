@@ -10,8 +10,10 @@ class CatCareSeeder extends Seeder
     {
         $now = date('Y-m-d H:i:s');
         $adminPassword = (string) (getenv('DEMO_ADMIN_PASSWORD') ?: env('demo.admin.password', ''));
-        if ($adminPassword === '') {
-            throw new \RuntimeException('Set demo.admin.password before running the demo seed.');
+        $adopterPassword = (string) (getenv('DEMO_ADOPTER_PASSWORD') ?: env('demo.adopter.password', ''));
+        $volunteerPassword = (string) (getenv('DEMO_VOLUNTEER_PASSWORD') ?: env('demo.volunteer.password', ''));
+        if ($adminPassword === '' || $adopterPassword === '' || $volunteerPassword === '') {
+            throw new \RuntimeException('Set all DEMO_*_PASSWORD environment variables before running the demo seed.');
         }
 
         $this->db->table('admin_users')->ignore(true)->insert([
@@ -45,7 +47,7 @@ class CatCareSeeder extends Seeder
             $this->db->table('adopter_users')->ignore(true)->insert([
                 'adopter_id' => 1,
                 'email' => 'mara@example.com',
-                'password_hash' => password_hash('adopter123', PASSWORD_DEFAULT),
+                'password_hash' => password_hash($adopterPassword, PASSWORD_DEFAULT),
                 'first_name' => 'Mara',
                 'last_name' => 'Santos',
                 'status' => 'active',
@@ -80,8 +82,8 @@ class CatCareSeeder extends Seeder
         $this->db->table('volunteer_users')->insert([
             'volunteer_id' => 1,
             'email' => 'kim@example.com',
-            'access_code' => 'KIM2026',
-            'password_hash' => password_hash('KIM2026', PASSWORD_DEFAULT),
+            'access_code' => $volunteerPassword,
+            'password_hash' => password_hash($volunteerPassword, PASSWORD_DEFAULT),
             'created_at' => $now,
             'updated_at' => $now,
         ]);
