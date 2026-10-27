@@ -18,6 +18,19 @@ class App extends BaseConfig
      */
     public string $baseURL = '';
 
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Cloud hosts use uppercase environment-variable names. An explicit
+        // absolute URL is required when CLI migrations bootstrap CI outside an
+        // incoming HTTP request.
+        $deploymentUrl = getenv('APP_BASE_URL');
+        if ($deploymentUrl !== false && $deploymentUrl !== '') {
+            $this->baseURL = rtrim($deploymentUrl, '/') . '/';
+        }
+    }
+
     /**
      * Allowed Hostnames in the Site URL other than the hostname in the baseURL.
      * If you want to accept multiple Hostnames, set this.
