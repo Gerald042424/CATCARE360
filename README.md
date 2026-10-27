@@ -115,6 +115,11 @@ SESSION_SAVEPATH=ci_sessions
 Do not add the local `.env` file to Vercel: it contains development settings
 and is intentionally excluded from the container build.
 
+Run `php spark migrate --all --no-interaction` once against the production
+database before the first release. Migrations are deliberately not run when a
+Vercel container starts, because each cold start must begin serving HTTP
+promptly.
+
 ## Repository safety
 
 - `.env` is excluded because it contains sensitive configuration.
