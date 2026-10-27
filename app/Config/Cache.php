@@ -35,7 +35,9 @@ class Cache extends BaseConfig
      * The name of the preferred handler that should be used. If for some reason
      * it is not available, the $backupHandler will be used in its place.
      */
-    public string $handler = 'file';
+    // This project keeps durable state in MySQL/TiDB. A file cache is unsafe
+    // on serverless hosts and not required for normal application behaviour.
+    public string $handler = 'dummy';
 
     /**
      * --------------------------------------------------------------------------
