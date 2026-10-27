@@ -9,7 +9,7 @@ class CatCareSeeder extends Seeder
     public function run()
     {
         $now = date('Y-m-d H:i:s');
-        $adminPassword = (string) env('demo.admin.password', '');
+        $adminPassword = (string) (getenv('DEMO_ADMIN_PASSWORD') ?: env('demo.admin.password', ''));
         if ($adminPassword === '') {
             throw new \RuntimeException('Set demo.admin.password before running the demo seed.');
         }

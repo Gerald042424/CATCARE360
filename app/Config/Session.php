@@ -125,4 +125,19 @@ class Session extends BaseConfig
      * seconds.
      */
     public int $lockMaxRetries = 300;
+
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Vercel environment-variable names use uppercase underscores.
+        $driver = getenv('SESSION_DRIVER');
+        $savePath = getenv('SESSION_SAVEPATH');
+        if ($driver !== false && $driver !== '') {
+            $this->driver = $driver;
+        }
+        if ($savePath !== false && $savePath !== '') {
+            $this->savePath = $savePath;
+        }
+    }
 }

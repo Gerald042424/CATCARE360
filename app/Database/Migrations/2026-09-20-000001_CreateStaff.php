@@ -8,7 +8,7 @@ class CreateStaff extends Migration
 {
     public function up()
     {
-        $staffPassword = (string) env('demo.staff.password', '');
+        $staffPassword = (string) (getenv('DEMO_STAFF_PASSWORD') ?: env('demo.staff.password', ''));
         if ($staffPassword === '') {
             throw new \RuntimeException('Set demo.staff.password before creating the hosted demo database.');
         }
