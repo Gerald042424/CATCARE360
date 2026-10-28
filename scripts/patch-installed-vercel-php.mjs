@@ -41,6 +41,8 @@ await updateFile(builderPath, (source) => {
     !/handler\s*:\s*['"]launcher\.js['"]/.test(updated) ||
     !/awsLambdaHandler\s*:\s*['"]launcher\.launcher['"]/.test(updated)
   ) {
+    const markers = source.match(/.{0,80}(?:Lambda|launcher\.launcher|handler).{0,120}/g) ?? [];
+    console.error('vercel-php builder markers:', markers.slice(0, 12));
     throw new Error('Unsupported vercel-php builder shape; refusing to emit an unsafe function.');
   }
   return updated;
