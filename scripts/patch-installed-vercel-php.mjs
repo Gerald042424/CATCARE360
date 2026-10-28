@@ -12,48 +12,53 @@ const builderRoot = path.join(
 const builderPath = path.join(builderRoot, 'index.js');
 const launcherPath = path.join(builderRoot, 'launchers', 'builtin.js');
 
-async function patchFile(filePath, patches) {
-  let source = await readFile(filePath, 'utf8');
-  let changed = false;
-
-  for (const { original, replacement, alreadyPatched } of patches) {
-    if (source.includes(alreadyPatched)) {
-      continue;
-    }
-    if (!source.includes(original)) {
-      throw new Error(`Expected vercel-php source pattern was not found in ${filePath}`);
-    }
-    source = source.replace(original, replacement);
-    changed = true;
-  }
-
-  if (changed) {
-    await writeFile(filePath, source, 'utf8');
+async function updateFile(filePath, transform) {
+  const source = await readFile(filePath, 'utf8');
+  const updated = transform(source);
+  if (updated !== source) {
+    await writeFile(filePath, updated, 'utf8');
   }
 }
 
-await patchFile(builderPath, [
-  {
-    original: 'const lambda = new build_utils_1.Lambda({',
-    replacement: 'const lambda = new build_utils_1.NodejsLambda({',
-    alreadyPatched: 'const lambda = new build_utils_1.NodejsLambda({',
-  },
-  {
-    original: "        handler: 'launcher.launcher',\n        runtime: nodeVersion.runtime,",
-    replacement: "        handler: 'launcher.js',\n        awsLambdaHandler: 'launcher.launcher',\n        runtime: nodeVersion.runtime,",
-    alreadyPatched: "        awsLambdaHandler: 'launcher.launcher',",
-  },
-]);
+await updateFile(builderPath, (source) => {
+  let updated = source;
 
-await patchFile(launcherPath, [
-  {
-    original: 'const path_1 = require("path");\nlet server;',
-    replacement: 'const path_1 = require("path");\nprocess.env.LAMBDA_TASK_ROOT = process.env.LAMBDA_TASK_ROOT || \'/var/task\';\nlet server;',
-    alreadyPatched: "process.env.LAMBDA_TASK_ROOT = process.env.LAMBDA_TASK_ROOT || '/var/task';",
-  },
-  {
-    original: 'async function launcher(event) {\n    const awsRequest = (0, helpers_1.normalizeEvent)(event);',
-    replacement: `async function launcher(event) {
+  if (!updated.includes('new build_utils_1.NodejsLambda({')) {
+    updated = updated.replace(
+      /new\s+build_utils_1\.Lambda\s*\(\s*\{/,
+      'new build_utils_1.NodejsLambda({',
+    );
+  }
+  if (!updated.includes("awsLambdaHandler: 'launcher.launcher'")) {
+    updated = updated.replace(
+      /handler\s*:\s*(['"])launcher\.launcher\1\s*,/,
+      "handler: 'launcher.js',\n        awsLambdaHandler: 'launcher.launcher',",
+    );
+  }
+
+  if (
+    !updated.includes('new build_utils_1.NodejsLambda({') ||
+    !updated.includes("handler: 'launcher.js'") ||
+    !updated.includes("awsLambdaHandler: 'launcher.launcher'")
+  ) {
+    throw new Error('Unsupported vercel-php builder shape; refusing to emit an unsafe function.');
+  }
+  return updated;
+});
+
+await updateFile(launcherPath, (source) => {
+  let updated = source;
+
+  if (!updated.includes('process.env.LAMBDA_TASK_ROOT')) {
+    updated = updated.replace(
+      /(const\s+path_1\s*=\s*require\(["']path["']\);?)/,
+      "$1\nprocess.env.LAMBDA_TASK_ROOT = process.env.LAMBDA_TASK_ROOT || '/var/task';",
+    );
+  }
+  if (!updated.includes('const normalizedEvent = { ...event };')) {
+    updated = updated.replace(
+      /(async\s+function\s+launcher\s*\(event\)\s*\{)\s*const\s+awsRequest\s*=\s*\(0,\s*helpers_1\.normalizeEvent\)\(event\);/,
+      `$1
     const normalizedEvent = { ...event };
     if (Array.isArray(normalizedEvent.body)) {
         normalizedEvent.body = Buffer.from(normalizedEvent.body);
@@ -67,8 +72,16 @@ await patchFile(launcherPath, [
     const headers = normalizedEvent.headers || {};
     normalizedEvent.host = normalizedEvent.host || headers['x-forwarded-host'] || headers.host;
     const awsRequest = (0, helpers_1.normalizeEvent)(normalizedEvent);`,
-    alreadyPatched: 'const normalizedEvent = { ...event };',
-  },
-]);
+    );
+  }
+
+  if (
+    !updated.includes('process.env.LAMBDA_TASK_ROOT') ||
+    !updated.includes('const normalizedEvent = { ...event };')
+  ) {
+    throw new Error('Unsupported vercel-php launcher shape; refusing to deploy an unpatched runtime.');
+  }
+  return updated;
+});
 
 console.log('Applied CatCare 360 compatibility patch to the installed vercel-php runtime.');
