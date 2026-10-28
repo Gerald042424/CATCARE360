@@ -23,10 +23,10 @@ async function updateFile(filePath, transform) {
 await updateFile(builderPath, (source) => {
   let updated = source;
 
-  if (!updated.includes('new build_utils_1.NodejsLambda({')) {
+  if (!/new\s+(?:[\w$]+\.)*NodejsLambda\s*\(/.test(updated)) {
     updated = updated.replace(
-      /new\s+build_utils_1\.Lambda\s*\(\s*\{/,
-      'new build_utils_1.NodejsLambda({',
+      /new\s+((?:[\w$]+\.)*)Lambda\s*\(/,
+      'new $1NodejsLambda(',
     );
   }
   if (!updated.includes("awsLambdaHandler: 'launcher.launcher'")) {
@@ -37,9 +37,9 @@ await updateFile(builderPath, (source) => {
   }
 
   if (
-    !updated.includes('new build_utils_1.NodejsLambda({') ||
-    !updated.includes("handler: 'launcher.js'") ||
-    !updated.includes("awsLambdaHandler: 'launcher.launcher'")
+    !/new\s+(?:[\w$]+\.)*NodejsLambda\s*\(/.test(updated) ||
+    !/handler\s*:\s*['"]launcher\.js['"]/.test(updated) ||
+    !/awsLambdaHandler\s*:\s*['"]launcher\.launcher['"]/.test(updated)
   ) {
     throw new Error('Unsupported vercel-php builder shape; refusing to emit an unsafe function.');
   }
