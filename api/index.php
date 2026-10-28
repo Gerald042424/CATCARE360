@@ -11,4 +11,13 @@ if (isset($_SERVER['REQUEST_URI'])) {
     $_SERVER['REQUEST_URI'] = preg_replace('#^/index\.php(?=/|$)#', '', $_SERVER['REQUEST_URI']) ?: '/';
 }
 
+// Keep deployment health checks independent from database, session, mail, and
+// object-storage credentials. This confirms that the PHP runtime itself booted.
+$requestPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
+if ($requestPath === '/health/runtime') {
+    header('Content-Type: application/json; charset=UTF-8');
+    echo json_encode(['status' => 'ok', 'service' => 'catcare360'], JSON_THROW_ON_ERROR);
+    return;
+}
+
 require dirname(__DIR__) . '/public/index.php';
