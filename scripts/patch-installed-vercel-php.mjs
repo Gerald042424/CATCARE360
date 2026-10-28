@@ -81,10 +81,42 @@ await updateFile(launcherPath, (source) => {
     const awsRequest = (0, helpers_1.normalizeEvent)(normalizedEvent);`,
     );
   }
+  if (!updated.includes('async function nodeHandler(request, response)')) {
+    updated = updated.replace(
+      /exports\.launcher\s*=\s*launcher;/,
+      `async function nodeHandler(request, response) {
+    const chunks = [];
+    for await (const chunk of request) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    const requestPath = request.url || '/';
+    const headers = request.headers || {};
+    const host = headers['x-forwarded-host'] || headers.host || 'localhost';
+    const output = await query({
+        entrypoint: (0, path_1.join)((0, helpers_1.getUserDir)(), process.env.NOW_ENTRYPOINT || 'index.php'),
+        uri: host + requestPath,
+        path: requestPath,
+        headers,
+        method: request.method || 'GET',
+        body: chunks.length > 0 ? Buffer.concat(chunks) : undefined,
+    });
+    response.statusCode = output.statusCode || 200;
+    for (const [name, value] of Object.entries(output.headers || {})) {
+        if (value !== undefined) {
+            response.setHeader(name, value);
+        }
+    }
+    response.end(output.body);
+}
+module.exports = nodeHandler;
+module.exports.launcher = launcher;`,
+    );
+  }
 
   if (
     !updated.includes('process.env.LAMBDA_TASK_ROOT') ||
-    !updated.includes('const normalizedEvent = { ...event };')
+    !updated.includes('const normalizedEvent = { ...event };') ||
+    !updated.includes('async function nodeHandler(request, response)')
   ) {
     throw new Error('Unsupported vercel-php launcher shape; refusing to deploy an unpatched runtime.');
   }
