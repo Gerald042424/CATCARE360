@@ -7,6 +7,7 @@ use App\Models\TaskModel;
 use App\Models\VolunteerReportModel;
 use App\Models\TaskReportDraftModel;
 use App\Models\TaskReassignmentRequestModel;
+use App\Services\CloudStorageService;
 
 class TasksController extends BaseController
 {
@@ -62,7 +63,7 @@ class TasksController extends BaseController
         $file=$this->request->getFile('photo'); $lat=filter_var($this->request->getPost('latitude'),FILTER_VALIDATE_FLOAT); $lng=filter_var($this->request->getPost('longitude'),FILTER_VALIDATE_FLOAT); $accuracy=filter_var($this->request->getPost('gps_accuracy'),FILTER_VALIDATE_FLOAT);
         if(!$file || !$file->isValid() || $file->hasMoved() || $this->request->getPost('capture_source') !== 'in_app_camera' || $lat===false || $lng===false || $accuracy===false) return redirect()->back()->withInput()->with('error','A live camera photo with current GPS location is required.');
         $info=@getimagesize($file->getTempName()); if($file->getMimeType()!=='image/jpeg' || !$info || $info[0]<320 || $info[1]<240 || $file->getSize()>10*1024*1024) return redirect()->back()->withInput()->with('error','Capture a valid JPEG photo (at least 320 × 240).');
-        $dir=FCPATH.'uploads/task_reports/'; if(!is_dir($dir)) mkdir($dir,0755,true); $photo=$file->getRandomName(); $file->move($dir,$photo);
+        try { $photo=(new CloudStorageService())->store($file,'task-reports'); } catch (\Throwable $exception) { log_message('error','Task report photo upload failed: {message}',['message'=>$exception->getMessage()]); return redirect()->back()->withInput()->with('error','The report photo could not be saved. Please try again.'); }
         (new VolunteerReportModel())->insert(['volunteer_id'=>$volunteerId,'task_id'=>$id,'cat_name'=>null,'health_status'=>'good','observations'=>trim((string)$this->request->getPost('notes')),'photo_path'=>$photo,'gps_lat'=>$lat,'gps_lng'=>$lng,'gps_accuracy'=>$accuracy,'capture_source'=>'in_app_camera','captured_at'=>date('Y-m-d H:i:s'),'submitted_at'=>date('Y-m-d H:i:s')]);
         (new TaskModel())->update($id,['status'=>'Completed']); (new TaskReportDraftModel())->where(['task_id'=>$id,'volunteer_id'=>$volunteerId])->delete(); return redirect()->back()->with('submitted',true);
     }

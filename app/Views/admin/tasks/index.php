@@ -12,7 +12,8 @@
         <article class="card">
             <div class="flex flex-col gap-5 lg:flex-row">
                 <?php if (! empty($update['photo_path'])): ?>
-                    <a href="<?= base_url('uploads/task_reports/' . $update['photo_path']) ?>" target="_blank" class="block shrink-0"><img src="<?= base_url('uploads/task_reports/' . $update['photo_path']) ?>" class="h-40 w-full rounded-xl object-cover lg:w-56" alt="Volunteer update for <?= esc($update['task_title'] ?: 'task') ?>"></a>
+                    <?php $reportPhotoUrl = str_starts_with($update['photo_path'], 'media/') ? base_url($update['photo_path']) : base_url('uploads/task_reports/' . $update['photo_path']); ?>
+                    <a href="<?= esc($reportPhotoUrl) ?>" target="_blank" class="block shrink-0"><img src="<?= esc($reportPhotoUrl) ?>" class="h-40 w-full rounded-xl object-cover lg:w-56" alt="Volunteer update for <?= esc($update['task_title'] ?: 'task') ?>"></a>
                 <?php endif; ?>
                 <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2"><span class="rounded-full px-2.5 py-1 text-xs font-bold <?= ($update['health_status'] ?? '') === 'needs_review' ? 'bg-amber-100 text-amber-800' : 'bg-adopted-100 text-adopted-800' ?>"><?= ($update['health_status'] ?? '') === 'needs_review' ? 'Needs staff review' : 'Completed' ?></span><span class="text-xs font-medium text-slate-500">Submitted <?= ! empty($update['submitted_at']) ? esc(date('M d, Y g:i A', strtotime($update['submitted_at']))) : '—' ?></span></div>

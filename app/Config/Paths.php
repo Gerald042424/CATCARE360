@@ -18,6 +18,26 @@ namespace Config;
  */
 class Paths
 {
+    public function __construct()
+    {
+        $isVercel = getenv('VERCEL') !== false || getenv('APP_RUNTIME') === 'vercel';
+        if (! $isVercel) {
+            return;
+        }
+
+        $runtimeDirectory = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR)
+            . DIRECTORY_SEPARATOR . 'catcare-writable';
+
+        foreach (['cache', 'debugbar', 'logs', 'session', 'uploads'] as $directory) {
+            $path = $runtimeDirectory . DIRECTORY_SEPARATOR . $directory;
+            if (! is_dir($path)) {
+                mkdir($path, 0775, true);
+            }
+        }
+
+        $this->writableDirectory = $runtimeDirectory;
+    }
+
     /**
      * ---------------------------------------------------------------
      * SYSTEM FOLDER NAME

@@ -69,14 +69,17 @@ class CatCareSeeder extends Seeder
             ['name' => 'Jia Mercado', 'role' => 'Socialization', 'email' => 'jia@example.com', 'phone' => '0918-222-4555', 'location' => 'BGC', 'status' => 'Active', 'availability' => 'Tue, Thu', 'notes' => 'Great with shy cats.', 'image_url' => null, 'joined_date' => '2024-03-18', 'tasks_completed' => 18, 'pending_tasks' => 1, 'created_at' => $now, 'updated_at' => $now],
         ]);
 
-        $this->db->table('volunteer_users')->insert([
+        $volunteerUser = [
             'volunteer_id' => 1,
             'email' => 'kim@example.com',
-            'access_code' => $volunteerPassword,
             'password_hash' => password_hash($volunteerPassword, PASSWORD_DEFAULT),
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ];
+        if ($this->db->fieldExists('access_code', 'volunteer_users')) {
+            $volunteerUser['access_code'] = $volunteerPassword;
+        }
+        $this->db->table('volunteer_users')->insert($volunteerUser);
 
         $this->db->table('tasks')->insertBatch([
             ['title' => 'Morning feeding rotation', 'description' => 'Feed shelter cats and refresh water bowls.', 'category' => 'Feeding', 'priority' => 'High', 'status' => 'Pending', 'assigned_to' => 1, 'animal_id' => null, 'task_date' => date('Y-m-d'), 'task_time' => '08:00:00', 'location' => 'Shelter A', 'created_at' => $now, 'updated_at' => $now],

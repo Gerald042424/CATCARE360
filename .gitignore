@@ -64,6 +64,9 @@ Vagrantfile
 # User-uploaded files may contain personal documents and must stay out of Git.
 /public/uploads/
 
+# Local database exports can contain real application records.
+/backups/
+
 /writable/debugbar/*
 !/writable/debugbar/index.html
 

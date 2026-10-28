@@ -7,6 +7,7 @@ use App\Models\AnimalModel;
 use App\Models\AnimalPhotoModel;
 use App\Models\AnimalJourneyEventModel;
 use App\Models\AdopterUserModel;
+use App\Services\CloudStorageService;
 
 class AnimalsController extends BaseController
 {
@@ -49,8 +50,8 @@ class AnimalsController extends BaseController
             }
             $data['species'] = trim((string) ($data['species'] ?? '')) ?: 'Cat';
             $data['image_url'] = $animal['image_url'] ?? null;
-            $uploadPath = FCPATH . 'uploads/cats/';
             $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            $storage = new CloudStorageService();
 
             $image = $this->request->getFile('image');
             if ($image && $image->getError() !== UPLOAD_ERR_NO_FILE) {
@@ -62,13 +63,12 @@ class AnimalsController extends BaseController
                     return redirect()->back()->withInput()->with('error', 'Upload a JPG, PNG, or WebP image up to 5 MB.');
                 }
 
-                if (! is_dir($uploadPath) && ! mkdir($uploadPath, 0755, true) && ! is_dir($uploadPath)) {
-                    return redirect()->back()->withInput()->with('error', 'Unable to prepare the image upload folder.');
+                try {
+                    $data['image_url'] = $storage->store($image, 'cats');
+                } catch (\Throwable $exception) {
+                    log_message('error', 'Cat image upload failed: {message}', ['message' => $exception->getMessage()]);
+                    return redirect()->back()->withInput()->with('error', 'The cat image could not be saved. Please try again.');
                 }
-
-                $fileName = $image->getRandomName();
-                $image->move($uploadPath, $fileName);
-                $data['image_url'] = 'uploads/cats/' . $fileName;
             }
 
             if (! $id && empty($data['image_url'])) {
@@ -96,10 +96,12 @@ class AnimalsController extends BaseController
                 if (! $galleryPhoto->isValid() || $galleryPhoto->hasMoved() || ! in_array($galleryPhoto->getMimeType(), $allowedTypes, true) || $galleryPhoto->getSizeByUnit('mb') > 5) {
                     return redirect()->back()->withInput()->with('error', 'Every backup photo must be a JPG, PNG, or WebP image up to 5 MB.');
                 }
-                if (! is_dir($uploadPath) && ! mkdir($uploadPath, 0755, true) && ! is_dir($uploadPath)) return redirect()->back()->withInput()->with('error', 'Unable to prepare the image upload folder.');
-                $galleryName = $galleryPhoto->getRandomName();
-                $galleryPhoto->move($uploadPath, $galleryName);
-                $photoModel->insert(['animal_id' => $animalId, 'photo_url' => 'uploads/cats/' . $galleryName]);
+                try {
+                    $photoModel->insert(['animal_id' => $animalId, 'photo_url' => $storage->store($galleryPhoto, 'cats')]);
+                } catch (\Throwable $exception) {
+                    log_message('error', 'Cat gallery upload failed: {message}', ['message' => $exception->getMessage()]);
+                    return redirect()->back()->withInput()->with('error', 'A backup photo could not be saved. Please try again.');
+                }
             }
 
             return redirect()->to('/admin/animals')->with('success', 'Cat record saved.');

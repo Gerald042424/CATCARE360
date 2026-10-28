@@ -7,6 +7,7 @@ use App\Models\AdopterUserModel;
 use App\Models\StaffModel;
 use App\Models\VolunteerModel;
 use App\Models\VolunteerUserModel;
+use App\Services\CloudStorageService;
 
 class VolunteersController extends BaseController
 {
@@ -55,13 +56,12 @@ class VolunteersController extends BaseController
                     return redirect()->back()->withInput()->with('error', 'Upload or capture a JPG, PNG, or WebP photo up to 5 MB.');
                 }
 
-                $directory = FCPATH . 'uploads/volunteers/';
-                if (! is_dir($directory) && ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
-                    return redirect()->back()->withInput()->with('error', 'Unable to save the volunteer photo.');
+                try {
+                    $data['image_url'] = (new CloudStorageService())->store($photo, 'volunteers');
+                } catch (\Throwable $exception) {
+                    log_message('error', 'Volunteer photo upload failed: {message}', ['message' => $exception->getMessage()]);
+                    return redirect()->back()->withInput()->with('error', 'Unable to save the volunteer photo. Please try again.');
                 }
-                $filename = $photo->getRandomName();
-                $photo->move($directory, $filename);
-                $data['image_url'] = 'uploads/volunteers/' . $filename;
             }
 
             $users = new VolunteerUserModel();

@@ -10,6 +10,7 @@ use App\Models\ApplicationCatModel;
 use App\Services\DocumentOcrService;
 use App\Services\AdoptionAssessmentService;
 use App\Models\AdoptionAssessmentFlagModel;
+use App\Services\CloudStorageService;
 
 class ApplicationController extends BaseController
 {
@@ -155,19 +156,13 @@ class ApplicationController extends BaseController
             'assessment_updated_at' => date('Y-m-d H:i:s'),
         ]);
 
-        $directory = FCPATH . 'uploads/applications/';
-        if (! is_dir($directory) && ! mkdir($directory, 0755, true) && ! is_dir($directory)) {
-            $applicationModel->delete($applicationId);
-            return redirect()->back()->withInput()->with('error', 'The document upload folder is unavailable. Please try again.');
-        }
-
+        $storage = new CloudStorageService();
         $paths = [];
         try {
             foreach (self::DOCUMENT_FIELDS as $field) {
                 $file = $verificationFiles[$field];
                 $filename = strtolower($field . '_' . $applicationCode . '_' . bin2hex(random_bytes(6)) . '.jpg');
-                $file->move($directory, $filename);
-                $paths[$field . '_path'] = 'uploads/applications/' . $filename;
+                $paths[$field . '_path'] = $storage->store($file, 'applications', $filename);
             }
             $applicationModel->update($applicationId, $paths);
             foreach ($cats as $selectedCat) {
@@ -178,7 +173,10 @@ class ApplicationController extends BaseController
             // staff review, so they cannot delay the applicant's redirect.
         } catch (\Throwable $exception) {
             foreach ($paths as $path) {
-                @unlink(FCPATH . $path);
+                try {
+                    $storage->delete($path);
+                } catch (\Throwable) {
+                }
             }
             $applicationModel->delete($applicationId);
             log_message('error', 'Application document upload failed: {message}', ['message' => $exception->getMessage()]);

@@ -8,6 +8,7 @@ use App\Models\AdoptionApplicationModel;
 use App\Models\AnimalModel;
 use App\Models\PostAdoptionUpdateModel;
 use App\Models\MonitoringSubmissionModel;
+use App\Services\CloudStorageService;
 use App\Models\ApplicationCatModel;
 use App\Models\AnimalPhotoModel;
 use App\Models\AdoptionAssessmentModel;
@@ -260,21 +261,20 @@ class PortalController extends BaseController
         }
 
         $applicationDbId = (int) $applicationModel->getInsertID();
-        $uploadDirectory = FCPATH . 'uploads/applications/';
-        if (! is_dir($uploadDirectory) && ! mkdir($uploadDirectory, 0755, true) && ! is_dir($uploadDirectory)) {
-            $applicationModel->delete($applicationDbId);
-            return redirect()->back()->withInput()->with('error', 'The document upload folder is unavailable. Please try again.');
-        }
-
+        $storage = new CloudStorageService();
         $documentPaths = [];
         try {
             foreach ($verificationFiles as $documentType => $file) {
                 $filename = strtolower($documentType . '_' . $applicationId . '_' . bin2hex(random_bytes(8)) . '.jpg');
-                $file->move($uploadDirectory, $filename);
-                $documentPaths[$documentType] = 'uploads/applications/' . $filename;
+                $documentPaths[$documentType] = $storage->store($file, 'applications', $filename);
             }
         } catch (\Throwable $exception) {
-            foreach ($documentPaths as $path) @unlink(FCPATH . $path);
+            foreach ($documentPaths as $path) {
+                try {
+                    $storage->delete($path);
+                } catch (\Throwable) {
+                }
+            }
             $applicationModel->delete($applicationDbId);
             log_message('error', 'Live application document save failed: {message}', ['message' => $exception->getMessage()]);
             return redirect()->back()->withInput()->with('error', 'The verification photos could not be saved. Please capture them again.');
@@ -568,19 +568,19 @@ class PortalController extends BaseController
         }
         if (! $checkpoint) return redirect()->back()->with('error', 'All required monitoring checkpoints have already been submitted.');
 
-        $updatePath = FCPATH . 'uploads/updates/';
-        if (! is_dir($updatePath)) {
-            mkdir($updatePath, 0755, true);
-        }
-
         $photoName = strtolower('update_' . time() . '_' . uniqid() . '.' . $photo->getExtension());
-        $photo->move($updatePath, $photoName);
+        try {
+            $photoPath = (new CloudStorageService())->store($photo, 'updates', $photoName);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Monitoring photo upload failed: {message}', ['message' => $exception->getMessage()]);
+            return redirect()->back()->withInput()->with('error', 'Your monitoring photo could not be saved. Please try again.');
+        }
 
         if (! $submissionModel->insert([
             'adopter_id' => $user['adopter_id'],
             'adoption_id' => $adoption['id'],
             'checkpoint' => $checkpoint,
-            'photo_url' => 'uploads/updates/' . $photoName,
+            'photo_url' => $photoPath,
             'health_status' => $post['update_type'],
             'behavior_notes' => trim((string) $post['description']),
             'gps_lat' => $latitude,

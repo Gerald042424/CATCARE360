@@ -29,6 +29,13 @@ class App extends BaseConfig
         if ($deploymentUrl !== false && $deploymentUrl !== '') {
             $this->baseURL = rtrim($deploymentUrl, '/') . '/';
         }
+
+        // Vercel forwards clean request paths to api/index.php. Including the
+        // front-controller name in generated links produces routes such as
+        // /index.php/auth/login, which do not exist at the public edge.
+        if (getenv('VERCEL') !== false || getenv('APP_RUNTIME') === 'vercel') {
+            $this->indexPage = '';
+        }
     }
 
     /**

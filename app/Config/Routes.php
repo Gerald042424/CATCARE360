@@ -4,6 +4,8 @@ use CodeIgniter\Router\RouteCollection;
 
 /** @var RouteCollection $routes */
 $routes->get('/', 'Public\LandingController::index');
+$routes->get('media/(:segment)', 'MediaController::show/$1');
+
 $routes->addRedirect('/home', 'adopter/home');
 $routes->get('/application-status', 'Public\ApplicationFormController::status');
 $routes->post('/auth/adopter-login', 'Public\AuthController::adopterLogin');

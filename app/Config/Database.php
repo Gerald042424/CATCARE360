@@ -218,7 +218,13 @@ class Database extends Config
             if ($property === 'port') {
                 $this->default[$property] = (int) $value;
             } elseif ($property === 'encrypt') {
-                $this->default[$property] = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                $useTls = filter_var($value, FILTER_VALIDATE_BOOLEAN);
+                $this->default[$property] = $useTls
+                    ? [
+                        'ssl_ca'     => ROOTPATH . 'config/certs/isrgrootx1.pem',
+                        'ssl_verify' => true,
+                    ]
+                    : false;
             } else {
                 $this->default[$property] = $value;
             }
