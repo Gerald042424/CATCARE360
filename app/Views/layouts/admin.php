@@ -11,7 +11,7 @@
     <link rel="apple-touch-icon-precomposed" sizes="180x180" href="<?= base_url('catcare-apple-touch-v3.png') ?>">
     <link rel="manifest" href="<?= base_url('site.webmanifest') ?>?v=3">
     <meta name="apple-mobile-web-app-title" content="CatCare 360">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -21,7 +21,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>[x-cloak]{display:none!important}.card{background:#fff;border:1px solid #E2E8F0;border-radius:1rem;padding:1.5rem;box-shadow:0 1px 3px rgba(13,126,163,.08),0 1px 2px rgba(13,126,163,.06)}.btn{display:inline-flex;align-items:center;gap:.5rem;border-radius:.5rem;padding:.625rem 1rem;font-size:.875rem;font-weight:600}.btn-primary{background:#0D7EA3;color:white}.btn-primary:hover{background:#0A6A8A}.btn-ghost{background:white;border:1px solid #E2E8F0;color:#334155}.field{width:100%;border-radius:.75rem;border:1px solid #E2E8F0;background:#F8FAFC;padding:.625rem .875rem;font-size:.875rem}.label{display:block;margin-bottom:.375rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748B}</style>
+    <style>[x-cloak]{display:none!important}body{font-family:Inter,sans-serif}h1,h2,h3,.brand,.metric-value{font-family:'Plus Jakarta Sans',Inter,sans-serif;letter-spacing:-.02em}button,input,select,textarea{font-family:inherit}.card{background:#fff;border:1px solid #E2E8F0;border-radius:1rem;padding:1.5rem;box-shadow:0 1px 3px rgba(13,126,163,.08),0 1px 2px rgba(13,126,163,.06)}.btn{display:inline-flex;align-items:center;gap:.5rem;border-radius:.5rem;padding:.625rem 1rem;font-size:.875rem;font-weight:600}.btn-primary{background:#0D7EA3;color:white}.btn-primary:hover{background:#0A6A8A}.btn-ghost{background:white;border:1px solid #E2E8F0;color:#334155}.field{width:100%;border-radius:.75rem;border:1px solid #E2E8F0;background:#F8FAFC;padding:.625rem .875rem;font-size:.875rem}.label{display:block;margin-bottom:.375rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748B}</style>
 </head>
 <body class="font-sans">
 <div class="flex min-h-screen gap-6 bg-slate-50 p-4 text-slate-900">
@@ -30,7 +30,7 @@
             <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-rescue-600 text-white shadow-sm">
                 <i data-lucide="paw-print" class="h-5 w-5"></i>
             </div>
-            <div class="text-xl font-semibold tracking-tight text-slate-900">CatCare</div>
+            <div class="brand text-xl font-semibold tracking-tight text-slate-900">CatCare</div>
         </div>
 
         <?php

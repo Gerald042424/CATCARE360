@@ -13,21 +13,21 @@
     <meta name="apple-mobile-web-app-title" content="CatCare 360">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = { theme: { extend: { colors: { rescue: { 50: '#EFF8FC', 100: '#D4EDF7', 200: '#A9DBEF', 300: '#6DC3E3', 400: '#30A8D2', 500: '#0D7EA3', 600: '#0A6A8A', 700: '#085670', 800: '#064257', 900: '#03293A' }, catgold: { 50: '#FFFBEB', 100: '#FEF3C7', 200: '#FDE68A', 300: '#FCD34D', 400: '#FBBF24', 500: '#F59E0B', 600: '#D97706', 700: '#B45309', 800: '#92400E', 900: '#78350F' }, adopted: { 50: '#F0FDF4', 100: '#DCFCE7', 200: '#BBF7D0', 300: '#86EFAC', 400: '#4ADE80', 500: '#22C55E', 600: '#16A34A', 700: '#15803D', 800: '#166534', 900: '#14532D' }, wanted: { 50: '#FEF2F2', 100: '#FEE2E2', 200: '#FECACA', 300: '#FCA5A5', 400: '#F87171', 500: '#EF4444', 600: '#DC2626', 700: '#B91C1C', 800: '#991B1B', 900: '#7F1D1D' }, foster: { 50: '#FAF5FF', 100: '#F3E8FF', 200: '#E9D5FF', 300: '#D8B4FE', 400: '#C084FC', 500: '#A855F7', 600: '#9333EA', 700: '#7E22CE', 800: '#6B21A8', 900: '#581C87' } } } } };
     </script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>[x-cloak]{display:none!important}body{font-family:Inter,sans-serif;background:#F5F7FA;color:#0F172A}.btn{display:inline-flex;align-items:center;gap:.5rem;border-radius:.5rem;padding:.625rem 1rem;font-size:.875rem;font-weight:600}.btn-primary{background:#0D7EA3;color:white}.btn-primary:hover{background:#0A6A8A}.btn-ghost{background:white;border:1px solid #E2E8F0;color:#334155}.card{background:white;border:1px solid #E2E8F0;border-radius:1rem;padding:1.5rem;box-shadow:0 1px 3px rgba(13,126,163,.08),0 1px 2px rgba(13,126,163,.06)}.field{width:100%;border-radius:.75rem;border:1px solid #E2E8F0;background:#F8FAFC;padding:.625rem .875rem;font-size:.875rem}.label{display:block;margin-bottom:.375rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748B}.terms-page-lock{overflow:hidden}</style>
+    <style>[x-cloak]{display:none!important}body{font-family:Inter,sans-serif;background:#F5F7FA;color:#0F172A}h1,h2,h3,.brand,.metric-value{font-family:'Plus Jakarta Sans',Inter,sans-serif;letter-spacing:-.02em}button,input,select,textarea{font-family:inherit}.btn{display:inline-flex;align-items:center;gap:.5rem;border-radius:.5rem;padding:.625rem 1rem;font-size:.875rem;font-weight:600}.btn-primary{background:#0D7EA3;color:white}.btn-primary:hover{background:#0A6A8A}.btn-ghost{background:white;border:1px solid #E2E8F0;color:#334155}.card{background:white;border:1px solid #E2E8F0;border-radius:1rem;padding:1.5rem;box-shadow:0 1px 3px rgba(13,126,163,.08),0 1px 2px rgba(13,126,163,.06)}.field{width:100%;border-radius:.75rem;border:1px solid #E2E8F0;background:#F8FAFC;padding:.625rem .875rem;font-size:.875rem}.label{display:block;margin-bottom:.375rem;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:#64748B}.terms-page-lock{overflow:hidden}</style>
 </head>
 <body x-data="<?= esc('Object.assign(authState(' . (session('auth_modal') ? 'true' : 'false') . ', ' . json_encode(session('auth_modal') ?: 'signin') . ', ' . json_encode(session('signin_type') ?: 'adopter') . ', ' . json_encode(old('email')) . ', ' . json_encode(session('login_error') ?: '') . '), { mobileMenu: false })', 'attr') ?>">
 <nav class="fixed inset-x-0 top-0 z-40 h-16 border-b border-slate-200 bg-white/95 backdrop-blur">
     <div class="mx-auto flex h-full max-w-7xl items-center justify-between px-4">
         <a href="<?= site_url('/') ?>" class="flex items-center gap-3">
             <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-rescue-600 text-white shadow-sm" style="background-color:#0A6A8A"><i data-lucide="paw-print" class="h-5 w-5"></i></span>
-            <span><span class="block text-sm font-bold tracking-tight">CatCare 360</span><span class="block text-xs font-medium text-slate-500">McKinley West Cats</span></span>
+            <span><span class="brand block text-sm font-bold tracking-tight">CatCare 360</span><span class="block text-xs font-medium text-slate-500">McKinley West Cats</span></span>
         </a>
         <div class="hidden items-center gap-2 md:flex">
             <a href="<?= site_url('/') ?>#home" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">Home</a>
