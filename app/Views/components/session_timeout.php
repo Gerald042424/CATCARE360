@@ -31,6 +31,9 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
     let lastInteractionAt = Date.now();
     let lastKeepAliveAt = Date.now();
     let requestInFlight = false;
+    let keepAliveController = null;
+    let countdownTimerId = null;
+    let signingOut = false;
 
     const showDialog = () => {
         dialog.classList.remove('hidden');
@@ -40,17 +43,37 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
         dialog.classList.add('hidden');
         dialog.classList.remove('flex');
     };
-    const signOut = () => window.location.assign(logoutUrl);
+    const remainingSessionMs = () => {
+        const now = Date.now();
+        return Math.min(idleMs - (now - lastInteractionAt), absoluteExpiresAt - now);
+    };
+    const signOut = () => {
+        if (signingOut) return;
+
+        signingOut = true;
+        if (countdownTimerId !== null) window.clearInterval(countdownTimerId);
+        if (keepAliveController !== null) keepAliveController.abort();
+        countdown.textContent = '0:00';
+        continueButton.disabled = true;
+        continueButton.textContent = 'Signing out…';
+        showDialog();
+
+        // replace() prevents returning to an expired authenticated page and the
+        // guard above prevents repeated redirects while logout is still loading.
+        window.location.replace(logoutUrl);
+    };
 
     async function keepAlive(force = false) {
         const now = Date.now();
-        if (requestInFlight || (!force && now - lastKeepAliveAt < keepAliveThrottleMs)) return;
+        if (signingOut || requestInFlight || (!force && now - lastKeepAliveAt < keepAliveThrottleMs)) return;
         requestInFlight = true;
+        keepAliveController = new AbortController();
         try {
             const response = await fetch(keepAliveUrl, {
                 credentials: 'same-origin',
                 cache: 'no-store',
                 headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                signal: keepAliveController.signal,
             });
             if (response.status === 401) return signOut();
             if (!response.ok) throw new Error('Unable to refresh session');
@@ -58,13 +81,19 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
             lastInteractionAt = lastKeepAliveAt;
             hideDialog();
         } catch (error) {
-            console.warn('Session refresh failed; the next request will verify the session.', error);
+            if (!signingOut && error.name !== 'AbortError') {
+                console.warn('Session refresh failed; the next request will verify the session.', error);
+            }
         } finally {
             requestInFlight = false;
+            keepAliveController = null;
         }
     }
 
     function recordInteraction() {
+        if (signingOut) return;
+        if (remainingSessionMs() <= 0) return signOut();
+
         lastInteractionAt = Date.now();
         hideDialog();
         void keepAlive(false);
@@ -78,9 +107,8 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
     });
     continueButton.addEventListener('click', () => void keepAlive(true));
 
-    window.setInterval(() => {
-        const now = Date.now();
-        const remaining = Math.min(idleMs - (now - lastInteractionAt), absoluteExpiresAt - now);
+    countdownTimerId = window.setInterval(() => {
+        const remaining = remainingSessionMs();
         if (remaining <= 0) return signOut();
         if (remaining <= warningMs) {
             const seconds = Math.max(0, Math.ceil(remaining / 1000));
