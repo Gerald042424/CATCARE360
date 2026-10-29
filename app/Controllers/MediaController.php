@@ -15,7 +15,12 @@ class MediaController extends BaseController
             $isPublic = str_starts_with($pathname, 'cats/')
                 || str_starts_with($pathname, 'volunteers/');
 
-            if (! $isPublic && ! $this->hasAuthenticatedUser()) {
+            if (str_starts_with($pathname, 'applications/')
+                && ! $this->canAccessApplicationDocument($reference)) {
+                return $this->response->setStatusCode(404);
+            }
+
+            if (! $isPublic && ! str_starts_with($pathname, 'applications/') && ! $this->hasAuthenticatedUser()) {
                 return $this->response->setStatusCode(404);
             }
 
@@ -37,5 +42,29 @@ class MediaController extends BaseController
         return (int) session('staff_id') > 0
             || is_array(session('adopter_user'))
             || is_array(session('volunteer_user'));
+    }
+
+    private function canAccessApplicationDocument(string $reference): bool
+    {
+        if ((int) session('staff_id') > 0) {
+            return true;
+        }
+
+        $adopterId = (int) session('adopter_user.adopter_id');
+        if ($adopterId <= 0) {
+            return false;
+        }
+
+        $storedReference = 'media/' . $reference;
+        $builder = db_connect()->table('adoption_applications')
+            ->where('adopter_id', $adopterId)
+            ->groupStart()
+            ->where('selfie_path', $storedReference)
+            ->orWhere('gov_id_path', $storedReference)
+            ->orWhere('address_proof_path', $storedReference)
+            ->orWhere('home_photos_path', $storedReference)
+            ->groupEnd();
+
+        return $builder->countAllResults() > 0;
     }
 }

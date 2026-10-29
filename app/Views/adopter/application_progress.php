@@ -53,4 +53,6 @@ $currentIcon = $approved ? 'check-circle-2' : ($unavailable ? 'circle-alert' : (
     </div>
 </div>
 
+<?php $documentViewerItems = []; foreach ($documents as $label => $field) { if (! empty($application[$field])) { $documentViewerItems[] = ['label' => $label, 'url' => base_url($application[$field])]; } } ?>
+<?= view('components/document_viewer', ['documents' => $documentViewerItems]) ?>
 <?= $this->endSection() ?>
