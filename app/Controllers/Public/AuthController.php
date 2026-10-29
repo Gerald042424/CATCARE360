@@ -377,7 +377,10 @@ HTML;
 
     public function logout()
     {
-        session()->remove(['adopter_user', 'volunteer_user', 'staff_id', 'staff_name', 'staff_email', 'staff_role']);
+        session()->remove([
+            'adopter_user', 'volunteer_user', 'staff_id', 'staff_name', 'staff_email', 'staff_role',
+            'auth_session_identity', 'auth_session_started_at', 'auth_last_activity_at',
+        ]);
 
         return redirect()->to('/')->with('success', 'Signed out successfully.');
     }

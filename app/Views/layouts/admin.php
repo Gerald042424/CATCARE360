@@ -98,5 +98,12 @@
 </div>
 <script>document.addEventListener('DOMContentLoaded', () => lucide.createIcons())</script>
 <?= $this->renderSection('scripts') ?>
+<?= view('components/session_timeout', [
+    'idleSeconds' => config('AuthSession')->staffIdleSeconds,
+    'warningSeconds' => config('AuthSession')->warningSeconds,
+    'absoluteSeconds' => config('AuthSession')->absoluteSeconds,
+    'keepAliveUrl' => site_url('admin/session/keep-alive'),
+    'logoutUrl' => site_url('admin/logout'),
+]) ?>
 </body>
 </html>

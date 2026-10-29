@@ -42,9 +42,16 @@ class AuthController extends BaseController
 
     public function logout()
     {
-        session()->remove('volunteer_user');
+        $inactive = $this->request->getGet('reason') === 'inactive';
+        session()->remove([
+            'volunteer_user', 'auth_session_identity',
+            'auth_session_started_at', 'auth_last_activity_at',
+        ]);
 
-        return redirect()->to('/')->with('success', 'Signed out successfully.');
+        return redirect()->to('/')->with(
+            $inactive ? 'error' : 'success',
+            $inactive ? 'You were signed out for your account safety after being inactive.' : 'Signed out successfully.'
+        );
     }
 
     public function updateSettings()

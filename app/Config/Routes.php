@@ -25,6 +25,7 @@ $routes->post('adopter/register', 'Public\AuthController::register');
 $routes->get('adopter/logout', 'Adopter\AuthController::logout');
 
 $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCollection $routes): void {
+    $routes->get('session/keep-alive', 'SessionController::keepAlive');
     $routes->get('home', 'Adopter\PortalController::home');
     $routes->get('cats/(:num)', 'Adopter\PortalController::catProfile/$1');
     $routes->get('apply', 'Adopter\ApplicationController::index');
@@ -46,6 +47,7 @@ $routes->get('admin/logout', 'Admin\AuthController::logout');
 $routes->addRedirect('admin', 'admin/dashboard');
 
 $routes->group('admin', ['filter' => 'staffAuth'], static function (RouteCollection $routes): void {
+    $routes->get('session/keep-alive', 'SessionController::keepAlive');
     $routes->get('dashboard', 'Admin\DashboardController::index');
     $routes->get('analytics', 'Admin\AnalyticsController::index');
     $routes->get('reports', 'Admin\ReportsController::index');
@@ -91,6 +93,7 @@ $routes->get('volunteer/apply', 'Volunteer\ApplicationController::form');
 $routes->post('volunteer/apply', 'Volunteer\ApplicationController::submit');
 $routes->get('/volunteer/logout', 'Volunteer\AuthController::logout');
 $routes->group('volunteer', ['filter' => 'volunteerAuth'], static function (RouteCollection $routes): void {
+    $routes->get('session/keep-alive', 'SessionController::keepAlive');
     $routes->get('/', 'Volunteer\TasksController::index');
     $routes->get('schedule', 'Volunteer\TasksController::schedule');
     $routes->match(['get', 'post'], 'task/(:num)', 'Volunteer\TasksController::detail/$1');

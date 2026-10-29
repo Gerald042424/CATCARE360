@@ -2,11 +2,9 @@
 
 namespace App\Filters;
 
-use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
-use CodeIgniter\HTTP\ResponseInterface;
 
-class AdopterAuthFilter implements FilterInterface
+class AdopterAuthFilter extends AuthSessionTimeoutFilter
 {
     public function before(RequestInterface $request, $arguments = null)
     {
@@ -14,11 +12,11 @@ class AdopterAuthFilter implements FilterInterface
             return redirect()->to('/')->with('error', 'Please sign in to continue.')->with('auth_modal', 'signin')->with('signin_type', 'adopter');
         }
 
-        return null;
-    }
-
-    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
-    {
-        return null;
+        return $this->enforceTimeout(
+            $request,
+            'adopter',
+            (string) session('adopter_user.id'),
+            config('AuthSession')->adopterIdleSeconds
+        );
     }
 }

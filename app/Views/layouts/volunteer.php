@@ -22,5 +22,12 @@
 <style>select[name="category"] option[value="Adoption"]{display:none!important}</style>
 <script>(function(){function applyVolunteerTaskRules(){document.querySelectorAll('select[name="category"] option[value="Adoption"]').forEach(function(option){option.remove();});var outcome=document.querySelector('select[name="outcome"]');if(outcome){var input=document.createElement('input');input.type='hidden';input.name='outcome';input.value='completed';outcome.closest('div').replaceWith(input);}}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',applyVolunteerTaskRules);else applyVolunteerTaskRules();})();</script>
 <script>lucide.createIcons();</script>
+<?= view('components/session_timeout', [
+    'idleSeconds' => config('AuthSession')->volunteerIdleSeconds,
+    'warningSeconds' => config('AuthSession')->warningSeconds,
+    'absoluteSeconds' => config('AuthSession')->absoluteSeconds,
+    'keepAliveUrl' => site_url('volunteer/session/keep-alive'),
+    'logoutUrl' => site_url('volunteer/logout'),
+]) ?>
 </body>
 </html>

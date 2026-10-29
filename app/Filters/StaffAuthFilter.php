@@ -2,11 +2,9 @@
 
 namespace App\Filters;
 
-use CodeIgniter\Filters\FilterInterface;
 use CodeIgniter\HTTP\RequestInterface;
-use CodeIgniter\HTTP\ResponseInterface;
 
-class StaffAuthFilter implements FilterInterface
+class StaffAuthFilter extends AuthSessionTimeoutFilter
 {
     public function before(RequestInterface $request, $arguments = null)
     {
@@ -14,11 +12,11 @@ class StaffAuthFilter implements FilterInterface
             return redirect()->to('/')->with('error', 'Please sign in to continue.')->with('auth_modal', 'signin');
         }
 
-        return null;
-    }
-
-    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
-    {
-        return null;
+        return $this->enforceTimeout(
+            $request,
+            'staff',
+            (string) session()->get('staff_id'),
+            config('AuthSession')->staffIdleSeconds
+        );
     }
 }

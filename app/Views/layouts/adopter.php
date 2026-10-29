@@ -123,5 +123,14 @@
 </div>
 
 <script>lucide.createIcons();</script>
+<?php if (session('adopter_user')): ?>
+<?= view('components/session_timeout', [
+    'idleSeconds' => config('AuthSession')->adopterIdleSeconds,
+    'warningSeconds' => config('AuthSession')->warningSeconds,
+    'absoluteSeconds' => config('AuthSession')->absoluteSeconds,
+    'keepAliveUrl' => site_url('adopter/session/keep-alive'),
+    'logoutUrl' => site_url('adopter/logout'),
+]) ?>
+<?php endif; ?>
 </body>
 </html>

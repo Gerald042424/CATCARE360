@@ -107,5 +107,12 @@
 <style>select[name="category"] option[value="Adoption"]{display:none!important}</style>
 <script>(function(){function removeLegacyAdoptionCategory(){document.querySelectorAll('select[name="category"] option[value="Adoption"]').forEach(function(option){option.remove();});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',removeLegacyAdoptionCategory);else removeLegacyAdoptionCategory();})();</script>
 <script>document.querySelectorAll('article').forEach(c=>{const h=c.querySelector('h3');if(h&&h.textContent.includes('6. Overall Readiness')){const b=c.querySelector('span.rounded-full');if(b)b.textContent='Unweighted reflection';}})</script>
+<?= view('components/session_timeout', [
+    'idleSeconds' => config('AuthSession')->staffIdleSeconds,
+    'warningSeconds' => config('AuthSession')->warningSeconds,
+    'absoluteSeconds' => config('AuthSession')->absoluteSeconds,
+    'keepAliveUrl' => site_url('admin/session/keep-alive'),
+    'logoutUrl' => site_url('admin/logout'),
+]) ?>
 </body>
 </html>
