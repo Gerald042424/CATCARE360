@@ -4,9 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= esc($title ?? 'CatCare 360') ?></title>
-    <link rel="icon" href="<?= base_url('favicon.ico') ?>?v=catcare360-2" sizes="any">
-    <link rel="icon" type="image/png" href="<?= base_url('catcare-icon.png') ?>?v=catcare360-2">
-    <link rel="apple-touch-icon" href="<?= base_url('apple-touch-icon.png') ?>?v=catcare360-2">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= base_url('catcare-favicon-v3-32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= base_url('catcare-favicon-v3-16.png') ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= base_url('catcare-favicon-v3-32.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= base_url('catcare-apple-touch-v3.png') ?>">
+    <link rel="apple-touch-icon-precomposed" sizes="180x180" href="<?= base_url('catcare-apple-touch-v3.png') ?>">
+    <link rel="manifest" href="<?= base_url('site.webmanifest') ?>?v=3">
+    <meta name="apple-mobile-web-app-title" content="CatCare 360">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">

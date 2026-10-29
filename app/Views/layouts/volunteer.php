@@ -3,9 +3,13 @@
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= esc($title ?? 'Volunteer Portal') ?></title>
-    <link rel="icon" href="<?= base_url('favicon.ico') ?>?v=catcare360-2" sizes="any">
-    <link rel="icon" type="image/png" href="<?= base_url('catcare-icon.png') ?>?v=catcare360-2">
-    <link rel="apple-touch-icon" href="<?= base_url('apple-touch-icon.png') ?>?v=catcare360-2">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?= base_url('catcare-favicon-v3-32.png') ?>">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?= base_url('catcare-favicon-v3-16.png') ?>">
+    <link rel="shortcut icon" type="image/png" href="<?= base_url('catcare-favicon-v3-32.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= base_url('catcare-apple-touch-v3.png') ?>">
+    <link rel="apple-touch-icon-precomposed" sizes="180x180" href="<?= base_url('catcare-apple-touch-v3.png') ?>">
+    <link rel="manifest" href="<?= base_url('site.webmanifest') ?>?v=3">
+    <meta name="apple-mobile-web-app-title" content="CatCare 360">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>tailwind.config={theme:{extend:{colors: { rescue: { 50: '#EFF8FC', 100: '#D4EDF7', 200: '#A9DBEF', 300: '#6DC3E3', 400: '#30A8D2', 500: '#0D7EA3', 600: '#0A6A8A', 700: '#085670', 800: '#064257', 900: '#03293A' }, catgold: { 50: '#FFFBEB', 100: '#FEF3C7', 200: '#FDE68A', 300: '#FCD34D', 400: '#FBBF24', 500: '#F59E0B', 600: '#D97706', 700: '#B45309', 800: '#92400E', 900: '#78350F' }, adopted: { 50: '#F0FDF4', 100: '#DCFCE7', 200: '#BBF7D0', 300: '#86EFAC', 400: '#4ADE80', 500: '#22C55E', 600: '#16A34A', 700: '#15803D', 800: '#166534', 900: '#14532D' }, wanted: { 50: '#FEF2F2', 100: '#FEE2E2', 200: '#FECACA', 300: '#FCA5A5', 400: '#F87171', 500: '#EF4444', 600: '#DC2626', 700: '#B91C1C', 800: '#991B1B', 900: '#7F1D1D' }, foster: { 50: '#FAF5FF', 100: '#F3E8FF', 200: '#E9D5FF', 300: '#D8B4FE', 400: '#C084FC', 500: '#A855F7', 600: '#9333EA', 700: '#7E22CE', 800: '#6B21A8', 900: '#581C87' } }}}}</script><script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
