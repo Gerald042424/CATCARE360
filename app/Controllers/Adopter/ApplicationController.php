@@ -232,7 +232,7 @@ class ApplicationController extends BaseController
         $latitude = filter_var($metadata['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($metadata['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($metadata['accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
-        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || $accuracy < 0) {
+        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || $accuracy <= 0 || $accuracy > 75) {
             return "{$label} needs a valid current GPS location.";
         }
         if ($file->getSize() < 8 * 1024 || $file->getSizeByUnit('mb') > 10 || ! in_array(strtolower($file->getExtension()), ['jpg', 'jpeg'], true)) {
