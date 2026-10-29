@@ -25,7 +25,7 @@
     var helpEl = document.getElementById('cameraHelp');
     var photoError = document.getElementById('photoError');
     var form = document.getElementById('updateForm');
-    var adopterAddress = form ? (form.dataset.adopterAddress || '').trim() : '';
+    var currentPlace = null;
     var stream = null;
     var facingMode = 'environment';
     var cameraReady = false;
@@ -63,12 +63,32 @@
         captureBtn.disabled = !(cameraReady && locationReady);
     }
 
-    function saveLocation(pos) {
+    function coordinateLocation(coords) {
+        return 'GPS ' + coords.latitude.toFixed(6) + ', ' + coords.longitude.toFixed(6);
+    }
+
+    async function resolveGpsLocation(coords) {
+        var fallback = { location: coordinateLocation(coords), source: 'gps_coordinates', attribution: null };
+        if (!form || !form.dataset.reverseGeocodeUrl) return fallback;
+        try {
+            var url = new URL(form.dataset.reverseGeocodeUrl, window.location.origin);
+            url.searchParams.set('latitude', coords.latitude);
+            url.searchParams.set('longitude', coords.longitude);
+            var response = await fetch(url.toString(), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            if (!response.ok) return fallback;
+            var data = await response.json();
+            return data && data.location ? { location: data.location, source: data.source || 'gps_coordinates', attribution: data.attribution || null } : fallback;
+        } catch (reason) { return fallback; }
+    }
+
+    async function saveLocation(pos) {
         latitudeInput.value = pos.coords.latitude;
         longitudeInput.value = pos.coords.longitude;
         accuracyInput.value = pos.coords.accuracy;
+        locationStatusText.textContent = 'GPS found. Reading the current place/address…';
+        currentPlace = await resolveGpsLocation(pos.coords);
         locationReady = true;
-        locationStatusText.textContent = 'Location captured (±' + Math.round(pos.coords.accuracy) + ' m) ✓';
+        locationStatusText.textContent = currentPlace.location + ' (±' + Math.round(pos.coords.accuracy) + ' m) ✓';
         locationStatus.classList.remove('text-gray-500', 'text-red-600');
         locationStatus.classList.add('text-emerald-600');
         locationBtn.disabled = false;
@@ -84,6 +104,7 @@
         latitudeInput.value = '';
         longitudeInput.value = '';
         accuracyInput.value = '';
+        currentPlace = null;
         updateCaptureButton();
         locationBtn.disabled = true;
         locationStatusText.textContent = 'Getting your current location…';
@@ -180,16 +201,20 @@
         var stampLines = [
             'CATCARE 360 • LIVE CAMERA',
             now.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium' }),
-            'ADDRESS: ' + (adopterAddress || 'Not set — update your profile'),
+            'CURRENT GPS LOCATION: ' + (currentPlace ? currentPlace.location : coordinateLocation({ latitude: Number(latitudeInput.value), longitude: Number(longitudeInput.value) })),
             'GPS: ' + Number(latitudeInput.value).toFixed(6) + ', ' + Number(longitudeInput.value).toFixed(6) + '  ±' + Math.round(Number(accuracyInput.value)) + ' m'
         ];
+        if (currentPlace && currentPlace.attribution) stampLines.push(currentPlace.attribution);
         var stampHeight = (fontSize * 1.45 * stampLines.length) + (fontSize * 1.5);
         context.fillStyle = 'rgba(0, 0, 0, 0.68)';
         context.fillRect(0, canvas.height - stampHeight, canvas.width, stampHeight);
         context.fillStyle = '#ffffff';
         context.font = '600 ' + fontSize + 'px Arial, sans-serif';
         stampLines.forEach(function (line, index) {
-            context.fillText(line, fontSize, canvas.height - stampHeight + fontSize * (1.35 + (index * 1.45)));
+            var available = canvas.width - fontSize * 2, fitted = line;
+            while (fitted.length > 12 && context.measureText(fitted + '…').width > available) fitted = fitted.slice(0, -1);
+            if (fitted !== line) fitted += '…';
+            context.fillText(fitted, fontSize, canvas.height - stampHeight + fontSize * (1.35 + (index * 1.45)));
         });
         enhanceDarkCapture(canvas);
         canvas.toBlob(function (blob) {
@@ -205,7 +230,8 @@
             deviceInfoInput.value = JSON.stringify({
                 platform: navigator.platform || '', language: navigator.language || '',
                 screen: (window.screen.width || '') + 'x' + (window.screen.height || ''),
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '', capturedAt: new Date().toISOString()
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '', capturedAt: new Date().toISOString(),
+                location: currentPlace ? currentPlace.location : '', locationSource: currentPlace ? currentPlace.source : 'gps_coordinates'
             });
             preview.src = URL.createObjectURL(file);
             preview.classList.remove('hidden');
@@ -232,11 +258,6 @@
     locationBtn.addEventListener('click', captureLocation);
 
     form.addEventListener('submit', function (event) {
-        if (!adopterAddress) {
-            event.preventDefault();
-            showPhotoError('Add your complete address in your Adopter Profile before submitting an update.');
-            return;
-        }
         if (!hiddenInput.files.length || captureSourceInput.value !== 'in_app_camera') {
             event.preventDefault();
             showPhotoError('Please capture a live photo using the in-app camera before submitting.');

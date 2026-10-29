@@ -26,6 +26,7 @@ $routes->get('adopter/logout', 'Adopter\AuthController::logout');
 
 $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCollection $routes): void {
     $routes->get('session/keep-alive', 'SessionController::keepAlive');
+    $routes->get('location/reverse', 'Adopter\LocationController::reverse');
     $routes->get('home', 'Adopter\PortalController::home');
     $routes->get('cats/(:num)', 'Adopter\PortalController::catProfile/$1');
     $routes->get('apply', 'Adopter\ApplicationController::index');

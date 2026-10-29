@@ -48,7 +48,7 @@
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4">Submit Update</h3>
-                <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-adopter-address="<?= esc($adopter['address'] ?? '') ?>" class="space-y-4">
+                <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" class="space-y-4">
                     <?= csrf_field() ?>
                     <input type="hidden" name="cat_id" value="<?= esc($cat['id'] ?? '') ?>">
                     <div>
@@ -81,7 +81,7 @@
                                 <img id="photoPreview" src="" alt="Preview — click to view fullscreen" class="hidden w-full max-h-64 cursor-zoom-in rounded-lg border border-slate-200 object-cover">
                             </div>
 
-                            <p class="mt-2 text-xs text-slate-500">For authenticity, only a live photo captured in this page is accepted. The final photo is stamped with your profile address, GPS, date, time, and measured accuracy. Existing gallery files cannot be uploaded.</p>
+                            <p class="mt-2 text-xs text-slate-500">For authenticity, only a live photo captured on this page is accepted. The final photo is stamped with the device’s current GPS place, coordinates, date, time, and measured accuracy—not the profile address.</p>
                         </div>
                     </div>
                     <div>
