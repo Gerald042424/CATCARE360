@@ -5,7 +5,7 @@
     <div class="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/65 to-slate-900/20"></div>
     <div class="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center px-4 pb-16">
         <div class="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur"><span class="h-2 w-2 animate-pulse rounded-full bg-adopted-400"></span>McKinley West Cats - Open for Adoption</span></div>
-        <h1 class="max-w-4xl text-5xl font-bold tracking-[-.025em] text-white md:text-7xl">Give a Cat a <span class="text-rescue-400">Forever Home.</span></h1>
+        <h1 class="max-w-4xl text-5xl font-bold tracking-[-.025em] text-white md:text-7xl"><span class="block">Give a Cat a</span><span class="mt-1 block text-rescue-400 md:mt-2">Forever Home.</span></h1>
         <p class="mt-6 max-w-xl text-xl leading-8 text-slate-200">A secure adoption and volunteer management system for tracking rescue cats, rule-based applications, 3-3-3 compliance, and community care.</p>
         <div class="mt-8 flex flex-wrap gap-3"><a href="#" @click.prevent="authOpen=true; authTab='signup'; signType='adopter'" class="btn btn-primary"><i data-lucide="heart" class="h-4 w-4"></i>Adopt a Cat</a><a href="#volunteer" class="btn border border-white/20 bg-white/15 text-white hover:bg-white/20">Become a Volunteer</a></div>
         <div class="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce text-center text-xs font-bold tracking-wider text-white/70"><i data-lucide="chevron-down" class="mx-auto h-5 w-5"></i>SCROLL</div>
