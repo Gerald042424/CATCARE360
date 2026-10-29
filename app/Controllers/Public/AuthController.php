@@ -77,65 +77,92 @@ class AuthController extends BaseController
         if (! filter_var($emailAddress, FILTER_VALIDATE_EMAIL)) {
             return $this->response->setStatusCode(422)->setJSON(['errors' => ['email' => 'Enter a valid email address.']]);
         }
-        $user = (new AdopterUserModel())->where('email', $emailAddress)->first();
-        if (! $user) {
-            return $this->response->setStatusCode(422)->setJSON(['errors' => ['email' => 'We could not find an adopter account with that email.']]);
+        $accounts = $this->accountsForEmail($emailAddress);
+        $account = count($accounts) === 1 ? $accounts[0] : null;
+        if (count($accounts) > 1) {
+            log_message('error', 'Duplicate password-reset email found across account roles: {email}', ['email' => $emailAddress]);
         }
-        $pending = session('adopter_password_reset');
+        $pending = session('password_reset');
         if ($pending && ($pending['email'] ?? '') === $emailAddress && ($pending['resend_after'] ?? 0) > time()) {
             return $this->response->setStatusCode(429)->setJSON(['errors' => ['form' => 'Please wait a moment before requesting another code.']]);
         }
         $code = (string) random_int(100000, 999999);
-        session()->set('adopter_password_reset', ['email' => $emailAddress, 'code_hash' => password_hash($code, PASSWORD_DEFAULT), 'expires_at' => time() + 600, 'resend_after' => time() + 60, 'attempts' => 0]);
+        session()->set('password_reset', [
+            'email' => $emailAddress,
+            'account_id' => $account['id'] ?? null,
+            'account_type' => $account['type'] ?? null,
+            'code_hash' => password_hash($code, PASSWORD_DEFAULT),
+            'expires_at' => time() + 600,
+            'resend_after' => time() + 60,
+            'attempts' => 0,
+        ]);
+
+        // Always return the same public response so this form cannot be used
+        // to discover registered staff, volunteer, or adopter email addresses.
+        if (! $account) {
+            return $this->response->setJSON(['message' => 'If an account exists for that email, a six-digit reset code has been sent.', 'email' => $emailAddress]);
+        }
+
         $email = service('email'); $config = config('Email');
         $email->setFrom($config->fromEmail ?: 'no-reply@catcare360.org', $config->fromName ?: 'CatCare 360');
         $email->setTo($emailAddress); $email->setSubject('Reset your CatCare 360 password'); $email->setMailType('html');
         $email->setMessage($this->passwordResetEmailTemplate($code));
         if (! $email->send()) {
-            session()->remove('adopter_password_reset');
+            session()->remove('password_reset');
             log_message('error', 'Password reset code email could not be sent to {email}.', ['email' => $emailAddress]);
             return $this->response->setStatusCode(503)->setJSON(['errors' => ['form' => 'We could not send the reset code. Please try again shortly.']]);
         }
-        return $this->response->setJSON(['message' => 'A six-digit reset code has been sent.', 'email' => $emailAddress]);
+        return $this->response->setJSON(['message' => 'If an account exists for that email, a six-digit reset code has been sent.', 'email' => $emailAddress]);
     }
 
     public function resetPassword()
     {
-        $pending = session('adopter_password_reset');
+        $pending = session('password_reset');
         $password = (string) $this->request->getPost('password');
         $confirmPassword = (string) $this->request->getPost('confirm_password');
         if (! $pending || ($pending['expires_at'] ?? 0) < time() || ($pending['verified_at'] ?? 0) < time() - 600) {
-            session()->remove('adopter_password_reset');
+            session()->remove('password_reset');
             return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => 'Verify your reset code before creating a new password.']]);
         }
         $errors = [];
         if ($passwordError = $this->passwordStrengthError($password)) $errors['password'] = $passwordError;
         if ($password !== $confirmPassword) $errors['confirm_password'] = 'Passwords do not match.';
         if ($errors) return $this->response->setStatusCode(422)->setJSON(['errors' => $errors]);
-        (new AdopterUserModel())->where('email', $pending['email'])->set('password_hash', password_hash($password, PASSWORD_DEFAULT))->update();
-        session()->remove('adopter_password_reset');
+        $accountId = filter_var($pending['account_id'] ?? null, FILTER_VALIDATE_INT);
+        $model = match ($pending['account_type'] ?? null) {
+            'staff' => new StaffModel(),
+            'volunteer' => new VolunteerUserModel(),
+            'adopter' => new AdopterUserModel(),
+            default => null,
+        };
+        if (! $model || $accountId === false || ! $model->find($accountId)) {
+            session()->remove('password_reset');
+            return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => 'This reset session is no longer valid. Please request a new code.']]);
+        }
+        $model->update($accountId, ['password_hash' => password_hash($password, PASSWORD_DEFAULT)]);
+        session()->remove('password_reset');
         return $this->response->setJSON(['message' => 'Password updated. You can now sign in.']);
     }
 
     public function verifyPasswordResetCode()
     {
-        $pending = session('adopter_password_reset');
+        $pending = session('password_reset');
         $code = preg_replace('/\D/', '', (string) $this->request->getPost('code'));
         if (! $pending || ($pending['expires_at'] ?? 0) < time()) {
-            session()->remove('adopter_password_reset');
+            session()->remove('password_reset');
             return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => 'Your reset session has expired. Please request a new code.']]);
         }
         if (strlen($code) !== 6 || ! password_verify($code, $pending['code_hash'])) {
             $pending['attempts'] = ((int) ($pending['attempts'] ?? 0)) + 1;
             if ($pending['attempts'] >= 5) {
-                session()->remove('adopter_password_reset');
+                session()->remove('password_reset');
                 return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => 'Too many incorrect attempts. Request a new code.']]);
             }
-            session()->set('adopter_password_reset', $pending);
+            session()->set('password_reset', $pending);
             return $this->response->setStatusCode(422)->setJSON(['errors' => ['code' => 'The reset code is incorrect. Please try again.']]);
         }
         $pending['verified_at'] = time();
-        session()->set('adopter_password_reset', $pending);
+        session()->set('password_reset', $pending);
         return $this->response->setJSON(['message' => 'Code verified.']);
     }
 
