@@ -10,7 +10,7 @@
   },
   "routes": [
     {
-      "src": "/(.*\\.(?:css|js|map|ico|png|jpe?g|gif|svg|webp|woff2?|ttf))",
+      "src": "/(.*\\.(?:css|js|map|json|webmanifest|ico|png|jpe?g|gif|svg|webp|woff2?|ttf))",
       "dest": "/public/$1"
     },
     {
