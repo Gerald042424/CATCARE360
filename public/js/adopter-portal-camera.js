@@ -205,16 +205,24 @@
             'GPS: ' + Number(latitudeInput.value).toFixed(6) + ', ' + Number(longitudeInput.value).toFixed(6) + '  ±' + Math.round(Number(accuracyInput.value)) + ' m'
         ];
         if (currentPlace && currentPlace.attribution) stampLines.push(currentPlace.attribution);
-        var stampHeight = (fontSize * 1.45 * stampLines.length) + (fontSize * 1.5);
+        context.font = '600 ' + fontSize + 'px Arial, sans-serif';
+        var wrappedStampLines = [];
+        stampLines.forEach(function (line) {
+            var words = line.split(/\s+/), current = '';
+            words.forEach(function (word) {
+                var candidate = current ? current + ' ' + word : word;
+                if (!current || context.measureText(candidate).width <= canvas.width - fontSize * 2) { current = candidate; return; }
+                wrappedStampLines.push(current);
+                current = word;
+            });
+            if (current) wrappedStampLines.push(current);
+        });
+        var stampHeight = (fontSize * 1.45 * wrappedStampLines.length) + (fontSize * 1.5);
         context.fillStyle = 'rgba(0, 0, 0, 0.68)';
         context.fillRect(0, canvas.height - stampHeight, canvas.width, stampHeight);
         context.fillStyle = '#ffffff';
-        context.font = '600 ' + fontSize + 'px Arial, sans-serif';
-        stampLines.forEach(function (line, index) {
-            var available = canvas.width - fontSize * 2, fitted = line;
-            while (fitted.length > 12 && context.measureText(fitted + '…').width > available) fitted = fitted.slice(0, -1);
-            if (fitted !== line) fitted += '…';
-            context.fillText(fitted, fontSize, canvas.height - stampHeight + fontSize * (1.35 + (index * 1.45)));
+        wrappedStampLines.forEach(function (line, index) {
+            context.fillText(line, fontSize, canvas.height - stampHeight + fontSize * (1.35 + (index * 1.45)));
         });
         enhanceDarkCapture(canvas);
         canvas.toBlob(function (blob) {
