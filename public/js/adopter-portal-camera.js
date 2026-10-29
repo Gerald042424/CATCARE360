@@ -30,9 +30,6 @@
     var facingMode = 'environment';
     var cameraReady = false;
     var locationReady = false;
-    var locationWatchId = null;
-    var locationSearchTimer = null;
-    var locationSettleTimer = null;
 
     if (!startBtn) return;
 
@@ -88,10 +85,10 @@
         latitudeInput.value = pos.coords.latitude;
         longitudeInput.value = pos.coords.longitude;
         accuracyInput.value = pos.coords.accuracy;
-        locationStatusText.textContent = 'Precise GPS found. Reading the nearest mapped address…';
+        locationStatusText.textContent = 'Reading current address…';
         currentPlace = await resolveGpsLocation(pos.coords);
         locationReady = true;
-        locationStatusText.textContent = 'Nearest mapped address: ' + currentPlace.location + ' (GPS ±' + Math.round(pos.coords.accuracy) + ' m) ✓';
+        locationStatusText.textContent = currentPlace.location + ' (GPS ±' + Math.round(pos.coords.accuracy) + ' m) ✓';
         locationStatus.classList.remove('text-gray-500', 'text-red-600');
         locationStatus.classList.add('text-emerald-600');
         locationBtn.disabled = false;
@@ -103,12 +100,6 @@
             showLocationError('Geolocation is not supported by this browser.');
             return;
         }
-        if (locationWatchId !== null) navigator.geolocation.clearWatch(locationWatchId);
-        clearTimeout(locationSearchTimer);
-        clearTimeout(locationSettleTimer);
-        locationWatchId = null;
-        locationSearchTimer = null;
-        locationSettleTimer = null;
         locationReady = false;
         latitudeInput.value = '';
         longitudeInput.value = '';
@@ -116,48 +107,15 @@
         currentPlace = null;
         updateCaptureButton();
         locationBtn.disabled = true;
-        locationStatusText.textContent = 'Finding a precise GPS location… Keep the device still.';
+        locationStatusText.textContent = 'Getting current location…';
         locationStatus.classList.remove('hidden');
         locationStatus.classList.remove('text-red-600');
         locationStatus.classList.add('text-gray-500');
 
-        var bestPosition = null, finished = false;
-        function cleanupLocationSearch() {
-            if (locationWatchId !== null) navigator.geolocation.clearWatch(locationWatchId);
-            clearTimeout(locationSearchTimer);
-            clearTimeout(locationSettleTimer);
-            locationWatchId = null;
-        }
-        async function finishLocationSearch() {
-            if (finished) return;
-            finished = true;
-            cleanupLocationSearch();
-            if (!bestPosition) {
-                showLocationError('No GPS reading was received. Enable Precise Location and try again.');
-                locationBtn.disabled = false;
-                return;
-            }
-            if (bestPosition.coords.accuracy > 75) {
-                showLocationError('GPS accuracy is only ±' + Math.round(bestPosition.coords.accuracy) + ' m. Move near a window or outdoors, enable Precise Location, or use a phone, then retry.');
-                locationBtn.disabled = false;
-                return;
-            }
-            await saveLocation(bestPosition);
-        }
-        locationWatchId = navigator.geolocation.watchPosition(function (position) {
-            if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) bestPosition = position;
-            locationStatusText.textContent = 'Improving GPS accuracy… Best reading: ±' + Math.round(bestPosition.coords.accuracy) + ' m';
-            if (bestPosition.coords.accuracy <= 25) return finishLocationSearch();
-            if (bestPosition.coords.accuracy <= 50 && locationSettleTimer === null) locationSettleTimer = setTimeout(finishLocationSearch, 2500);
-        }, function (err) {
-            if (err.code === 1) {
-                cleanupLocationSearch();
-                finished = true;
-                showLocationError('Precise location permission is required. Allow it in the browser settings, then try again.');
-                locationBtn.disabled = false;
-            }
-        }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
-        locationSearchTimer = setTimeout(finishLocationSearch, 20000);
+        navigator.geolocation.getCurrentPosition(saveLocation, function (err) {
+            showLocationError('Location is required: ' + err.message + '. Allow location access in the browser, then try again.');
+            locationBtn.disabled = false;
+        }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
     }
 
     async function requestCamera() {
@@ -240,7 +198,7 @@
         var stampLines = [
             'CATCARE 360 • LIVE CAMERA',
             now.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium' }),
-            'NEAREST MAPPED ADDRESS: ' + (currentPlace ? currentPlace.location : coordinateLocation({ latitude: Number(latitudeInput.value), longitude: Number(longitudeInput.value) })),
+            'ADDRESS: ' + (currentPlace ? currentPlace.location : coordinateLocation({ latitude: Number(latitudeInput.value), longitude: Number(longitudeInput.value) })),
             'GPS: ' + Number(latitudeInput.value).toFixed(6) + ', ' + Number(longitudeInput.value).toFixed(6) + '  ±' + Math.round(Number(accuracyInput.value)) + ' m'
         ];
         if (currentPlace && currentPlace.attribution) stampLines.push(currentPlace.attribution);

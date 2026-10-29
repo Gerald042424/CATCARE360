@@ -341,7 +341,7 @@ class PortalController extends BaseController
         $latitude = filter_var($metadata['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($metadata['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($metadata['accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
-        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || $accuracy <= 0 || $accuracy > 75) {
+        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || $accuracy < 0) {
             return "{$label} needs a valid current GPS location. Allow location access and capture it again.";
         }
         if ($file->getSize() < 8 * 1024 || $file->getSizeByUnit('mb') > 10) {
@@ -548,7 +548,7 @@ class PortalController extends BaseController
         $latitude = filter_var($post['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($post['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($post['gps_accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
-        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || $accuracy <= 0 || $accuracy > 75) {
+        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
             return redirect()->back()->withInput()->with('error', 'Location verification is required. Please allow location access, then capture again.');
         }
 

@@ -22,7 +22,7 @@ class LocationController extends BaseController
         }
 
         $fallback = sprintf('GPS %.6f, %.6f', $latitude, $longitude);
-        $cacheKey = 'gps_address_' . hash('sha256', sprintf('%.4f,%.4f', $latitude, $longitude));
+        $cacheKey = 'gps_address_v2_' . hash('sha256', sprintf('%.4f,%.4f', $latitude, $longitude));
 
         try {
             $cached = cache()->get($cacheKey);
@@ -59,7 +59,7 @@ class LocationController extends BaseController
 
                 if ($response->getStatusCode() === 200) {
                     $decoded = json_decode($response->getBody(), true);
-                    $displayName = trim((string) ($decoded['display_name'] ?? ''));
+                    $displayName = $this->formatPostalAddress(is_array($decoded) ? $decoded : []);
                     if ($displayName !== '') {
                         $payload = [
                             'location' => mb_substr(preg_replace('/\s+/', ' ', $displayName) ?? $displayName, 0, 300),
@@ -95,5 +95,42 @@ class LocationController extends BaseController
         return $this->response
             ->setHeader('Cache-Control', 'private, no-store')
             ->setJSON($payload);
+    }
+
+    /** Build a short Philippine postal-style address from OSM address parts. */
+    private function formatPostalAddress(array $result): string
+    {
+        $address = is_array($result['address'] ?? null) ? $result['address'] : [];
+        $first = static function (array $keys) use ($address): string {
+            foreach ($keys as $key) {
+                $value = trim((string) ($address[$key] ?? ''));
+                if ($value !== '') return $value;
+            }
+            return '';
+        };
+
+        $houseNumber = $first(['house_number', 'house_name']);
+        $road = $first(['road', 'pedestrian', 'residential', 'street', 'highway']);
+        $street = trim($houseNumber . ' ' . $road);
+        $area = $first(['suburb', 'quarter', 'neighbourhood', 'borough', 'village', 'city_block', 'city_district']);
+        $city = $first(['city', 'municipality', 'town']);
+        $postcode = $first(['postcode']);
+        $region = $first(['state', 'region', 'province']);
+        $postalRegion = trim($postcode . ' ' . $region);
+
+        $parts = [];
+        foreach ([$street, $area, $city, $postalRegion] as $part) {
+            $part = preg_replace('/\s+/', ' ', trim($part)) ?? trim($part);
+            if ($part === '') continue;
+            $duplicate = false;
+            foreach ($parts as $existing) {
+                if (strcasecmp($existing, $part) === 0) { $duplicate = true; break; }
+            }
+            if (! $duplicate) $parts[] = $part;
+        }
+
+        $formatted = implode(', ', $parts);
+        if ($formatted === '') $formatted = trim((string) ($result['display_name'] ?? ''));
+        return mb_substr($formatted, 0, 300);
     }
 }
