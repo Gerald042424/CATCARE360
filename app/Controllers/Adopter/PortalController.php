@@ -105,21 +105,7 @@ class PortalController extends BaseController
             $assessmentRows = (new AdoptionAssessmentModel())
                 ->where('application_id', $portalApplication['id'])
                 ->findAll();
-            $rowsByKey = array_column($assessmentRows, null, 'criterion_key');
-            $portalApplication['assessment_rows'] = [];
-            foreach ((new AdoptionAssessmentService())->criteria() as $key => $criterion) {
-                $portalApplication['assessment_rows'][] = array_merge(
-                    $criterion,
-                    $rowsByKey[$key] ?? ['criterion_key' => $key, 'response' => '', 'rating' => null, 'earned_points' => null],
-                );
-            }
-            if (isset($rowsByKey['overall_reflection'])) {
-                $portalApplication['assessment_rows'][] = array_merge([
-                    'criterion_key' => 'overall_reflection',
-                    'label' => 'Overall Readiness and Responsible Follow-Through',
-                    'weight' => 0,
-                ], $rowsByKey['overall_reflection']);
-            }
+            $portalApplication['question_groups'] = $this->groupApplicationAnswers($assessmentRows);
         }
 
         return view('adopter/portal', [
@@ -139,6 +125,65 @@ class PortalController extends BaseController
                 ->orderBy('created_at', 'DESC')
                 ->findAll(),
         ]);
+    }
+
+    private function groupApplicationAnswers(array $assessmentRows): array
+    {
+        $assessmentService = new AdoptionAssessmentService();
+        $criteria = $assessmentService->criteria();
+        $questionGroups = [];
+        foreach ($assessmentService->groups() as $groupKey => $definition) {
+            $questionGroups[$groupKey] = [
+                'title' => $definition['title'],
+                'question' => $definition['question'],
+                'main_answer' => '',
+                'subquestions' => array_map(
+                    static fn (string $question): array => ['question' => $question, 'answer' => ''],
+                    $definition['subquestions'] ?? [],
+                ),
+            ];
+        }
+
+        foreach ($assessmentRows as $assessmentRow) {
+            $criterionKey = (string) ($assessmentRow['criterion_key'] ?? '');
+            $groupKey = $criterionKey === 'overall_reflection'
+                ? 'reflection'
+                : (string) ($criteria[$criterionKey]['group'] ?? '');
+            if ($groupKey === '' || ! isset($questionGroups[$groupKey])) {
+                continue;
+            }
+            if (! preg_match_all(
+                '/^(Main answer|Subquestion\s+(\d+)):\s*(.*?)(?=^Main answer:|^Subquestion\s+\d+:|\z)/msi',
+                (string) ($assessmentRow['response'] ?? ''),
+                $matches,
+                PREG_SET_ORDER,
+            )) {
+                continue;
+            }
+            foreach ($matches as $match) {
+                $answer = trim((string) ($match[3] ?? ''));
+                if ($answer === '') {
+                    continue;
+                }
+                if (strcasecmp((string) $match[1], 'Main answer') === 0) {
+                    if ($questionGroups[$groupKey]['main_answer'] === '') {
+                        $questionGroups[$groupKey]['main_answer'] = $answer;
+                    }
+                    continue;
+                }
+                $subquestionIndex = ((int) ($match[2] ?? 0)) - 1;
+                if (isset($questionGroups[$groupKey]['subquestions'][$subquestionIndex])
+                    && $questionGroups[$groupKey]['subquestions'][$subquestionIndex]['answer'] === '') {
+                    $questionGroups[$groupKey]['subquestions'][$subquestionIndex]['answer'] = $answer;
+                }
+            }
+        }
+
+        return array_values(array_filter(
+            $questionGroups,
+            static fn (array $group): bool => $group['main_answer'] !== ''
+                || array_filter($group['subquestions'], static fn (array $subquestion): bool => $subquestion['answer'] !== '') !== [],
+        ));
     }
 
     public function home()

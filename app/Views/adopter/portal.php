@@ -11,12 +11,6 @@ $applicationDocuments = ! empty($portalApplication) ? [
     'Indoor Living Area' => $portalApplication['home_photos_path'] ?? null,
     'Windows / Outdoor Access Area' => $verificationMetadata['home_access']['stored_path'] ?? null,
 ] : [];
-$applicationAnswers = ! empty($portalApplication['assessment_rows'])
-    ? array_values(array_filter(
-        $portalApplication['assessment_rows'],
-        static fn (array $row): bool => trim((string) ($row['response'] ?? '')) !== '',
-    ))
-    : [];
 ?>
 
 <div x-data="{ applicationOpen: false, catOpen: false, updatePhoto: '', updatePhotoLabel: '' }" class="max-w-6xl mx-auto px-6 py-12">
@@ -161,7 +155,35 @@ $applicationAnswers = ! empty($portalApplication['assessment_rows'])
             <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6"><div><p class="text-xs font-bold uppercase tracking-[.14em] text-rescue-600"><?= esc($portalApplication['application_id'] ?? 'Application') ?></p><h2 id="application-modal-title" class="mt-1 text-xl font-semibold text-slate-900">Full Adoption Application</h2><p class="mt-1 text-sm text-slate-500">Submitted <?= ! empty($portalApplication['submitted_at']) ? esc(date('F d, Y h:i A', strtotime($portalApplication['submitted_at']))) : 'date unavailable' ?></p></div><button type="button" @click="applicationOpen = false" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close full application"><i data-lucide="x" class="h-5 w-5"></i></button></header>
             <div class="space-y-6 overflow-y-auto p-5 sm:p-6">
                 <section><div class="flex items-center justify-between gap-3"><h3 class="font-semibold text-slate-900">Application Summary</h3><?= statusBadge($portalApplication['status'] ?? 'Under Review') ?></div><dl class="mt-4 grid gap-4 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2"><div><dt class="text-slate-500">Full name</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['full_name'] ?? '—') ?></dd></div><div><dt class="text-slate-500">Phone</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['phone'] ?? '—') ?></dd></div><div><dt class="text-slate-500">Occupation</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['occupation'] ?? '—') ?></dd></div><div><dt class="text-slate-500">Assessment score</dt><dd class="mt-1 font-semibold text-slate-900"><?= isset($portalApplication['assessment_score']) ? esc(number_format((float) $portalApplication['assessment_score'], 2)) . '%' : '—' ?></dd></div><div class="sm:col-span-2"><dt class="text-slate-500">Address</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['address'] ?? '—') ?></dd></div></dl></section>
-                <?php if ($applicationAnswers): ?><section><h3 class="font-semibold text-slate-900">Application Answers</h3><div class="mt-3 space-y-3"><?php foreach ($applicationAnswers as $row): ?><article class="rounded-xl border border-slate-200 p-4"><h4 class="text-sm font-semibold text-slate-900"><?= esc($row['label'] ?? $row['criterion_key']) ?></h4><p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700"><?= esc($row['response']) ?></p></article><?php endforeach; ?></div></section><?php endif; ?>
+                <?php if (! empty($portalApplication['question_groups'])): ?>
+                <section>
+                    <h3 class="font-semibold text-slate-900">Application Answers</h3>
+                    <p class="mt-1 text-sm text-slate-500">Each numbered section shows one main question followed by its four subquestions.</p>
+                    <div class="mt-4 space-y-5">
+                        <?php foreach ($portalApplication['question_groups'] as $group): ?>
+                        <article class="overflow-hidden rounded-2xl border border-slate-200">
+                            <header class="border-b border-rescue-100 bg-rescue-50 px-4 py-3 sm:px-5"><h4 class="font-semibold text-rescue-900"><?= esc($group['title']) ?></h4></header>
+                            <div class="space-y-4 p-4 sm:p-5">
+                                <div class="rounded-xl border border-rescue-100 bg-rescue-50/50 p-4">
+                                    <p class="text-xs font-bold uppercase tracking-wider text-rescue-600">Main Question</p>
+                                    <p class="mt-1 text-sm font-semibold leading-6 text-slate-900"><?= esc($group['question']) ?></p>
+                                    <div class="mt-3 rounded-lg bg-white p-3 text-sm leading-6 text-slate-700 shadow-sm"><?= esc($group['main_answer'] ?: 'Not provided') ?></div>
+                                </div>
+                                <ol class="space-y-3">
+                                    <?php foreach ($group['subquestions'] as $subquestionIndex => $subquestion): ?>
+                                    <li class="rounded-xl border border-slate-200 p-4">
+                                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Subquestion <?= $subquestionIndex + 1 ?></p>
+                                        <p class="mt-1 text-sm font-semibold leading-6 text-slate-900"><?= esc($subquestion['question']) ?></p>
+                                        <p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700"><?= esc($subquestion['answer'] ?: 'Not provided') ?></p>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ol>
+                            </div>
+                        </article>
+                        <?php endforeach; ?>
+                    </div>
+                </section>
+                <?php endif; ?>
                 <?php if (array_filter($applicationDocuments)): ?><section><h3 class="font-semibold text-slate-900">Verification Documents</h3><div class="mt-3 grid gap-3 sm:grid-cols-2"><?php foreach ($applicationDocuments as $label => $path): ?><?php if ($path): ?><button type="button" data-photo-url="<?= esc(base_url($path), 'attr') ?>" data-photo-label="<?= esc($label, 'attr') ?>" @click="updatePhoto = $el.dataset.photoUrl; updatePhotoLabel = $el.dataset.photoLabel" class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-left text-sm font-semibold text-slate-800 hover:border-rescue-300 hover:bg-rescue-50"><i data-lucide="file-check-2" class="h-5 w-5 text-rescue-600"></i><span class="min-w-0 flex-1"><?= esc($label) ?></span><i data-lucide="maximize-2" class="h-4 w-4 text-slate-400"></i></button><?php endif; ?><?php endforeach; ?></div></section><?php endif; ?>
             </div>
             <footer class="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4"><button type="button" @click="applicationOpen = false" class="rounded-lg bg-rescue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rescue-700">Close</button></footer>
