@@ -266,7 +266,7 @@ document.addEventListener('DOMContentLoaded', function () {
     frame.appendChild(video);
     video.classList.remove('mt-4', 'rounded-lg');
     video.classList.add('h-full', 'w-full');
-    frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-[8%] rounded-xl border-2 border-dashed border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.22)]"><span class="absolute -top-7 left-0 rounded bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">Place the complete ID inside this guide</span></div>');
+    frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-[8%] rounded-xl border-2 border-dashed border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.22)]"><span class="absolute -top-7 left-0 rounded bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">Complete ID inside guide · portrait or landscape</span></div>');
     var scanButton = document.createElement('button');
     scanButton.type = 'button';
     scanButton.className = 'scan-id hidden rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50';
@@ -308,7 +308,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var passportSelected = select && select.value === 'passport';
     var readyMessage = passportSelected
       ? 'Open the passport biodata page. Keep the word PASSPORT, photo, name, and both P<PHL lines at the bottom inside the guide.'
-      : 'Place the complete ID inside the guide with all text facing the camera.';
+      : 'Place the complete ID inside the guide with all text facing the camera. Portrait or landscape phone orientation is supported.';
     idMessage(card, select && select.value ? 'Ready to scan' : 'Select your ID type', select && select.value ? readyMessage : 'The ID type must be selected before opening or scanning the camera.', 'info');
   }
   function frameCanvas(video) {
@@ -365,6 +365,20 @@ document.addEventListener('DOMContentLoaded', function () {
       pixels[offset] = value; pixels[offset + 1] = value; pixels[offset + 2] = value;
     }
     context.putImageData(image, 0, 0); return target;
+  }
+  function rotateCanvas(source, clockwise) {
+    var target = document.createElement('canvas');
+    target.width = source.height; target.height = source.width;
+    var context = target.getContext('2d');
+    if (clockwise) {
+      context.translate(target.width, 0);
+      context.rotate(Math.PI / 2);
+    } else {
+      context.translate(0, target.height);
+      context.rotate(-Math.PI / 2);
+    }
+    context.drawImage(source, 0, 0);
+    return target;
   }
   function passportMrzCanvas(source) {
     // Passport identity is strongest in the two machine-readable lines at the
@@ -449,8 +463,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (analysis.sharpness < minimumSharpness || analysis.contrast < minimumContrast) throw new Error(scanningPassport ? 'The passport text is not clear enough. Show the complete biodata page, including both P<PHL lines at the bottom, and hold the phone steady.' : 'The ID text looks blurry or too plain. Keep all four corners inside the guide, hold the phone steady, and move closer.');
       idMessage(card, 'Document detected', 'Reading the ID type and applicant name locally. The image is not sent to the OCR library provider.', 'info');
       var worker = await getTesseractWorker(), ocrCanvas = cropCanvas(source, analysis.document), result = await worker.recognize(ocrCanvas), text = result && result.data ? result.data.text : '', confidence = result && result.data ? Number(result.data.confidence || 0) : 0;
+      var minimumOcrConfidence = scanningPassport ? 3 : 8;
       var detectedType = detectGovernmentIdType(text), nameMatchCount = applicantNameMatchCount(text);
-      if (!detectedType || nameMatchCount < 1 || confidence < 8) {
+      if (!detectedType || nameMatchCount < 1 || confidence < minimumOcrConfidence) {
         idMessage(card, 'Improving ID reading', 'Running a second high-contrast OCR pass for laminated or low-contrast IDs.', 'info');
         var enhancedResult = await worker.recognize(highContrastCanvas(ocrCanvas)), enhancedText = enhancedResult && enhancedResult.data ? enhancedResult.data.text : '', enhancedConfidence = enhancedResult && enhancedResult.data ? Number(enhancedResult.data.confidence || 0) : 0;
         text += '\n' + enhancedText; confidence = Math.max(confidence, enhancedConfidence);
@@ -461,11 +476,22 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         detectedType = detectGovernmentIdType(text); nameMatchCount = applicantNameMatchCount(text);
       }
+      if (!detectedType || nameMatchCount < 1 || confidence < minimumOcrConfidence) {
+        idMessage(card, 'Checking phone orientation', 'The first reading looked sideways. Trying landscape orientation automatically.', 'info');
+        var rotations = [rotateCanvas(ocrCanvas, true), rotateCanvas(ocrCanvas, false)];
+        for (var rotationIndex = 0; rotationIndex < rotations.length; rotationIndex += 1) {
+          var rotatedResult = await worker.recognize(rotations[rotationIndex]);
+          var rotatedText = rotatedResult && rotatedResult.data ? rotatedResult.data.text : '';
+          var rotatedConfidence = rotatedResult && rotatedResult.data ? Number(rotatedResult.data.confidence || 0) : 0;
+          text += '\n' + rotatedText; confidence = Math.max(confidence, rotatedConfidence);
+          detectedType = detectGovernmentIdType(text); nameMatchCount = applicantNameMatchCount(text);
+          if (detectedType && nameMatchCount >= 1 && confidence >= minimumOcrConfidence) break;
+        }
+      }
       if (!detectedType) throw new Error(scanningPassport ? 'Passport not detected. Open the biodata page and keep the word PASSPORT, your name, photo, and both P<PHL lines fully visible.' : 'The scanner could not confirm the ID type. Move closer and keep the ID title, logo, and number fully visible.');
       if (detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
       if (nameMatchCount < 1) throw new Error(scanningPassport ? 'The passport was detected, but the applicant name was not readable. Move closer and keep SURNAME and GIVEN NAMES clear.' : 'The scanner could not read any matching name from the ID. Move closer and keep the name area clear.');
       var readableTokens = normalizeOcr(text).split(/[^A-Z0-9]+/).filter(function (part) { return part.length >= 2; }).length;
-      var minimumOcrConfidence = scanningPassport ? 3 : 8;
       if (readableTokens < 4 || confidence < minimumOcrConfidence) throw new Error(scanningPassport ? 'The passport markers were found, but too little text was readable. Keep the biodata page flat and the two MRZ lines fully inside the guide.' : 'Not enough readable ID text was found. Move closer, avoid glare, and scan again.');
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
