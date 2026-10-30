@@ -121,7 +121,7 @@ class DocumentOcrService
         if (str_contains($compactLetters, 'PHILHEAL') || preg_match('/PHILIPPINE\s+HEALTH\s+INSURANCE/', $normalized)) return 'philhealth';
         if (preg_match('/PHILIPPINE\s+IDENTIFICATION|PAMBANSANG\s+PAGKAKAKILANLAN|PHILSYS/', $normalized)) return 'national_id';
         if (preg_match('/DRIVER\s*S\s+LICENSE|LAND\s+TRANSPORTATION\s+OFFICE|\bLTO\b/', $normalized)) return 'drivers_license';
-        if ((preg_match('/PASSPORT/', $normalized) && preg_match('/PILIPINAS|PHILIPPINES|\bPHL\b/', $normalized)) || preg_match('/P<PHL/', $normalized)) return 'passport';
+        if ((preg_match('/PASSPOR[T7]?/', $normalized) && preg_match('/PILIPINAS|PHILIPPINES|\bPHL\b/', $normalized)) || preg_match('/P\s*<\s*PH[L1I]/', $normalized)) return 'passport';
 
         return null;
     }
