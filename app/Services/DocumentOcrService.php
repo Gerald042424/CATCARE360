@@ -8,7 +8,7 @@ namespace App\Services;
  */
 class DocumentOcrService
 {
-    public function screen(string $imagePath, string $documentType, string $applicantName): array
+    public function screen(string $imagePath, string $documentType, string $applicantName, ?string $expectedIdType = null): array
     {
         $apiKey = trim((string) env('ocr.apiKey'));
         if ($apiKey === '') {
@@ -80,6 +80,19 @@ class DocumentOcrService
             if ($documentType === 'address_proof') return $this->failed('The proof-of-address document has no usable readable text. Capture the actual document clearly and try again.');
             return $this->failed('The home photo is too unclear to verify. Capture a well-lit photo of the cat living space.');
         }
+        if ($documentType === 'gov_id') {
+            $allowedIdTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
+            $detectedIdType = $this->detectGovernmentIdType($text);
+            if (! in_array((string) $expectedIdType, $allowedIdTypes, true)) {
+                return $this->failed('Select and scan the Government ID type again before submitting.');
+            }
+            if ($detectedIdType === null) {
+                return $this->failed('The selected Government ID format could not be confirmed from the captured photo. Retake it with the ID title and all text clearly visible.');
+            }
+            if ($detectedIdType !== $expectedIdType) {
+                return $this->failed('The captured Government ID does not match the selected ID type. Select the correct type and scan it again.');
+            }
+        }
         if ($documentType === 'gov_id' && ! $nameMatches) {
             return $this->failed('The name on the Government ID does not match the Full Name entered in the application.');
         }
@@ -97,6 +110,24 @@ class DocumentOcrService
     {
         preg_match_all('/[A-Za-z0-9]{2,}/', $text, $words);
         return mb_strlen(preg_replace('/\s+/', '', $text) ?? '') >= 5 && count($words[0]) >= 1;
+    }
+
+    private function detectGovernmentIdType(string $text): ?string
+    {
+        $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: $text;
+        $normalized = strtoupper(preg_replace('/[^A-Za-z0-9<]+/', ' ', $normalized) ?? '');
+
+        if (preg_match('/PHILHEALTH|PHILIPPINE\s+HEALTH\s+INSURANCE/', $normalized)) return 'philhealth';
+        if (preg_match('/PHILIPPINE\s+IDENTIFICATION|PAMBANSANG\s+PAGKAKAKILANLAN|PHILSYS/', $normalized)) return 'national_id';
+        if (preg_match('/DRIVER\s*S\s+LICENSE|LAND\s+TRANSPORTATION\s+OFFICE|\bLTO\b/', $normalized)) return 'drivers_license';
+        if ((preg_match('/PASSPORT/', $normalized) && preg_match('/PILIPINAS|PHILIPPINES|\bPHL\b/', $normalized)) || preg_match('/P<PHL/', $normalized)) return 'passport';
+
+        return null;
+    }
+
+    private function hasGovernmentIdMarker(string $text): bool
+    {
+        return $this->detectGovernmentIdType($text) !== null;
     }
 
     /** Keeps camera images within the hosted OCR service's small upload limit. */

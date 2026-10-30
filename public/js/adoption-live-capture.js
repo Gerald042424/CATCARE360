@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (locationIntro) locationIntro.textContent = 'Camera only. Each photo is stamped with date, time, and the device’s live GPS location—not the profile address.';
   var docs = [
     ['selfie', 'Live Selfie Verification', 'Use the front camera and complete the blink or head-turn challenge.', 'scan-face'],
-    ['gov_id', 'Government-Issued ID', 'Capture your passport, driver’s license, or national ID.', 'credit-card'],
+    ['gov_id', 'Government-Issued ID', 'Select PhilHealth, National ID, Driver’s License, or Passport. Scan and pass the format and name check before capture.', 'credit-card'],
     ['address_proof', 'Proof of Address', 'Capture a current utility bill, lease, or bank statement.', 'file-text'],
     ['home_photos', 'Home / Living Space Photos', 'Capture the area where the cat will live.', 'house']
   ];
@@ -24,10 +24,14 @@ document.addEventListener('DOMContentLoaded', function () {
   var FACE_VISION_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/vision_bundle.mjs';
   var FACE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm';
   var FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+  var OPENCV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js';
+  var TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
+  var openCvPromise = null, tesseractWorkerPromise = null;
   function error(message) { errorBox.textContent = message; errorBox.classList.remove('hidden'); }
   function clearError() { errorBox.textContent = ''; errorBox.classList.add('hidden'); }
   function note(card, message, color) { var el = card.querySelector('.location-status'); el.textContent = message; el.className = 'location-status mt-3 text-xs font-medium ' + color; }
   function isSelfie(card) { return card.dataset.key === 'selfie'; }
+  function isGovernmentId(card) { return card.dataset.key === 'gov_id'; }
   function ensureFacePanel(card) {
     if (!isSelfie(card) || card.querySelector('.face-liveness-panel')) return;
     var panel = document.createElement('div');
@@ -115,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var panel = card.querySelector('.face-liveness-panel');
     if (panel) panel.classList.add('hidden');
   }
-  function stop(card) { if (card._stream) card._stream.getTracks().forEach(function (track) { track.stop(); }); card._stream = null; if (isSelfie(card)) resetFaceVerification(card); var video = card.querySelector('.camera-stream'); video.pause(); video.srcObject = null; setCameraOrientation(video, 'environment'); video.classList.add('hidden'); card.querySelector('.capture-photo').disabled = true; if (active === card) active = null; }
+  function stop(card) { if (card._stream) card._stream.getTracks().forEach(function (track) { track.stop(); }); card._stream = null; if (isSelfie(card)) resetFaceVerification(card); var video = card.querySelector('.camera-stream'); video.pause(); video.srcObject = null; setCameraOrientation(video, 'environment'); video.classList.add('hidden'); if (isGovernmentId(card)) { var frame = card.querySelector('.id-camera-frame'), scan = card.querySelector('.scan-id'); if (frame) frame.classList.add('hidden'); if (scan) scan.classList.add('hidden'); } card.querySelector('.capture-photo').disabled = true; if (active === card) active = null; }
   function passFaceChallenge(card) {
     card._livenessVerified = true;
     card._livenessVerifiedAt = Date.now();
@@ -205,6 +209,213 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     card._faceAnimation = requestAnimationFrame(processFrame);
   }
+  function loadScriptOnce(url, marker) {
+    if (marker()) return Promise.resolve();
+    var existing = document.querySelector('script[data-catcare-src="' + url + '"]');
+    if (existing && existing._loadPromise) return existing._loadPromise;
+    var script = existing || document.createElement('script');
+    script.dataset.catcareSrc = url;
+    script.src = url;
+    script.crossOrigin = 'anonymous';
+    script._loadPromise = new Promise(function (resolve, reject) {
+      if (marker()) return resolve();
+      script.addEventListener('load', resolve, { once: true });
+      script.addEventListener('error', function () { reject(new Error('The ID scanner could not be loaded. Check your connection and try again.')); }, { once: true });
+    });
+    if (!existing) document.head.appendChild(script);
+    return script._loadPromise;
+  }
+  function getOpenCv() {
+    if (openCvPromise) return openCvPromise;
+    openCvPromise = loadScriptOnce(OPENCV_URL, function () { return !!(window.cv && window.cv.Mat); }).then(function () {
+      return new Promise(function (resolve, reject) {
+        var startedAt = Date.now(), settled = false;
+        function readyCv(candidate) {
+          if (settled || !candidate || !candidate.Mat) return false;
+          settled = true;
+          resolve(candidate);
+          return true;
+        }
+        function check() {
+          if (readyCv(window.cv)) return;
+          if (window.cv && typeof window.cv.then === 'function') {
+            window.cv.then(readyCv).catch(reject);
+            return;
+          }
+          if (window.cv && typeof window.cv === 'object') window.cv.onRuntimeInitialized = function () { readyCv(window.cv); };
+          if (Date.now() - startedAt > 20000) return reject(new Error('The document detector took too long to start. Reopen the camera and try again.'));
+          setTimeout(check, 100);
+        }
+        check();
+      });
+    }).catch(function (reason) { openCvPromise = null; throw reason; });
+    return openCvPromise;
+  }
+  function getTesseractWorker() {
+    if (tesseractWorkerPromise) return tesseractWorkerPromise;
+    tesseractWorkerPromise = loadScriptOnce(TESSERACT_URL, function () { return !!window.Tesseract; }).then(function () {
+      return window.Tesseract.createWorker('eng', 1, {
+        logger: function (progress) {
+          var card = document.querySelector('.verification-capture[data-key="gov_id"]');
+          if (!card || progress.status !== 'recognizing text') return;
+          idMessage(card, 'Reading ID text', 'Local OCR ' + Math.round((progress.progress || 0) * 100) + '% complete.', 'info');
+        }
+      });
+    }).catch(function (reason) { tesseractWorkerPromise = null; throw reason; });
+    return tesseractWorkerPromise;
+  }
+  function ensureIdPanel(card) {
+    if (!isGovernmentId(card) || card.querySelector('.id-verification-panel')) return;
+    var panel = document.createElement('div');
+    panel.className = 'id-verification-panel mt-4 rounded-xl border border-slate-200 bg-white p-3';
+    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Government ID type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select the ID you will scan</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select your ID type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">The camera will check the document format, readable name, lighting, and framing before capture.</p></div>';
+    card.querySelector('.camera-stream').insertAdjacentElement('beforebegin', panel);
+    var video = card.querySelector('.camera-stream'), frame = document.createElement('div');
+    frame.className = 'id-camera-frame relative mt-4 hidden overflow-hidden rounded-lg bg-black';
+    video.parentNode.insertBefore(frame, video);
+    frame.appendChild(video);
+    video.classList.remove('mt-4', 'rounded-lg');
+    video.classList.add('h-full', 'w-full');
+    frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-[8%] rounded-xl border-2 border-dashed border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.22)]"><span class="absolute -top-7 left-0 rounded bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">Place the complete ID inside this guide</span></div>');
+    var scanButton = document.createElement('button');
+    scanButton.type = 'button';
+    scanButton.className = 'scan-id hidden rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50';
+    scanButton.textContent = 'Scan ID';
+    card.querySelector('.capture-photo').insertAdjacentElement('beforebegin', scanButton);
+    panel.querySelector('.id-type-select').addEventListener('change', function () {
+      resetIdVerification(card);
+      if (card._stream) {
+        scanButton.classList.remove('hidden');
+        scanButton.disabled = !this.value;
+        note(card, this.value ? 'Place the complete ID inside the guide, then tap Scan ID.' : 'Select the Government ID type before scanning.', this.value ? 'text-blue-700' : 'text-amber-700');
+      }
+    });
+    scanButton.addEventListener('click', function () { scanGovernmentId(card); });
+  }
+  function idMessage(card, title, detail, tone) {
+    var box = card.querySelector('.id-scan-message');
+    if (!box) return;
+    var colors = tone === 'success'
+      ? ['border-emerald-200', 'bg-emerald-50', 'text-emerald-900', 'text-emerald-800']
+      : tone === 'warning'
+        ? ['border-amber-200', 'bg-amber-50', 'text-amber-900', 'text-amber-800']
+        : ['border-blue-200', 'bg-blue-50', 'text-blue-900', 'text-blue-800'];
+    box.className = 'id-scan-message mt-3 rounded-lg border p-3 ' + colors[0] + ' ' + colors[1];
+    box.querySelector('.id-scan-title').className = 'id-scan-title block text-sm ' + colors[2];
+    box.querySelector('.id-scan-detail').className = 'id-scan-detail mt-1 text-xs leading-5 ' + colors[3];
+    box.querySelector('.id-scan-title').textContent = title;
+    box.querySelector('.id-scan-detail').textContent = detail;
+  }
+  function resetIdVerification(card) {
+    if (!isGovernmentId(card)) return;
+    card._idVerified = false;
+    card._idVerifiedAt = 0;
+    card._idVerification = null;
+    card.querySelector('.capture-photo').disabled = true;
+    card.querySelector('.capture-photo').textContent = 'Scan ID first';
+    var scan = card.querySelector('.scan-id'), select = card.querySelector('.id-type-select');
+    if (scan) scan.disabled = !card._stream || !select.value;
+    idMessage(card, select && select.value ? 'Ready to scan' : 'Select your ID type', select && select.value ? 'Place the complete ID inside the guide with all text facing the camera.' : 'The ID type must be selected before opening or scanning the camera.', 'info');
+  }
+  function frameCanvas(video) {
+    var canvas = document.createElement('canvas'), longest = Math.max(video.videoWidth, video.videoHeight), scale = Math.min(1, 1280 / longest);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+  function analyzeIdFrame(cv, canvas) {
+    var src = cv.imread(canvas), gray = new cv.Mat(), blurred = new cv.Mat(), edges = new cv.Mat(), contours = new cv.MatVector(), hierarchy = new cv.Mat(), laplacian = new cv.Mat(), mean = new cv.Mat(), deviation = new cv.Mat(), bright = new cv.Mat();
+    var best = null;
+    try {
+      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+      cv.Laplacian(gray, laplacian, cv.CV_64F);
+      cv.meanStdDev(laplacian, mean, deviation);
+      var sharpness = deviation.doubleAt(0, 0) * deviation.doubleAt(0, 0), brightness = cv.mean(gray)[0];
+      cv.threshold(gray, bright, 245, 255, cv.THRESH_BINARY);
+      var glareRatio = cv.countNonZero(bright) / (gray.rows * gray.cols);
+      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
+      cv.Canny(blurred, edges, 50, 150);
+      cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+      for (var index = 0; index < contours.size(); index += 1) {
+        var contour = contours.get(index), perimeter = cv.arcLength(contour, true), approx = new cv.Mat();
+        cv.approxPolyDP(contour, approx, 0.025 * perimeter, true);
+        var area = Math.abs(cv.contourArea(approx)), ratio = area / (canvas.width * canvas.height), rect = cv.boundingRect(approx), aspect = Math.max(rect.width, rect.height) / Math.max(1, Math.min(rect.width, rect.height));
+        if (approx.rows === 4 && ratio >= 0.12 && ratio <= 0.92 && aspect >= 1.20 && aspect <= 2.20 && (!best || ratio > best.areaRatio)) best = { x: rect.x, y: rect.y, width: rect.width, height: rect.height, areaRatio: ratio };
+        approx.delete(); contour.delete();
+      }
+      return { document: best, brightness: brightness, sharpness: sharpness, glareRatio: glareRatio };
+    } finally {
+      src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete(); laplacian.delete(); mean.delete(); deviation.delete(); bright.delete();
+    }
+  }
+  function cropCanvas(source, rect) {
+    var padding = Math.round(Math.min(rect.width, rect.height) * 0.025), x = Math.max(0, rect.x - padding), y = Math.max(0, rect.y - padding), width = Math.min(source.width - x, rect.width + padding * 2), height = Math.min(source.height - y, rect.height + padding * 2);
+    var target = document.createElement('canvas'), scale = Math.max(1, Math.min(2, 1200 / Math.max(width, height)));
+    target.width = Math.round(width * scale); target.height = Math.round(height * scale);
+    target.getContext('2d').drawImage(source, x, y, width, height, 0, 0, target.width, target.height);
+    return target;
+  }
+  function normalizeOcr(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9<]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function detectGovernmentIdType(text) {
+    var normalized = normalizeOcr(text);
+    if (/PHILHEALTH|PHILIPPINE HEALTH INSURANCE/.test(normalized)) return 'philhealth';
+    if (/PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS/.test(normalized)) return 'national_id';
+    if (/DRIVER.?S LICENSE|LAND TRANSPORTATION OFFICE|\bLTO\b/.test(normalized)) return 'drivers_license';
+    if ((/PASSPORT/.test(normalized) && /PILIPINAS|PHILIPPINES|\bPHL\b/.test(normalized)) || /P<PHL/.test(normalized)) return 'passport';
+    return null;
+  }
+  function applicantNameMatches(text) {
+    var input = form.querySelector('[name="full_name"]'), parts = normalizeOcr(input ? input.value : '').split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
+    if (parts.length < 2) return false;
+    var words = new Set(normalizeOcr(text).split(' '));
+    return words.has(parts[0]) && words.has(parts[parts.length - 1]);
+  }
+  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Government ID'; }
+  async function scanGovernmentId(card) {
+    clearError();
+    var select = card.querySelector('.id-type-select'), scanButton = card.querySelector('.scan-id'), captureButton = card.querySelector('.capture-photo'), video = card.querySelector('.camera-stream');
+    if (!select.value) return error('Select the Government ID type before scanning.');
+    if (!card._stream || !video.videoWidth || !video.videoHeight) return error('Open the rear camera and wait for the ID preview before scanning.');
+    var fullName = form.querySelector('[name="full_name"]');
+    if (!fullName || normalizeOcr(fullName.value).split(' ').filter(Boolean).length < 2) return error('Enter your complete Full Name in Personal Information before scanning the ID.');
+    resetIdVerification(card);
+    scanButton.disabled = true;
+    captureButton.disabled = true;
+    card.querySelector('.capture-state').textContent = 'Scanning ID';
+    idMessage(card, 'Checking document', 'Detecting the complete ID and checking image quality on this device.', 'info');
+    try {
+      var cv = await getOpenCv(), source = frameCanvas(video), analysis = analyzeIdFrame(cv, source);
+      if (!analysis.document) throw new Error('No complete ID rectangle was detected. Use a contrasting background and keep all four corners inside the guide.');
+      if (analysis.brightness < 55) throw new Error('The ID is too dark. Move to a brighter area and scan again.');
+      if (analysis.brightness > 225 || analysis.glareRatio > 0.25) throw new Error('There is too much glare on the ID. Tilt it slightly away from the light and scan again.');
+      if (analysis.sharpness < 35) throw new Error('The ID text looks blurry. Hold the phone steady, move closer, and scan again.');
+      idMessage(card, 'Document detected', 'Reading the ID type and applicant name locally. The image is not sent to the OCR library provider.', 'info');
+      var worker = await getTesseractWorker(), ocrCanvas = cropCanvas(source, analysis.document), result = await worker.recognize(ocrCanvas), text = result && result.data ? result.data.text : '', confidence = result && result.data ? Number(result.data.confidence || 0) : 0;
+      var detectedType = detectGovernmentIdType(text);
+      if (!detectedType) throw new Error('The selected ID format could not be recognized. Make sure the ID title and all printed text are clear.');
+      if (detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
+      if (!applicantNameMatches(text)) throw new Error('The readable name on the ID does not match the Full Name in Personal Information. Check the name or retake the scan more clearly.');
+      if (confidence < 25) throw new Error('The ID text confidence is too low. Move closer, avoid glare, and scan again.');
+      card._idVerified = true;
+      card._idVerifiedAt = Date.now();
+      card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, name_match: true, confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
+      captureButton.disabled = false;
+      captureButton.textContent = 'Capture verified ID';
+      card.querySelector('.capture-state').textContent = 'ID verified';
+      card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
+      idMessage(card, idTypeLabel(detectedType) + ' verified', 'The format and applicant name matched. Keep the same ID in frame and capture it within 60 seconds.', 'success');
+      note(card, 'ID scan passed. Capture the same document within 60 seconds.', 'text-emerald-700');
+    } catch (reason) {
+      resetIdVerification(card);
+      card.querySelector('.capture-state').textContent = 'Scan required';
+      card.querySelector('.capture-state').className = 'capture-state rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800';
+      idMessage(card, 'ID scan not passed', reason.message || 'The ID could not be read. Reposition it and scan again.', 'warning');
+      error(reason.message || 'The ID could not be read. Reposition it and scan again.');
+    } finally {
+      scanButton.disabled = !card._stream || !select.value;
+    }
+  }
   function ready(video) { return new Promise(function (resolve, reject) { if (video.videoWidth && video.videoHeight) return resolve(); var timer = setTimeout(function () { reject(new Error('Camera frame did not load. Please reopen the camera.')); }, 6000); video.addEventListener('loadeddata', function done() { clearTimeout(timer); video.removeEventListener('loadeddata', done); resolve(); }); }); }
   function location(card) { return new Promise(function (resolve, reject) { if (!navigator.geolocation) return reject(new Error('GPS location is not supported by this browser.')); note(card, 'Getting current location…', 'text-gray-500'); navigator.geolocation.getCurrentPosition(function (position) { resolve(position.coords); }, function (reason) { reject(new Error('Location is required. Allow location access, then capture again. (' + reason.message + ')')); }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }); }); }
   function metersBetween(first, second) { var toRad = Math.PI / 180, lat1 = first.latitude * toRad, lat2 = second.latitude * toRad, dLat = (second.latitude - first.latitude) * toRad, dLon = (second.longitude - first.longitude) * toRad, a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2); return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)); }
@@ -233,10 +444,15 @@ document.addEventListener('DOMContentLoaded', function () {
   async function open(card) {
     clearError();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return error('Use a current Chrome, Edge, Firefox, or Safari browser for live camera capture.');
+    if (isGovernmentId(card) && !card.querySelector('.id-type-select').value) {
+      card.querySelector('.id-type-select').focus();
+      return error('Select the Government ID type before opening the camera.');
+    }
     if (active && active !== card) stop(active);
     stop(card);
     try {
       if (isSelfie(card)) card._facing = 'user';
+      if (isGovernmentId(card)) { card._facing = 'environment'; resetIdVerification(card); }
       var stream = await streamFor(card._facing || 'environment');
       card._stream = stream;
       active = card;
@@ -244,6 +460,7 @@ document.addEventListener('DOMContentLoaded', function () {
       setCameraOrientation(video, card._facing);
       video.srcObject = stream;
       video.classList.remove('hidden');
+      if (isGovernmentId(card)) card.querySelector('.id-camera-frame').classList.remove('hidden');
       await video.play();
       await ready(video);
       card.querySelector('.start-camera').classList.add('hidden');
@@ -251,6 +468,13 @@ document.addEventListener('DOMContentLoaded', function () {
         card.querySelector('.switch-camera').classList.add('hidden');
         note(card, 'Front camera ready. Complete the face challenge before capturing.', 'text-blue-700');
         await startFaceVerification(card);
+      } else if (isGovernmentId(card)) {
+        card.querySelector('.capture-photo').disabled = true;
+        card.querySelector('.switch-camera').classList.add('hidden');
+        card.querySelector('.scan-id').classList.remove('hidden');
+        card.querySelector('.scan-id').disabled = false;
+        idMessage(card, 'Camera ready', 'Place the complete ' + idTypeLabel(card.querySelector('.id-type-select').value) + ' inside the guide, then tap Scan ID.', 'info');
+        note(card, 'Rear camera ready. Scan the ID format and applicant name before capture.', 'text-blue-700');
       } else {
         card.querySelector('.capture-photo').disabled = false;
         card.querySelector('.switch-camera').classList.remove('hidden');
@@ -270,9 +494,14 @@ document.addEventListener('DOMContentLoaded', function () {
       card.querySelector('.capture-photo').disabled = true;
       return error('Complete the live face challenge and keep your face visible before capturing the selfie.');
     }
+    if (isGovernmentId(card) && (!card._idVerified || !card._idVerification || Date.now() - card._idVerifiedAt > 60000 || card._idVerification.selected_type !== card.querySelector('.id-type-select').value)) {
+      resetIdVerification(card);
+      return error('Scan and pass the Government ID format and name check before capturing.');
+    }
     var button = card.querySelector('.capture-photo'), canvas = card.querySelector('.capture-canvas');
     button.disabled = true;
     var liveness = isSelfie(card) ? { verified: true, challenge: card._livenessChallenge, verified_at: new Date(card._livenessVerifiedAt).toISOString(), provider: 'mediapipe_face_landmarker', version: '1.2.0' } : null;
+    var idVerification = isGovernmentId(card) ? Object.assign({}, card._idVerification) : null;
     var longest = Math.max(video.videoWidth, video.videoHeight), scale = Math.min(1, 1280 / longest);
     canvas.width = Math.round(video.videoWidth * scale);
     canvas.height = Math.round(video.videoHeight * scale);
@@ -291,6 +520,7 @@ document.addEventListener('DOMContentLoaded', function () {
         card.querySelector('.capture-file').files = transfer.files;
         var captureMetadata = { capture_source: 'in_app_camera', latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy, captured_at: when.toISOString(), location: place.location, location_source: place.source, location_attribution: place.attribution };
         if (liveness) captureMetadata.face_liveness = liveness;
+        if (idVerification) captureMetadata.id_verification = idVerification;
         captures[key] = captureMetadata;
         meta.value = JSON.stringify(captures);
         var preview = card.querySelector('.capture-preview');
@@ -300,6 +530,7 @@ document.addEventListener('DOMContentLoaded', function () {
         card.querySelector('.retake-photo').classList.remove('hidden');
         button.classList.add('hidden');
         card.querySelector('.switch-camera').classList.add('hidden');
+        if (isGovernmentId(card)) { card.querySelector('.scan-id').classList.add('hidden'); card.querySelector('.id-type-select').disabled = true; }
         card.querySelector('.capture-state').textContent = isSelfie(card) ? 'Live selfie captured' : 'Captured';
         card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
         note(card, (isSelfie(card) ? 'Verified live selfie captured at ' : 'Captured at ') + place.location + ' (GPS ±' + Math.round(coords.accuracy) + ' m)', 'text-emerald-700');
@@ -314,10 +545,12 @@ document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.verification-capture').forEach(function (card) {
     card._facing = isSelfie(card) ? 'user' : 'environment';
     ensureFacePanel(card);
+    ensureIdPanel(card);
     if (isSelfie(card)) card.querySelector('.capture-photo').textContent = 'Complete face check first';
+    if (isGovernmentId(card)) card.querySelector('.capture-photo').textContent = 'Scan ID first';
     card.querySelector('.start-camera').onclick = function () { open(card); };
     card.querySelector('.switch-camera').onclick = function () {
-      if (isSelfie(card)) return;
+      if (isSelfie(card) || isGovernmentId(card)) return;
       card._facing = card._facing === 'environment' ? 'user' : 'environment';
       open(card);
     };
@@ -330,12 +563,13 @@ document.addEventListener('DOMContentLoaded', function () {
       card.querySelector('.capture-preview-wrap').classList.add('hidden');
       card.querySelector('.retake-photo').classList.add('hidden');
       card.querySelector('.capture-photo').classList.remove('hidden');
-      if (!isSelfie(card)) card.querySelector('.switch-camera').classList.remove('hidden');
+      if (!isSelfie(card) && !isGovernmentId(card)) card.querySelector('.switch-camera').classList.remove('hidden');
+      if (isGovernmentId(card)) { card.querySelector('.id-type-select').disabled = false; resetIdVerification(card); }
       card.querySelector('.capture-state').textContent = 'Not captured';
       card.querySelector('.capture-state').className = 'capture-state rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600';
       open(card);
     };
   });
   form.addEventListener('submit', function (event) { var cards = document.querySelectorAll('.verification-capture'), valid = Object.keys(captures).length === cards.length && Array.prototype.every.call(cards, function (card) { return card.querySelector('.capture-file').files.length === 1; }); if (!valid) { event.preventDefault(); error('Capture all four live verification photos before submitting.'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); return; } if (submitting) { event.preventDefault(); return; } submitting = true; meta.value = JSON.stringify(captures); var button = form.querySelector('button[type="submit"]'); button.disabled = true; button.querySelector('span').textContent = 'Submitting application…'; });
-  window.addEventListener('beforeunload', function () { document.querySelectorAll('.verification-capture').forEach(stop); });
+  window.addEventListener('beforeunload', function () { document.querySelectorAll('.verification-capture').forEach(stop); if (tesseractWorkerPromise) tesseractWorkerPromise.then(function (worker) { worker.terminate(); }).catch(function () {}); });
 });

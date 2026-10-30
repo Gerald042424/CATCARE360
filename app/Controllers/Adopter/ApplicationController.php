@@ -102,10 +102,13 @@ class ApplicationController extends BaseController
         // cannot be accepted unless OCR can confirm its text and name match.
         $ocrService = new DocumentOcrService(); $ocrResults = [];
         foreach (['gov_id', 'address_proof'] as $documentType) {
-            $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']));
+            $expectedIdType = $documentType === 'gov_id'
+                ? (string) ($metadata['gov_id']['id_verification']['selected_type'] ?? '')
+                : null;
+            $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']), $expectedIdType);
             if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
-        $ocrScreening = ['status' => 'Passed', 'message' => 'Government ID name and proof-of-address text were read successfully; the live selfie passed its face challenge and the home photo passed image-quality checks.'];
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Government ID type and applicant name were confirmed, proof-of-address text was readable, the live selfie passed its face challenge, and the home photo passed image-quality checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();
@@ -233,6 +236,10 @@ class ApplicationController extends BaseController
             $livenessError = $this->validateFaceLivenessMetadata($metadata, $capturedAt);
             if ($livenessError !== null) return $livenessError;
         }
+        if ($field === 'gov_id') {
+            $idError = $this->validateIdVerificationMetadata($metadata, $capturedAt);
+            if ($idError !== null) return $idError;
+        }
         $latitude = filter_var($metadata['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($metadata['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($metadata['accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
@@ -266,6 +273,34 @@ class ApplicationController extends BaseController
             || $secondsFromVerification < 0
             || $secondsFromVerification > 60) {
             return 'Complete the live blink or head-turn face challenge before capturing your selfie.';
+        }
+
+        return null;
+    }
+
+    private function validateIdVerificationMetadata(array $metadata, int $capturedAt): ?string
+    {
+        $verification = $metadata['id_verification'] ?? null;
+        $verifiedAt = is_array($verification) ? strtotime((string) ($verification['verified_at'] ?? '')) : false;
+        $selectedType = is_array($verification) ? (string) ($verification['selected_type'] ?? '') : '';
+        $detectedType = is_array($verification) ? (string) ($verification['detected_type'] ?? '') : '';
+        $provider = is_array($verification) ? (string) ($verification['provider'] ?? '') : '';
+        $confidence = is_array($verification) ? filter_var($verification['confidence'] ?? null, FILTER_VALIDATE_FLOAT) : false;
+        $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
+        $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
+
+        if (! is_array($verification)
+            || ($verification['verified'] ?? false) !== true
+            || ($verification['name_match'] ?? false) !== true
+            || ($verification['document_detected'] ?? false) !== true
+            || ! in_array($selectedType, $allowedTypes, true)
+            || $detectedType !== $selectedType
+            || $provider !== 'tesseract_js'
+            || $confidence === false
+            || $confidence < 25
+            || $secondsFromVerification < 0
+            || $secondsFromVerification > 90) {
+            return 'Scan and pass the selected Government ID format and Full Name check before capturing it.';
         }
 
         return null;
