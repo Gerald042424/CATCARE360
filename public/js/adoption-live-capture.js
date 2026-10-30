@@ -24,9 +24,8 @@ document.addEventListener('DOMContentLoaded', function () {
   var FACE_VISION_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/vision_bundle.mjs';
   var FACE_WASM_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0/wasm';
   var FACE_MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
-  var OPENCV_URL = 'https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.10.0-release.1/dist/opencv.js';
   var TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
-  var openCvPromise = null, tesseractWorkerPromise = null;
+  var tesseractWorkerPromise = null;
   function error(message) { errorBox.textContent = message; errorBox.classList.remove('hidden'); }
   function clearError() { errorBox.textContent = ''; errorBox.classList.add('hidden'); }
   function note(card, message, color) { var el = card.querySelector('.location-status'); el.textContent = message; el.className = 'location-status mt-3 text-xs font-medium ' + color; }
@@ -225,52 +224,29 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!existing) document.head.appendChild(script);
     return script._loadPromise;
   }
-  function getOpenCv() {
-    if (openCvPromise) return openCvPromise;
-    openCvPromise = loadScriptOnce(OPENCV_URL, function () { return !!(window.cv && window.cv.Mat); }).then(function () {
-      return new Promise(function (resolve, reject) {
-        var startedAt = Date.now(), settled = false, thenAttached = false;
-        function readyCv(candidate) {
-          if (settled) return true;
-          if (!candidate || !candidate.Mat) return false;
-          settled = true;
-          resolve(candidate);
-          return true;
-        }
-        function check() {
-          if (readyCv(window.cv)) return;
-          if (window.cv && typeof window.cv.then === 'function' && !thenAttached) {
-            // OpenCV.js exposes an Emscripten thenable on some browsers. Its
-            // then() return value is not a real Promise, so chaining .catch()
-            // breaks on Safari even though OpenCV loaded successfully.
-            thenAttached = true;
-            try {
-              window.cv.then(function (candidate) {
-                if (!readyCv(candidate || window.cv)) setTimeout(check, 50);
-              }, reject);
-            } catch (reason) {
-              reject(reason);
-              return;
-            }
-          }
-          if (window.cv && typeof window.cv === 'object') window.cv.onRuntimeInitialized = function () { readyCv(window.cv); };
-          if (Date.now() - startedAt > 20000) return reject(new Error('The document detector took too long to start. Reopen the camera and try again.'));
-          setTimeout(check, 100);
-        }
-        check();
-      });
-    }).catch(function (reason) { openCvPromise = null; throw reason; });
-    return openCvPromise;
-  }
   function getTesseractWorker() {
     if (tesseractWorkerPromise) return tesseractWorkerPromise;
     tesseractWorkerPromise = loadScriptOnce(TESSERACT_URL, function () { return !!window.Tesseract; }).then(function () {
-      return window.Tesseract.createWorker('eng', 1, {
+      var creation = window.Tesseract.createWorker('eng', 1, {
         logger: function (progress) {
           var card = document.querySelector('.verification-capture[data-key="gov_id"]');
-          if (!card || progress.status !== 'recognizing text') return;
-          idMessage(card, 'Reading ID text', 'Local OCR ' + Math.round((progress.progress || 0) * 100) + '% complete.', 'info');
+          if (!card) return;
+          var percent = Math.round((progress.progress || 0) * 100), status = String(progress.status || 'Preparing OCR').replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+          idMessage(card, progress.status === 'recognizing text' ? 'Reading ID text' : 'Preparing local OCR', status + (percent ? ' — ' + percent + '%' : '') + '. First use may take several seconds.', 'info');
         }
+      });
+      return new Promise(function (resolve, reject) {
+        var finished = false, timer = setTimeout(function () {
+          finished = true;
+          reject(new Error('Local OCR took too long to load. Check your internet connection, then reopen the camera.'));
+        }, 60000);
+        creation.then(function (worker) {
+          if (finished) { worker.terminate(); return; }
+          finished = true; clearTimeout(timer); resolve(worker);
+        }).catch(function (reason) {
+          if (finished) return;
+          finished = true; clearTimeout(timer); reject(reason);
+        });
       });
     }).catch(function (reason) { tesseractWorkerPromise = null; throw reason; });
     return tesseractWorkerPromise;
@@ -335,30 +311,35 @@ document.addEventListener('DOMContentLoaded', function () {
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas;
   }
-  function analyzeIdFrame(cv, canvas) {
-    var src = cv.imread(canvas), gray = new cv.Mat(), blurred = new cv.Mat(), edges = new cv.Mat(), contours = new cv.MatVector(), hierarchy = new cv.Mat(), laplacian = new cv.Mat(), mean = new cv.Mat(), deviation = new cv.Mat(), bright = new cv.Mat();
-    var best = null;
-    try {
-      cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-      cv.Laplacian(gray, laplacian, cv.CV_64F);
-      cv.meanStdDev(laplacian, mean, deviation);
-      var sharpness = deviation.doubleAt(0, 0) * deviation.doubleAt(0, 0), brightness = cv.mean(gray)[0];
-      cv.threshold(gray, bright, 245, 255, cv.THRESH_BINARY);
-      var glareRatio = cv.countNonZero(bright) / (gray.rows * gray.cols);
-      cv.GaussianBlur(gray, blurred, new cv.Size(5, 5), 0);
-      cv.Canny(blurred, edges, 50, 150);
-      cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-      for (var index = 0; index < contours.size(); index += 1) {
-        var contour = contours.get(index), perimeter = cv.arcLength(contour, true), approx = new cv.Mat();
-        cv.approxPolyDP(contour, approx, 0.025 * perimeter, true);
-        var area = Math.abs(cv.contourArea(approx)), ratio = area / (canvas.width * canvas.height), rect = cv.boundingRect(approx), aspect = Math.max(rect.width, rect.height) / Math.max(1, Math.min(rect.width, rect.height));
-        if (approx.rows === 4 && ratio >= 0.12 && ratio <= 0.92 && aspect >= 1.20 && aspect <= 2.20 && (!best || ratio > best.areaRatio)) best = { x: rect.x, y: rect.y, width: rect.width, height: rect.height, areaRatio: ratio };
-        approx.delete(); contour.delete();
-      }
-      return { document: best, brightness: brightness, sharpness: sharpness, glareRatio: glareRatio };
-    } finally {
-      src.delete(); gray.delete(); blurred.delete(); edges.delete(); contours.delete(); hierarchy.delete(); laplacian.delete(); mean.delete(); deviation.delete(); bright.delete();
+  function analyzeIdFrame(canvas) {
+    // Native Canvas analysis avoids downloading and compiling the 10 MB
+    // OpenCV WebAssembly bundle on mobile Safari. OCR still confirms that the
+    // guide contains the selected Philippine ID type and applicant name.
+    var sample = document.createElement('canvas'), width = 320, height = Math.max(180, Math.round(width * canvas.height / canvas.width));
+    sample.width = width; sample.height = height;
+    var sampleContext = sample.getContext('2d', { willReadFrequently: true });
+    sampleContext.drawImage(canvas, 0, 0, width, height);
+    var pixels = sampleContext.getImageData(0, 0, width, height).data, gray = new Float32Array(width * height), sum = 0, sumSquares = 0, glare = 0;
+    for (var pixel = 0, offset = 0; pixel < gray.length; pixel += 1, offset += 4) {
+      var value = pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
+      gray[pixel] = value; sum += value; sumSquares += value * value;
+      if (value >= 245) glare += 1;
     }
+    var brightness = sum / gray.length, variance = Math.max(0, sumSquares / gray.length - brightness * brightness), edgeTotal = 0, edgeSamples = 0;
+    for (var y = 1; y < height - 1; y += 2) {
+      for (var x = 1; x < width - 1; x += 2) {
+        var index = y * width + x;
+        edgeTotal += Math.abs(gray[index + 1] - gray[index - 1]) + Math.abs(gray[index + width] - gray[index - width]);
+        edgeSamples += 2;
+      }
+    }
+    return {
+      document: { x: Math.round(canvas.width * 0.08), y: Math.round(canvas.height * 0.08), width: Math.round(canvas.width * 0.84), height: Math.round(canvas.height * 0.84), areaRatio: 0.7056 },
+      brightness: brightness,
+      sharpness: edgeTotal / Math.max(1, edgeSamples),
+      contrast: Math.sqrt(variance),
+      glareRatio: glare / gray.length
+    };
   }
   function cropCanvas(source, rect) {
     var padding = Math.round(Math.min(rect.width, rect.height) * 0.025), x = Math.max(0, rect.x - padding), y = Math.max(0, rect.y - padding), width = Math.min(source.width - x, rect.width + padding * 2), height = Math.min(source.height - y, rect.height + padding * 2);
@@ -394,13 +375,12 @@ document.addEventListener('DOMContentLoaded', function () {
     scanButton.disabled = true;
     captureButton.disabled = true;
     card.querySelector('.capture-state').textContent = 'Scanning ID';
-    idMessage(card, 'Checking document', 'Detecting the complete ID and checking image quality on this device.', 'info');
+    idMessage(card, 'Checking document', 'Checking the ID framing, lighting, and clarity on this device.', 'info');
     try {
-      var cv = await getOpenCv(), source = frameCanvas(video), analysis = analyzeIdFrame(cv, source);
-      if (!analysis.document) throw new Error('No complete ID rectangle was detected. Use a contrasting background and keep all four corners inside the guide.');
+      var source = frameCanvas(video), analysis = analyzeIdFrame(source);
       if (analysis.brightness < 55) throw new Error('The ID is too dark. Move to a brighter area and scan again.');
       if (analysis.brightness > 225 || analysis.glareRatio > 0.25) throw new Error('There is too much glare on the ID. Tilt it slightly away from the light and scan again.');
-      if (analysis.sharpness < 35) throw new Error('The ID text looks blurry. Hold the phone steady, move closer, and scan again.');
+      if (analysis.sharpness < 7 || analysis.contrast < 18) throw new Error('The ID text looks blurry or too plain. Keep all four corners inside the guide, hold the phone steady, and move closer.');
       idMessage(card, 'Document detected', 'Reading the ID type and applicant name locally. The image is not sent to the OCR library provider.', 'info');
       var worker = await getTesseractWorker(), ocrCanvas = cropCanvas(source, analysis.document), result = await worker.recognize(ocrCanvas), text = result && result.data ? result.data.text : '', confidence = result && result.data ? Number(result.data.confidence || 0) : 0;
       var detectedType = detectGovernmentIdType(text);
@@ -486,6 +466,11 @@ document.addEventListener('DOMContentLoaded', function () {
         card.querySelector('.scan-id').disabled = false;
         idMessage(card, 'Camera ready', 'Place the complete ' + idTypeLabel(card.querySelector('.id-type-select').value) + ' inside the guide, then tap Scan ID.', 'info');
         note(card, 'Rear camera ready. Scan the ID format and applicant name before capture.', 'text-blue-700');
+        // Warm up the local OCR worker while the applicant positions the ID.
+        // Scan ID will reuse this same promise instead of starting a new load.
+        getTesseractWorker().catch(function (reason) {
+          idMessage(card, 'OCR could not start', reason.message || 'Check your connection, then reopen the camera.', 'warning');
+        });
       } else {
         card.querySelector('.capture-photo').disabled = false;
         card.querySelector('.switch-camera').classList.remove('hidden');
