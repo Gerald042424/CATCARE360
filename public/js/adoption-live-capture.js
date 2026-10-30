@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function () {
   if (locationIntro) locationIntro.textContent = 'Camera only. Each photo is stamped with date, time, and the device’s live GPS location—not the profile address.';
   var docs = [
     ['selfie', 'Live Selfie Verification', 'Use the front camera and complete the blink or head-turn challenge.', 'scan-face'],
-    ['gov_id', 'Government-Issued ID', 'Select PhilHealth, National ID, Driver’s License, or Passport. Scan and pass the format and name check before capture.', 'credit-card'],
+    ['gov_id', 'Valid Government-Issued ID', 'Scan an original ID that belongs to the applicant and is unexpired when an expiry date applies.', 'credit-card'],
     ['address_proof', 'Proof of Address', 'Capture a current utility bill, lease, or bank statement.', 'file-text'],
     ['home_photos', 'Home / Living Space Photos', 'Capture the area where the cat will live.', 'house']
   ];
@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!isGovernmentId(card) || card.querySelector('.id-verification-panel')) return;
     var panel = document.createElement('div');
     panel.className = 'id-verification-panel mt-4 rounded-xl border border-slate-200 bg-white p-3';
-    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Government ID type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select the ID you will scan</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select your ID type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">The camera will check the document format, readable name, lighting, and framing before capture.</p></div>';
+    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Select ID Type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select a valid ID type</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select ID Type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">Use an original government-issued photo ID that belongs to the applicant and is unexpired when applicable.</p></div>';
     card.querySelector('.camera-stream').insertAdjacentElement('beforebegin', panel);
     var video = card.querySelector('.camera-stream'), frame = document.createElement('div');
     frame.className = 'id-camera-frame relative mt-4 hidden overflow-hidden rounded-lg bg-black';
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (card._stream) {
         scanButton.classList.remove('hidden');
         scanButton.disabled = !this.value;
-        note(card, this.value ? 'Place the complete ID inside the guide, then tap Scan ID.' : 'Select the Government ID type before scanning.', this.value ? 'text-blue-700' : 'text-amber-700');
+        note(card, this.value ? 'Place the complete ID inside the guide, then tap Scan ID.' : 'Select a valid ID type before scanning.', this.value ? 'text-blue-700' : 'text-amber-700');
       }
     });
     scanButton.addEventListener('click', function () { scanGovernmentId(card); });
@@ -406,11 +406,11 @@ document.addEventListener('DOMContentLoaded', function () {
     var words = normalizeOcr(text).split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
     return [parts[0], parts[parts.length - 1]].filter(function (part) { return ocrWordMatches(part, words); }).length;
   }
-  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Government ID'; }
+  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Valid Government-Issued ID'; }
   async function scanGovernmentId(card) {
     clearError();
     var select = card.querySelector('.id-type-select'), scanButton = card.querySelector('.scan-id'), captureButton = card.querySelector('.capture-photo'), video = card.querySelector('.camera-stream');
-    if (!select.value) return error('Select the Government ID type before scanning.');
+    if (!select.value) return error('Select a valid ID type before scanning.');
     if (!card._stream || !video.videoWidth || !video.videoHeight) return error('Open the rear camera and wait for the ID preview before scanning.');
     var fullName = form.querySelector('[name="full_name"]');
     if (!fullName || normalizeOcr(fullName.value).split(' ').filter(Boolean).length < 2) return error('Enter your complete Full Name in Personal Information before scanning the ID.');
@@ -487,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return error('Use a current Chrome, Edge, Firefox, or Safari browser for live camera capture.');
     if (isGovernmentId(card) && !card.querySelector('.id-type-select').value) {
       card.querySelector('.id-type-select').focus();
-      return error('Select the Government ID type before opening the camera.');
+      return error('Select a valid ID type before opening the camera.');
     }
     if (active && active !== card) stop(active);
     stop(card);
@@ -542,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     if (isGovernmentId(card) && (!card._idVerified || !card._idVerification || Date.now() - card._idVerifiedAt > 60000 || card._idVerification.selected_type !== card.querySelector('.id-type-select').value)) {
       resetIdVerification(card);
-      return error('Scan and pass the Government ID format and name check before capturing.');
+      return error('Scan and pass the valid government-issued ID type and applicant-name check before capturing.');
     }
     var button = card.querySelector('.capture-photo'), canvas = card.querySelector('.capture-canvas');
     button.disabled = true;

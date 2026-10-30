@@ -108,7 +108,7 @@ class ApplicationController extends BaseController
             $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']), $expectedIdType);
             if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
-        $ocrScreening = ['status' => 'Passed', 'message' => 'Government ID type and applicant name were confirmed, proof-of-address text was readable, the live selfie passed its face challenge, and the home photo passed image-quality checks.'];
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Valid government-issued ID type and applicant name were confirmed, proof-of-address text was readable, the live selfie passed its face challenge, and the home photo passed image-quality checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();
@@ -302,7 +302,7 @@ class ApplicationController extends BaseController
             || $confidence < 8
             || $secondsFromVerification < 0
             || $secondsFromVerification > 90) {
-            return 'Scan and pass the selected Government ID format and Full Name check before capturing it.';
+            return 'Scan and pass the selected valid government-issued ID type and Full Name check before capturing it.';
         }
 
         return null;

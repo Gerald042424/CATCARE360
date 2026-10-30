@@ -12,7 +12,7 @@ class DocumentOcrService
     {
         $apiKey = trim((string) env('ocr.apiKey'));
         if ($apiKey === '') {
-            return $this->failed('Government ID and proof of address verification is temporarily unavailable. Please try again shortly.');
+            return $this->failed('Valid government-issued ID and proof of address verification is temporarily unavailable. Please try again shortly.');
         }
 
         $endpoint = trim((string) env('ocr.endpoint', 'https://api.ocr.space/parse/image'));
@@ -75,7 +75,7 @@ class DocumentOcrService
         $nameMatches = in_array($documentType, ['gov_id', 'selfie'], true) ? $this->nameMatches($applicantName, $text) : true;
 
         if (! $hasUsableText) {
-            if ($documentType === 'gov_id') return $this->failed('The Government ID has no usable readable text. Capture the actual ID clearly and try again.');
+            if ($documentType === 'gov_id') return $this->failed('The valid government-issued ID has no usable readable text. Capture the original ID clearly and try again.');
             if ($documentType === 'selfie') return $this->failed('The selfie with Government ID must clearly show your face and readable ID text. Capture both in good lighting.');
             if ($documentType === 'address_proof') return $this->failed('The proof-of-address document has no usable readable text. Capture the actual document clearly and try again.');
             return $this->failed('The home photo is too unclear to verify. Capture a well-lit photo of the cat living space.');
@@ -84,17 +84,17 @@ class DocumentOcrService
             $allowedIdTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
             $detectedIdType = $this->detectGovernmentIdType($text);
             if (! in_array((string) $expectedIdType, $allowedIdTypes, true)) {
-                return $this->failed('Select and scan the Government ID type again before submitting.');
+                return $this->failed('Select and scan the valid government-issued ID type again before submitting.');
             }
             if ($detectedIdType === null) {
-                return $this->failed('The selected Government ID format could not be confirmed from the captured photo. Retake it with the ID title and all text clearly visible.');
+                return $this->failed('The selected valid government-issued ID type could not be confirmed from the captured photo. Retake it with the ID title and all text clearly visible.');
             }
             if ($detectedIdType !== $expectedIdType) {
-                return $this->failed('The captured Government ID does not match the selected ID type. Select the correct type and scan it again.');
+                return $this->failed('The captured valid government-issued ID does not match the selected ID type. Select the correct type and scan it again.');
             }
         }
         if ($documentType === 'gov_id' && ! $nameMatches) {
-            return $this->failed('The name on the Government ID does not match the Full Name entered in the application.');
+            return $this->failed('The name on the valid government-issued ID does not match the Full Name entered in the application.');
         }
         if ($documentType === 'selfie' && ! $nameMatches) {
             return $this->failed('The readable name on the ID in the selfie does not match the Full Name entered in the application.');
