@@ -10,7 +10,8 @@ document.addEventListener('DOMContentLoaded', function () {
     ['selfie', 'Live Selfie Verification', 'Use the front camera and complete the blink or head-turn challenge.', 'scan-face'],
     ['gov_id', 'Valid Government-Issued ID', 'Scan an original ID that belongs to the applicant and is unexpired when an expiry date applies.', 'credit-card'],
     ['address_proof', 'Proof of Address', 'Capture a current utility bill, lease, or bank statement.', 'file-text'],
-    ['home_photos', 'Home / Living Space Photos', 'Capture the area where the cat will live.', 'house']
+    ['home_photos', 'Indoor Living Area', 'Capture a wide, well-lit view of the actual indoor area where the cat will live.', 'house'],
+    ['home_access', 'Windows / Outdoor Access Area', 'Show windows, doors, balcony, or outdoor access for escape-prevention review.', 'door-open']
   ];
   if (section.querySelector('.verification-capture')) { docs = []; }
   else section.innerHTML = '<div class="mb-2 flex items-center gap-3 border-b border-gray-100 pb-4"><i data-lucide="shield-check" class="h-5 w-5 text-blue-600"></i><div><h2 class="text-xl font-semibold text-gray-900">Live Verification Photos</h2><p class="mt-1 text-sm text-gray-500">Use the in-app camera. Every photo is stamped with capture date, time, and the device’s current GPS location—not the profile address.</p></div></div><div id="captureError" class="mb-4 hidden rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700" role="alert"></div><input id="verificationMetadata" type="hidden" name="verification_metadata"><div id="captureCards" class="space-y-4"></div>';
@@ -31,6 +32,8 @@ document.addEventListener('DOMContentLoaded', function () {
   function note(card, message, color) { var el = card.querySelector('.location-status'); el.textContent = message; el.className = 'location-status mt-3 text-xs font-medium ' + color; }
   function isSelfie(card) { return card.dataset.key === 'selfie'; }
   function isGovernmentId(card) { return card.dataset.key === 'gov_id'; }
+  function isHomeScene(card) { return card.dataset.key === 'home_photos' || card.dataset.key === 'home_access'; }
+  function homeSceneType(card) { return card.dataset.key === 'home_access' ? 'windows_outdoor_access' : 'indoor_living_area'; }
   function ensureFacePanel(card) {
     if (!isSelfie(card) || card.querySelector('.face-liveness-panel')) return;
     var panel = document.createElement('div');
@@ -494,6 +497,7 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       if (isSelfie(card)) card._facing = 'user';
       if (isGovernmentId(card)) { card._facing = 'environment'; resetIdVerification(card); }
+      if (isHomeScene(card)) card._facing = 'environment';
       var stream = await streamFor(card._facing || 'environment');
       card._stream = stream;
       active = card;
@@ -521,6 +525,10 @@ document.addEventListener('DOMContentLoaded', function () {
         getTesseractWorker().catch(function (reason) {
           idMessage(card, 'OCR could not start', reason.message || 'Check your connection, then reopen the camera.', 'warning');
         });
+      } else if (isHomeScene(card)) {
+        card.querySelector('.capture-photo').disabled = false;
+        card.querySelector('.switch-camera').classList.add('hidden');
+        note(card, card.dataset.key === 'home_access' ? 'Rear camera ready. Show the complete window, door, balcony, or outdoor-access area.' : 'Rear camera ready. Capture a wide view of the actual indoor living area.', 'text-emerald-700');
       } else {
         card.querySelector('.capture-photo').disabled = false;
         card.querySelector('.switch-camera').classList.remove('hidden');
@@ -543,6 +551,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isGovernmentId(card) && (!card._idVerified || !card._idVerification || Date.now() - card._idVerifiedAt > 60000 || card._idVerification.selected_type !== card.querySelector('.id-type-select').value)) {
       resetIdVerification(card);
       return error('Scan and pass the valid government-issued ID type and applicant-name check before capturing.');
+    }
+    var homeSceneVerification = null;
+    if (isHomeScene(card)) {
+      var homeAnalysis = analyzeIdFrame(frameCanvas(video));
+      if (homeAnalysis.brightness < 45) return error('The home area is too dark. Turn on the lights or capture it during daylight.');
+      if (homeAnalysis.brightness > 235 || homeAnalysis.glareRatio > 0.35) return error('The home photo has too much glare or overexposure. Adjust the camera angle and retake it.');
+      if (homeAnalysis.sharpness < 5 || homeAnalysis.contrast < 14) return error('Not enough room detail is visible. Hold the phone steady and capture a wider, clearer view of the actual area.');
+      homeSceneVerification = { verified: true, capture_type: homeSceneType(card), brightness: Math.round(homeAnalysis.brightness), contrast: Math.round(homeAnalysis.contrast), sharpness: Math.round(homeAnalysis.sharpness * 10) / 10, verified_at: new Date().toISOString(), provider: 'native_canvas_scene_quality', version: '1.0' };
     }
     var button = card.querySelector('.capture-photo'), canvas = card.querySelector('.capture-canvas');
     button.disabled = true;
@@ -567,6 +583,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var captureMetadata = { capture_source: 'in_app_camera', latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy, captured_at: when.toISOString(), location: place.location, location_source: place.source, location_attribution: place.attribution };
         if (liveness) captureMetadata.face_liveness = liveness;
         if (idVerification) captureMetadata.id_verification = idVerification;
+        if (homeSceneVerification) captureMetadata.home_scene = homeSceneVerification;
         captures[key] = captureMetadata;
         meta.value = JSON.stringify(captures);
         var preview = card.querySelector('.capture-preview');
@@ -596,7 +613,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isGovernmentId(card)) card.querySelector('.capture-photo').textContent = 'Scan ID first';
     card.querySelector('.start-camera').onclick = function () { open(card); };
     card.querySelector('.switch-camera').onclick = function () {
-      if (isSelfie(card) || isGovernmentId(card)) return;
+      if (isSelfie(card) || isGovernmentId(card) || isHomeScene(card)) return;
       card._facing = card._facing === 'environment' ? 'user' : 'environment';
       open(card);
     };
@@ -609,13 +626,13 @@ document.addEventListener('DOMContentLoaded', function () {
       card.querySelector('.capture-preview-wrap').classList.add('hidden');
       card.querySelector('.retake-photo').classList.add('hidden');
       card.querySelector('.capture-photo').classList.remove('hidden');
-      if (!isSelfie(card) && !isGovernmentId(card)) card.querySelector('.switch-camera').classList.remove('hidden');
+      if (!isSelfie(card) && !isGovernmentId(card) && !isHomeScene(card)) card.querySelector('.switch-camera').classList.remove('hidden');
       if (isGovernmentId(card)) { card.querySelector('.id-type-select').disabled = false; resetIdVerification(card); }
       card.querySelector('.capture-state').textContent = 'Not captured';
       card.querySelector('.capture-state').className = 'capture-state rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600';
       open(card);
     };
   });
-  form.addEventListener('submit', function (event) { var cards = document.querySelectorAll('.verification-capture'), valid = Object.keys(captures).length === cards.length && Array.prototype.every.call(cards, function (card) { return card.querySelector('.capture-file').files.length === 1; }); if (!valid) { event.preventDefault(); error('Capture all four live verification photos before submitting.'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); return; } if (submitting) { event.preventDefault(); return; } submitting = true; meta.value = JSON.stringify(captures); var button = form.querySelector('button[type="submit"]'); button.disabled = true; button.querySelector('span').textContent = 'Submitting application…'; });
+  form.addEventListener('submit', function (event) { var cards = document.querySelectorAll('.verification-capture'), valid = Object.keys(captures).length === cards.length && Array.prototype.every.call(cards, function (card) { return card.querySelector('.capture-file').files.length === 1; }); if (!valid) { event.preventDefault(); error('Capture all five live verification photos before submitting.'); cards[0].scrollIntoView({ behavior: 'smooth', block: 'center' }); return; } if (submitting) { event.preventDefault(); return; } submitting = true; meta.value = JSON.stringify(captures); var button = form.querySelector('button[type="submit"]'); button.disabled = true; button.querySelector('span').textContent = 'Submitting application…'; });
   window.addEventListener('beforeunload', function () { document.querySelectorAll('.verification-capture').forEach(stop); if (tesseractWorkerPromise) tesseractWorkerPromise.then(function (worker) { worker.terminate(); }).catch(function () {}); });
 });

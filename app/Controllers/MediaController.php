@@ -65,6 +65,28 @@ class MediaController extends BaseController
             ->orWhere('home_photos_path', $storedReference)
             ->groupEnd();
 
-        return $builder->countAllResults() > 0;
+        if ($builder->countAllResults() > 0) {
+            return true;
+        }
+
+        // The second home-area image is stored in server-owned verification
+        // metadata so existing production databases do not require a schema
+        // change. It receives the same owner-only authorization as the legacy
+        // application document columns above.
+        $applications = db_connect()->table('adoption_applications')
+            ->select('verification_metadata')
+            ->where('adopter_id', $adopterId)
+            ->get()
+            ->getResultArray();
+
+        foreach ($applications as $application) {
+            $metadata = json_decode((string) ($application['verification_metadata'] ?? ''), true);
+            if (is_array($metadata)
+                && ($metadata['home_access']['stored_path'] ?? null) === $storedReference) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

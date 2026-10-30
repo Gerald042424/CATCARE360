@@ -14,7 +14,7 @@ use App\Services\CloudStorageService;
 
 class ApplicationController extends BaseController
 {
-    private const DOCUMENT_FIELDS = ['selfie', 'gov_id', 'address_proof', 'home_photos'];
+    private const DOCUMENT_FIELDS = ['selfie', 'gov_id', 'address_proof', 'home_photos', 'home_access'];
 
     public function index(int $catId = 0)
     {
@@ -76,7 +76,7 @@ class ApplicationController extends BaseController
 
         $metadata = json_decode((string) ($post['verification_metadata'] ?? ''), true);
         if (! is_array($metadata)) {
-            return redirect()->back()->withInput()->with('error', 'Capture all four live verification photos before submitting.');
+            return redirect()->back()->withInput()->with('error', 'Capture all five live verification photos before submitting.');
         }
         $deviceInfo = [
             'user_agent' => substr($this->request->getUserAgent()->getAgentString(), 0, 500),
@@ -97,6 +97,16 @@ class ApplicationController extends BaseController
             $verificationFiles[$field] = $file;
         }
 
+        $homePairError = $this->validateHomeCapturePair(
+            $verificationFiles['home_photos'],
+            $verificationFiles['home_access'],
+            $metadata['home_photos'] ?? [],
+            $metadata['home_access'] ?? [],
+        );
+        if ($homePairError !== null) {
+            return redirect()->back()->withInput()->with('error', $homePairError);
+        }
+
         // Only Government ID and proof of address need readable text. A selfie
         // and home photo only need to be real, well-lit live captures. The ID
         // cannot be accepted unless OCR can confirm its text and name match.
@@ -108,7 +118,7 @@ class ApplicationController extends BaseController
             $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']), $expectedIdType);
             if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
-        $ocrScreening = ['status' => 'Passed', 'message' => 'Valid government-issued ID type and applicant name were confirmed, proof-of-address text was readable, the live selfie passed its face challenge, and the home photo passed image-quality checks.'];
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Valid government-issued ID type and applicant name were confirmed, proof-of-address text was readable, the live selfie passed its face challenge, and both home-area photos passed quality, location, and duplicate checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();
@@ -161,12 +171,20 @@ class ApplicationController extends BaseController
 
         $storage = new CloudStorageService();
         $paths = [];
+        $storedDocuments = [];
         try {
             foreach (self::DOCUMENT_FIELDS as $field) {
                 $file = $verificationFiles[$field];
                 $filename = strtolower($field . '_' . $applicationCode . '_' . bin2hex(random_bytes(6)) . '.jpg');
-                $paths[$field . '_path'] = $storage->store($file, 'applications', $filename);
+                $storedDocuments[$field] = $storage->store($file, 'applications', $filename);
+                if ($field !== 'home_access') {
+                    $paths[$field . '_path'] = $storedDocuments[$field];
+                }
             }
+            // Keep the additional private home-access image in server-owned
+            // metadata so existing TiDB deployments need no risky schema edit.
+            $metadata['home_access']['stored_path'] = $storedDocuments['home_access'];
+            $paths['verification_metadata'] = json_encode($metadata, JSON_UNESCAPED_SLASHES);
             $applicationModel->update($applicationId, $paths);
             foreach ($cats as $selectedCat) {
                 (new ApplicationCatModel())->insert(['application_id' => $applicationId, 'cat_id' => $selectedCat['id'], 'status' => 'Under Review']);
@@ -175,7 +193,7 @@ class ApplicationController extends BaseController
             // photos. Related profile and per-cat records are updated during
             // staff review, so they cannot delay the applicant's redirect.
         } catch (\Throwable $exception) {
-            foreach ($paths as $path) {
+            foreach ($storedDocuments as $path) {
                 try {
                     $storage->delete($path);
                 } catch (\Throwable) {
@@ -240,6 +258,12 @@ class ApplicationController extends BaseController
             $idError = $this->validateIdVerificationMetadata($metadata, $capturedAt);
             if ($idError !== null) return $idError;
         }
+        if (in_array($field, ['home_photos', 'home_access'], true)) {
+            $sceneError = $this->validateHomeSceneMetadata($metadata, $capturedAt, $field);
+            if ($sceneError !== null) {
+                return $sceneError;
+            }
+        }
         $latitude = filter_var($metadata['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($metadata['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($metadata['accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
@@ -255,6 +279,9 @@ class ApplicationController extends BaseController
         }
         if ($this->isNearlyBlankImage($file->getTempName())) {
             return "{$label} appears blank, plain, or too dark. Please retake a clear photo of the required document or area.";
+        }
+        if (in_array($field, ['home_photos', 'home_access'], true) && ! $this->hasSufficientSceneDetail($file->getTempName())) {
+            return "{$label} does not show enough room detail. Capture a wider, clearer view of the actual home area.";
         }
         return null;
     }
@@ -306,6 +333,143 @@ class ApplicationController extends BaseController
         }
 
         return null;
+    }
+
+    private function validateHomeSceneMetadata(array $metadata, int $capturedAt, string $field): ?string
+    {
+        $scene = $metadata['home_scene'] ?? null;
+        $verifiedAt = is_array($scene) ? strtotime((string) ($scene['verified_at'] ?? '')) : false;
+        $expectedType = $field === 'home_access' ? 'windows_outdoor_access' : 'indoor_living_area';
+        $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
+        $brightness = is_array($scene) ? filter_var($scene['brightness'] ?? null, FILTER_VALIDATE_FLOAT) : false;
+        $contrast = is_array($scene) ? filter_var($scene['contrast'] ?? null, FILTER_VALIDATE_FLOAT) : false;
+        $sharpness = is_array($scene) ? filter_var($scene['sharpness'] ?? null, FILTER_VALIDATE_FLOAT) : false;
+
+        if (! is_array($scene)
+            || ($scene['verified'] ?? false) !== true
+            || ($scene['capture_type'] ?? '') !== $expectedType
+            || ($scene['provider'] ?? '') !== 'native_canvas_scene_quality'
+            || $brightness === false || $brightness < 45 || $brightness > 235
+            || $contrast === false || $contrast < 14
+            || $sharpness === false || $sharpness < 5
+            || $secondsFromVerification < 0 || $secondsFromVerification > 60) {
+            return $field === 'home_access'
+                ? 'Capture a clear, well-lit view of the windows, doors, balcony, or outdoor-access area.'
+                : 'Capture a clear, wide, well-lit view of the actual indoor living area.';
+        }
+
+        return null;
+    }
+
+    private function validateHomeCapturePair($indoorFile, $accessFile, array $indoorMetadata, array $accessMetadata): ?string
+    {
+        if ($this->imagesAreNearDuplicates($indoorFile->getTempName(), $accessFile->getTempName())) {
+            return 'Indoor Living Area and Windows / Outdoor Access Area must be two different live photos.';
+        }
+
+        $distance = $this->distanceMeters(
+            (float) ($indoorMetadata['latitude'] ?? 0),
+            (float) ($indoorMetadata['longitude'] ?? 0),
+            (float) ($accessMetadata['latitude'] ?? 0),
+            (float) ($accessMetadata['longitude'] ?? 0),
+        );
+        $allowedDistance = max(250.0, (float) ($indoorMetadata['accuracy'] ?? 0) + (float) ($accessMetadata['accuracy'] ?? 0) + 100.0);
+        if ($distance > $allowedDistance) {
+            return 'Both home-area photos must be captured at the same property location.';
+        }
+
+        return null;
+    }
+
+    private function distanceMeters(float $firstLatitude, float $firstLongitude, float $secondLatitude, float $secondLongitude): float
+    {
+        $toRadians = M_PI / 180;
+        $firstLat = $firstLatitude * $toRadians;
+        $secondLat = $secondLatitude * $toRadians;
+        $deltaLat = ($secondLatitude - $firstLatitude) * $toRadians;
+        $deltaLon = ($secondLongitude - $firstLongitude) * $toRadians;
+        $a = sin($deltaLat / 2) ** 2 + cos($firstLat) * cos($secondLat) * sin($deltaLon / 2) ** 2;
+        return 6371000 * 2 * atan2(sqrt($a), sqrt(max(0.0, 1 - $a)));
+    }
+
+    private function imagesAreNearDuplicates(string $firstPath, string $secondPath): bool
+    {
+        $firstHash = $this->differenceHash($firstPath);
+        $secondHash = $this->differenceHash($secondPath);
+        if ($firstHash === null || $secondHash === null) {
+            return true;
+        }
+
+        $difference = 0;
+        for ($index = 0, $length = strlen($firstHash); $index < $length; ++$index) {
+            if ($firstHash[$index] !== $secondHash[$index]) {
+                ++$difference;
+            }
+        }
+        return $difference <= 10;
+    }
+
+    private function differenceHash(string $path): ?string
+    {
+        $source = @imagecreatefromjpeg($path);
+        if (! $source) return null;
+        $sample = imagecreatetruecolor(17, 16);
+        // Ignore the lower GPS/address stamp when comparing the two scenes.
+        imagecopyresampled($sample, $source, 0, 0, 0, 0, 17, 16, imagesx($source), max(1, (int) (imagesy($source) * 0.68)));
+        $hash = '';
+        for ($y = 0; $y < 16; ++$y) {
+            for ($x = 0; $x < 16; ++$x) {
+                $left = imagecolorat($sample, $x, $y);
+                $right = imagecolorat($sample, $x + 1, $y);
+                $leftGray = ((($left >> 16) & 0xFF) * 0.299) + ((($left >> 8) & 0xFF) * 0.587) + (($left & 0xFF) * 0.114);
+                $rightGray = ((($right >> 16) & 0xFF) * 0.299) + ((($right >> 8) & 0xFF) * 0.587) + (($right & 0xFF) * 0.114);
+                $hash .= $leftGray > $rightGray ? '1' : '0';
+            }
+        }
+        imagedestroy($sample);
+        imagedestroy($source);
+        return $hash;
+    }
+
+    private function hasSufficientSceneDetail(string $path): bool
+    {
+        $image = @imagecreatefromjpeg($path);
+        if (! $image) return false;
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $values = [];
+        for ($row = 0; $row < 20; ++$row) {
+            for ($column = 0; $column < 28; ++$column) {
+                $x = min($width - 1, (int) (($column + 0.5) * $width / 28));
+                $y = min($height - 1, (int) (($row + 0.5) * ($height * 0.68) / 20));
+                $rgb = imagecolorat($image, $x, $y);
+                $values[$row][$column] = ((($rgb >> 16) & 0xFF) * 0.299) + ((($rgb >> 8) & 0xFF) * 0.587) + (($rgb & 0xFF) * 0.114);
+            }
+        }
+        imagedestroy($image);
+        $edges = 0.0;
+        $edgeSamples = 0;
+        $sum = 0.0;
+        $sumSquares = 0.0;
+        for ($row = 0; $row < 20; ++$row) {
+            for ($column = 0; $column < 28; ++$column) {
+                $value = $values[$row][$column];
+                $sum += $value;
+                $sumSquares += $value * $value;
+                if ($column > 0) {
+                    $edges += abs($value - $values[$row][$column - 1]);
+                    ++$edgeSamples;
+                }
+                if ($row > 0) {
+                    $edges += abs($value - $values[$row - 1][$column]);
+                    ++$edgeSamples;
+                }
+            }
+        }
+        $samples = 20 * 28;
+        $mean = $sum / $samples;
+        $variance = ($sumSquares / $samples) - ($mean ** 2);
+        return $variance >= 120 && ($edges / max(1, $edgeSamples)) >= 4.5;
     }
 
     /** Reject black/lens-covered and near-solid frames without counting the GPS stamp. */

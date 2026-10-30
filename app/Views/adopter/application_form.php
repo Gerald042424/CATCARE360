@@ -13,7 +13,8 @@ $documents = [
     'selfie' => ['Live Selfie Verification', 'Use the front camera and complete the blink or head-turn challenge.', 'scan-face'],
     'gov_id' => ['Valid Government-Issued ID', 'Use an original ID belonging to the applicant; it must be unexpired when applicable.', 'credit-card'],
     'address_proof' => ['Proof of Address', 'Utility bill, lease agreement, or bank statement.', 'file-text'],
-    'home_photos' => ['Home / Living Space Photos', 'Show the indoor area, windows, and outdoor access.', 'house'],
+    'home_photos' => ['Indoor Living Area', 'Capture a wide, well-lit view of the actual indoor area where the cat will live.', 'house'],
+    'home_access' => ['Windows / Outdoor Access Area', 'Show windows, doors, balcony, or outdoor access for escape-prevention review.', 'door-open'],
 ];
 ?>
 <style>#adoptionApplication section:has([x-data*="uploadField"]){display:none!important}</style>

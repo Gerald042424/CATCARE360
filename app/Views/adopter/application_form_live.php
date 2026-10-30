@@ -2,7 +2,7 @@
 <?= $this->section('adopter_content') ?>
 <?php
 $input = 'w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none focus:ring-2 focus:ring-rescue-500/20';
-$docs = ['selfie'=>['Live Selfie Verification','Use the front camera and complete the blink or head-turn challenge before capturing.','scan-face'],'gov_id'=>['Valid Government-Issued ID','Scan an original ID that belongs to the applicant and is unexpired when an expiry date applies.','credit-card'],'address_proof'=>['Proof of Address','Capture a current utility bill, lease, or bank statement with readable text.','file-text'],'home_photos'=>['Home / Living Space Photos','Capture the actual cat living area. Blank, plain, or black photos are rejected.','house']];
+$docs = ['selfie'=>['Live Selfie Verification','Use the front camera and complete the blink or head-turn challenge before capturing.','scan-face'],'gov_id'=>['Valid Government-Issued ID','Scan an original ID that belongs to the applicant and is unexpired when an expiry date applies.','credit-card'],'address_proof'=>['Proof of Address','Capture a current utility bill, lease, or bank statement with readable text.','file-text'],'home_photos'=>['Indoor Living Area','Capture a wide, well-lit view of the actual indoor area where the cat will live.','house'],'home_access'=>['Windows / Outdoor Access Area','Capture windows, doors, balcony, or outdoor access so staff can review escape-prevention measures.','door-open']];
 ?>
 <div class="mx-auto max-w-3xl px-6 py-12"><a href="<?= site_url('adopter/home') ?>" class="mb-8 inline-flex items-center gap-2 text-sm font-medium text-slate-500"><i data-lucide="arrow-left" class="h-4 w-4"></i>Back to Cats</a><div class="mb-10"><h1 class="text-3xl font-semibold text-slate-900">Adoption Application</h1><p class="mt-2 font-medium text-slate-500">Take the first step to bringing your new best friend home.</p></div><?php if (session('error')): ?><div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700"><?= esc(session('error')) ?></div><?php endif ?>
 <form id="adoptionApplication" method="post" action="<?= site_url('adopter/apply') ?>" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" enctype="multipart/form-data" class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><?= csrf_field() ?><input type="hidden" name="cat_id" value="<?= (int)$catId ?>"><input id="verificationMetadata" type="hidden" name="verification_metadata"><div class="space-y-10 p-6 sm:p-8">
@@ -48,12 +48,12 @@ document.addEventListener('DOMContentLoaded', function () {
         event.stopImmediatePropagation();
         if (!form.reportValidity()) return;
         var cards = form.querySelectorAll('.verification-capture');
-        var valid = cards.length === 4 && Array.prototype.every.call(cards, function (card) {
+        var valid = cards.length === 5 && Array.prototype.every.call(cards, function (card) {
             return card.querySelector('.capture-file').files.length === 1;
         }) && document.getElementById('verificationMetadata').value;
         if (!valid) {
             var error = document.getElementById('captureError');
-            error.textContent = 'Capture all four live verification photos before submitting.';
+            error.textContent = 'Capture all five live verification photos before submitting.';
             error.classList.remove('hidden');
             document.getElementById('liveVerification').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
