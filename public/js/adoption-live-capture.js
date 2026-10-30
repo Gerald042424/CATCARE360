@@ -375,11 +375,30 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function detectGovernmentIdType(text) {
     var normalized = normalizeOcr(text), compactLetters = normalized.replace(/[^A-Z]/g, '');
-    if (compactLetters.indexOf('PHILHEAL') !== -1 || /PHILIPPINE HEALTH INSURANCE/.test(normalized)) return 'philhealth';
-    if (/PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS/.test(normalized)) return 'national_id';
-    if (/DRIVER.?S LICENSE|LAND TRANSPORTATION OFFICE|\bLTO\b/.test(normalized)) return 'drivers_license';
-    if ((/PASSPORT/.test(normalized) && /PILIPINAS|PHILIPPINES|\bPHL\b/.test(normalized)) || /P<PHL/.test(normalized)) return 'passport';
-    return null;
+    var scores = { philhealth: 0, national_id: 0, drivers_license: 0, passport: 0 };
+    if (compactLetters.indexOf('PHILHEAL') !== -1) scores.philhealth += 8;
+    if (/PHILIPPINE HEALTH INSURANCE|HEALTH INSURANCE CORPORATION/.test(normalized)) scores.philhealth += 6;
+    if (/MEMBER DATA RECORD|MEMBER IDENTIFICATION|\bPHILHEALTH PIN\b/.test(normalized)) scores.philhealth += 5;
+    if (/\b\d{2}\s+\d{9}\s+\d\b/.test(normalized)) scores.philhealth += 4;
+    if (/\bMEMBER\b|\bPIN\b/.test(normalized)) scores.philhealth += 1;
+
+    if (/PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS/.test(normalized)) scores.national_id += 8;
+    if (/PHILIPPINE IDENTIFICATION SYSTEM|PHILSYS CARD NUMBER|\bPCN\b|\bPSN\b/.test(normalized)) scores.national_id += 5;
+    if (/\b\d{4}\s+\d{4}\s+\d{4}\s+\d{4}\b/.test(normalized)) scores.national_id += 4;
+
+    if (/DRIVER.?S LICENSE/.test(normalized)) scores.drivers_license += 8;
+    if (/LAND TRANSPORTATION OFFICE|DEPARTMENT OF TRANSPORTATION/.test(normalized)) scores.drivers_license += 6;
+    if (/\bLTO\b|DL CODES|RESTRICTIONS/.test(normalized)) scores.drivers_license += 4;
+    if (/\b[A-Z]\d{2}\s+\d{2}\s+\d{6}\b/.test(normalized)) scores.drivers_license += 4;
+
+    if (/P<PHL/.test(normalized)) scores.passport += 10;
+    if (/\bPASSPORT\b/.test(normalized)) scores.passport += 7;
+    if (/PILIPINAS|REPUBLIC OF THE PHILIPPINES|\bPHL\b/.test(normalized)) scores.passport += 2;
+    if (/SURNAME|GIVEN NAMES|NATIONALITY/.test(normalized)) scores.passport += 1;
+
+    var ranked = Object.keys(scores).sort(function (first, second) { return scores[second] - scores[first]; });
+    if (scores[ranked[0]] < 4 || (scores[ranked[1]] > 0 && scores[ranked[0]] - scores[ranked[1]] < 2)) return null;
+    return ranked[0];
   }
   function applicantNameMatchCount(text) {
     var input = form.querySelector('[name="full_name"]'), parts = normalizeOcr(input ? input.value : '').split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
@@ -414,19 +433,19 @@ document.addEventListener('DOMContentLoaded', function () {
         text += '\n' + enhancedText; confidence = Math.max(confidence, enhancedConfidence);
         detectedType = detectGovernmentIdType(text); nameMatchCount = applicantNameMatchCount(text);
       }
-      if (detectedType && detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
+      if (!detectedType) throw new Error('The scanner could not confirm the ID type. Move closer and keep the ID title, logo, and number fully visible.');
+      if (detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
       if (nameMatchCount < 1) throw new Error('The scanner could not read any matching name from the ID. Move closer and keep the name area clear.');
       var readableTokens = normalizeOcr(text).split(' ').filter(function (part) { return part.length >= 2; }).length;
       if (readableTokens < 4 || confidence < 8) throw new Error('Not enough readable ID text was found. Move closer, avoid glare, and scan again.');
-      var typeMarkerConfirmed = detectedType === select.value;
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
-      card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType || '', type_basis: typeMarkerConfirmed ? 'ocr_marker' : 'selected_pending_server', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
+      card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, type_basis: 'ocr_marker', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
       captureButton.disabled = false;
-      captureButton.textContent = 'Capture readable ID';
-      card.querySelector('.capture-state').textContent = typeMarkerConfirmed ? 'ID verified' : 'Ready to capture';
+      captureButton.textContent = 'Capture verified ID';
+      card.querySelector('.capture-state').textContent = 'ID verified';
       card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
-      idMessage(card, typeMarkerConfirmed ? idTypeLabel(detectedType) + ' verified' : 'ID is readable', typeMarkerConfirmed ? 'The ID marker and applicant name were read. Keep the same ID in frame and capture it within 60 seconds.' : 'Readable ID text and part of the applicant name were found. The server will perform the exact type and complete-name check on submission.', 'success');
+      idMessage(card, idTypeLabel(detectedType) + ' verified', 'The ID signature and applicant name were read. Keep the same ID in frame and capture it within 60 seconds.', 'success');
       note(card, 'ID scan passed. Capture the same document within 60 seconds.', 'text-emerald-700');
     } catch (reason) {
       resetIdVerification(card);

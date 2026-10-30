@@ -289,8 +289,7 @@ class ApplicationController extends BaseController
         $confidence = is_array($verification) ? filter_var($verification['confidence'] ?? null, FILTER_VALIDATE_FLOAT) : false;
         $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
         $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
-        $validTypeEvidence = ($detectedType === $selectedType && $typeBasis === 'ocr_marker')
-            || ($detectedType === '' && $typeBasis === 'selected_pending_server');
+        $validTypeEvidence = $detectedType === $selectedType && $typeBasis === 'ocr_marker';
 
         if (! is_array($verification)
             || ($verification['verified'] ?? false) !== true
