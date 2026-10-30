@@ -52,9 +52,7 @@
         <a @click="mobileMenu=false" href="<?= site_url('/') ?>#volunteer" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">Become a Volunteer</a>
     </div>
 </nav>
-<?php if (session('success') || session('error')): ?>
-    <div class="fixed left-1/2 top-20 z-50 -translate-x-1/2 rounded-xl border bg-white px-4 py-3 text-sm font-semibold shadow-lg"><?= esc(session('error') ?: session('success')) ?></div>
-<?php endif; ?>
+<?= view('components/flash_message', ['top' => '5rem']) ?>
 <?= $this->renderSection('content') ?>
 <div x-cloak x-show="authOpen" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4 backdrop-blur-sm" @keydown.escape.window="authOpen=false">
     <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl" @click.outside="authOpen=false">

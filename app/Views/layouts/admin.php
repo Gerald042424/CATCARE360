@@ -84,19 +84,7 @@
     </aside>
 
     <main class="relative z-10 flex-1 overflow-y-auto">
-        <?php if (session()->getFlashdata('success')): ?>
-            <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 3000)" x-show="show" x-transition class="fixed right-4 top-4 z-[200] flex items-center gap-3 rounded-xl border border-adopted-200 bg-white px-5 py-3.5 text-sm font-medium text-adopted-700 shadow-lg">
-                <i data-lucide="check-circle-2" class="h-5 w-5 text-adopted-600"></i>
-                <?= esc(session()->getFlashdata('success')) ?>
-            </div>
-        <?php endif; ?>
-
-        <?php if (session()->getFlashdata('error')): ?>
-            <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 4000)" x-show="show" x-transition class="fixed right-4 top-4 z-[200] flex items-center gap-3 rounded-xl border border-red-200 bg-white px-5 py-3.5 text-sm font-medium text-red-600 shadow-lg">
-                <i data-lucide="alert-circle" class="h-5 w-5 text-red-500"></i>
-                <?= esc(session()->getFlashdata('error')) ?>
-            </div>
-        <?php endif; ?>
+        <?= view('components/flash_message', ['top' => '1rem']) ?>
 
         <div class="mx-auto max-w-[1600px] py-4 pr-4">
             <?= $this->renderSection('content') ?>

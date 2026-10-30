@@ -65,12 +65,7 @@
         </nav>
     </header>
 
-    <?php if (session('success') || session('error')): ?>
-        <?php $messageIsError = (bool) session('error'); ?>
-        <div class="fixed left-1/2 top-20 z-[90] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg <?= $messageIsError ? 'border-red-200 bg-red-50 text-red-700' : 'border-adopted-200 bg-adopted-50 text-adopted-700' ?>" role="alert">
-            <?= esc(session('error') ?: session('success')) ?>
-        </div>
-    <?php endif; ?>
+    <?= view('components/flash_message', ['top' => '5rem']) ?>
 
     <main class="min-h-[calc(100vh-4rem)]">
         <?= $this->renderSection('adopter_content') ?>
