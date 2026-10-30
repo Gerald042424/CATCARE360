@@ -381,11 +381,11 @@ document.addEventListener('DOMContentLoaded', function () {
     if ((/PASSPORT/.test(normalized) && /PILIPINAS|PHILIPPINES|\bPHL\b/.test(normalized)) || /P<PHL/.test(normalized)) return 'passport';
     return null;
   }
-  function applicantNameMatches(text) {
+  function applicantNameMatchCount(text) {
     var input = form.querySelector('[name="full_name"]'), parts = normalizeOcr(input ? input.value : '').split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
-    if (parts.length < 2) return false;
+    if (parts.length < 2) return 0;
     var words = normalizeOcr(text).split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
-    return ocrWordMatches(parts[0], words) && ocrWordMatches(parts[parts.length - 1], words);
+    return [parts[0], parts[parts.length - 1]].filter(function (part) { return ocrWordMatches(part, words); }).length;
   }
   function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Government ID'; }
   async function scanGovernmentId(card) {
@@ -407,25 +407,26 @@ document.addEventListener('DOMContentLoaded', function () {
       if (analysis.sharpness < 7 || analysis.contrast < 18) throw new Error('The ID text looks blurry or too plain. Keep all four corners inside the guide, hold the phone steady, and move closer.');
       idMessage(card, 'Document detected', 'Reading the ID type and applicant name locally. The image is not sent to the OCR library provider.', 'info');
       var worker = await getTesseractWorker(), ocrCanvas = cropCanvas(source, analysis.document), result = await worker.recognize(ocrCanvas), text = result && result.data ? result.data.text : '', confidence = result && result.data ? Number(result.data.confidence || 0) : 0;
-      var detectedType = detectGovernmentIdType(text), nameMatched = applicantNameMatches(text);
-      if (!detectedType || !nameMatched || confidence < 15) {
+      var detectedType = detectGovernmentIdType(text), nameMatchCount = applicantNameMatchCount(text);
+      if (!detectedType || nameMatchCount < 1 || confidence < 8) {
         idMessage(card, 'Improving ID reading', 'Running a second high-contrast OCR pass for laminated or low-contrast IDs.', 'info');
         var enhancedResult = await worker.recognize(highContrastCanvas(ocrCanvas)), enhancedText = enhancedResult && enhancedResult.data ? enhancedResult.data.text : '', enhancedConfidence = enhancedResult && enhancedResult.data ? Number(enhancedResult.data.confidence || 0) : 0;
         text += '\n' + enhancedText; confidence = Math.max(confidence, enhancedConfidence);
-        detectedType = detectGovernmentIdType(text); nameMatched = applicantNameMatches(text);
+        detectedType = detectGovernmentIdType(text); nameMatchCount = applicantNameMatchCount(text);
       }
-      if (!detectedType) throw new Error('The selected ID format could not be recognized. Make sure the ID title and all printed text are clear.');
-      if (detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
-      if (!nameMatched) throw new Error('The readable name on the ID does not match the Full Name in Personal Information. Check the name or retake the scan more clearly.');
-      if (confidence < 15) throw new Error('The ID text confidence is too low. Move closer, avoid glare, and scan again.');
+      if (detectedType && detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
+      if (nameMatchCount < 1) throw new Error('The scanner could not read any matching name from the ID. Move closer and keep the name area clear.');
+      var readableTokens = normalizeOcr(text).split(' ').filter(function (part) { return part.length >= 2; }).length;
+      if (readableTokens < 4 || confidence < 8) throw new Error('Not enough readable ID text was found. Move closer, avoid glare, and scan again.');
+      var typeMarkerConfirmed = detectedType === select.value;
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
-      card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, name_match: true, confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
+      card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType || '', type_basis: typeMarkerConfirmed ? 'ocr_marker' : 'selected_pending_server', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
       captureButton.disabled = false;
-      captureButton.textContent = 'Capture verified ID';
-      card.querySelector('.capture-state').textContent = 'ID verified';
+      captureButton.textContent = 'Capture readable ID';
+      card.querySelector('.capture-state').textContent = typeMarkerConfirmed ? 'ID verified' : 'Ready to capture';
       card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
-      idMessage(card, idTypeLabel(detectedType) + ' verified', 'The format and applicant name matched. Keep the same ID in frame and capture it within 60 seconds.', 'success');
+      idMessage(card, typeMarkerConfirmed ? idTypeLabel(detectedType) + ' verified' : 'ID is readable', typeMarkerConfirmed ? 'The ID marker and applicant name were read. Keep the same ID in frame and capture it within 60 seconds.' : 'Readable ID text and part of the applicant name were found. The server will perform the exact type and complete-name check on submission.', 'success');
       note(card, 'ID scan passed. Capture the same document within 60 seconds.', 'text-emerald-700');
     } catch (reason) {
       resetIdVerification(card);

@@ -284,20 +284,23 @@ class ApplicationController extends BaseController
         $verifiedAt = is_array($verification) ? strtotime((string) ($verification['verified_at'] ?? '')) : false;
         $selectedType = is_array($verification) ? (string) ($verification['selected_type'] ?? '') : '';
         $detectedType = is_array($verification) ? (string) ($verification['detected_type'] ?? '') : '';
+        $typeBasis = is_array($verification) ? (string) ($verification['type_basis'] ?? '') : '';
         $provider = is_array($verification) ? (string) ($verification['provider'] ?? '') : '';
         $confidence = is_array($verification) ? filter_var($verification['confidence'] ?? null, FILTER_VALIDATE_FLOAT) : false;
         $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
         $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
+        $validTypeEvidence = ($detectedType === $selectedType && $typeBasis === 'ocr_marker')
+            || ($detectedType === '' && $typeBasis === 'selected_pending_server');
 
         if (! is_array($verification)
             || ($verification['verified'] ?? false) !== true
             || ($verification['name_match'] ?? false) !== true
             || ($verification['document_detected'] ?? false) !== true
             || ! in_array($selectedType, $allowedTypes, true)
-            || $detectedType !== $selectedType
+            || ! $validTypeEvidence
             || $provider !== 'tesseract_js'
             || $confidence === false
-            || $confidence < 15
+            || $confidence < 8
             || $secondsFromVerification < 0
             || $secondsFromVerification > 90) {
             return 'Scan and pass the selected Government ID format and Full Name check before capturing it.';
