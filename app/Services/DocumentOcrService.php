@@ -116,8 +116,9 @@ class DocumentOcrService
     {
         $normalized = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: $text;
         $normalized = strtoupper(preg_replace('/[^A-Za-z0-9<]+/', ' ', $normalized) ?? '');
+        $compactLetters = preg_replace('/[^A-Z]/', '', $normalized) ?? '';
 
-        if (preg_match('/PHILHEALTH|PHILIPPINE\s+HEALTH\s+INSURANCE/', $normalized)) return 'philhealth';
+        if (str_contains($compactLetters, 'PHILHEAL') || preg_match('/PHILIPPINE\s+HEALTH\s+INSURANCE/', $normalized)) return 'philhealth';
         if (preg_match('/PHILIPPINE\s+IDENTIFICATION|PAMBANSANG\s+PAGKAKAKILANLAN|PHILSYS/', $normalized)) return 'national_id';
         if (preg_match('/DRIVER\s*S\s+LICENSE|LAND\s+TRANSPORTATION\s+OFFICE|\bLTO\b/', $normalized)) return 'drivers_license';
         if ((preg_match('/PASSPORT/', $normalized) && preg_match('/PILIPINAS|PHILIPPINES|\bPHL\b/', $normalized)) || preg_match('/P<PHL/', $normalized)) return 'passport';
@@ -167,8 +168,8 @@ class DocumentOcrService
         $firstName = $nameParts[0];
         $lastName = $nameParts[count($nameParts) - 1];
 
-        // Exact words only; punctuation, capitalization, and name-word order
-        // are ignored, but a different first or last name cannot pass.
+        // Server-side OCR remains exact: the tolerant browser pass only helps
+        // the applicant capture a readable image and cannot weaken submission.
         return isset($documentWords[$firstName], $documentWords[$lastName]);
     }
 

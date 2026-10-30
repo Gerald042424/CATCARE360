@@ -348,10 +348,34 @@ document.addEventListener('DOMContentLoaded', function () {
     target.getContext('2d').drawImage(source, x, y, width, height, 0, 0, target.width, target.height);
     return target;
   }
+  function highContrastCanvas(source) {
+    var target = document.createElement('canvas'); target.width = source.width; target.height = source.height;
+    var context = target.getContext('2d', { willReadFrequently: true }); context.drawImage(source, 0, 0);
+    var image = context.getImageData(0, 0, target.width, target.height), pixels = image.data;
+    for (var offset = 0; offset < pixels.length; offset += 4) {
+      var gray = pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
+      var value = gray < 175 ? 0 : 255;
+      pixels[offset] = value; pixels[offset + 1] = value; pixels[offset + 2] = value;
+    }
+    context.putImageData(image, 0, 0); return target;
+  }
   function normalizeOcr(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9<]+/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function editDistance(first, second) {
+    var previous = Array.from({ length: second.length + 1 }, function (_, index) { return index; });
+    for (var row = 1; row <= first.length; row += 1) {
+      var current = [row];
+      for (var column = 1; column <= second.length; column += 1) current[column] = Math.min(current[column - 1] + 1, previous[column] + 1, previous[column - 1] + (first[row - 1] === second[column - 1] ? 0 : 1));
+      previous = current;
+    }
+    return previous[second.length];
+  }
+  function ocrWordMatches(target, words) {
+    var allowedErrors = target.length >= 8 ? 2 : target.length >= 5 ? 1 : 0;
+    return words.some(function (word) { return Math.abs(word.length - target.length) <= allowedErrors && editDistance(target, word) <= allowedErrors; });
+  }
   function detectGovernmentIdType(text) {
-    var normalized = normalizeOcr(text);
-    if (/PHILHEALTH|PHILIPPINE HEALTH INSURANCE/.test(normalized)) return 'philhealth';
+    var normalized = normalizeOcr(text), compactLetters = normalized.replace(/[^A-Z]/g, '');
+    if (compactLetters.indexOf('PHILHEAL') !== -1 || /PHILIPPINE HEALTH INSURANCE/.test(normalized)) return 'philhealth';
     if (/PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS/.test(normalized)) return 'national_id';
     if (/DRIVER.?S LICENSE|LAND TRANSPORTATION OFFICE|\bLTO\b/.test(normalized)) return 'drivers_license';
     if ((/PASSPORT/.test(normalized) && /PILIPINAS|PHILIPPINES|\bPHL\b/.test(normalized)) || /P<PHL/.test(normalized)) return 'passport';
@@ -360,8 +384,8 @@ document.addEventListener('DOMContentLoaded', function () {
   function applicantNameMatches(text) {
     var input = form.querySelector('[name="full_name"]'), parts = normalizeOcr(input ? input.value : '').split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
     if (parts.length < 2) return false;
-    var words = new Set(normalizeOcr(text).split(' '));
-    return words.has(parts[0]) && words.has(parts[parts.length - 1]);
+    var words = normalizeOcr(text).split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
+    return ocrWordMatches(parts[0], words) && ocrWordMatches(parts[parts.length - 1], words);
   }
   function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Government ID'; }
   async function scanGovernmentId(card) {
@@ -383,11 +407,17 @@ document.addEventListener('DOMContentLoaded', function () {
       if (analysis.sharpness < 7 || analysis.contrast < 18) throw new Error('The ID text looks blurry or too plain. Keep all four corners inside the guide, hold the phone steady, and move closer.');
       idMessage(card, 'Document detected', 'Reading the ID type and applicant name locally. The image is not sent to the OCR library provider.', 'info');
       var worker = await getTesseractWorker(), ocrCanvas = cropCanvas(source, analysis.document), result = await worker.recognize(ocrCanvas), text = result && result.data ? result.data.text : '', confidence = result && result.data ? Number(result.data.confidence || 0) : 0;
-      var detectedType = detectGovernmentIdType(text);
+      var detectedType = detectGovernmentIdType(text), nameMatched = applicantNameMatches(text);
+      if (!detectedType || !nameMatched || confidence < 15) {
+        idMessage(card, 'Improving ID reading', 'Running a second high-contrast OCR pass for laminated or low-contrast IDs.', 'info');
+        var enhancedResult = await worker.recognize(highContrastCanvas(ocrCanvas)), enhancedText = enhancedResult && enhancedResult.data ? enhancedResult.data.text : '', enhancedConfidence = enhancedResult && enhancedResult.data ? Number(enhancedResult.data.confidence || 0) : 0;
+        text += '\n' + enhancedText; confidence = Math.max(confidence, enhancedConfidence);
+        detectedType = detectGovernmentIdType(text); nameMatched = applicantNameMatches(text);
+      }
       if (!detectedType) throw new Error('The selected ID format could not be recognized. Make sure the ID title and all printed text are clear.');
       if (detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
-      if (!applicantNameMatches(text)) throw new Error('The readable name on the ID does not match the Full Name in Personal Information. Check the name or retake the scan more clearly.');
-      if (confidence < 25) throw new Error('The ID text confidence is too low. Move closer, avoid glare, and scan again.');
+      if (!nameMatched) throw new Error('The readable name on the ID does not match the Full Name in Personal Information. Check the name or retake the scan more clearly.');
+      if (confidence < 15) throw new Error('The ID text confidence is too low. Move closer, avoid glare, and scan again.');
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
       card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, name_match: true, confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };

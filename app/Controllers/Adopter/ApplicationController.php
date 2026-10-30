@@ -297,7 +297,7 @@ class ApplicationController extends BaseController
             || $detectedType !== $selectedType
             || $provider !== 'tesseract_js'
             || $confidence === false
-            || $confidence < 25
+            || $confidence < 15
             || $secondsFromVerification < 0
             || $secondsFromVerification > 90) {
             return 'Scan and pass the selected Government ID format and Full Name check before capturing it.';
