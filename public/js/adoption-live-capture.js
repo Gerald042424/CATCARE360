@@ -419,9 +419,12 @@ document.addEventListener('DOMContentLoaded', function () {
     return ranked[0];
   }
   function applicantNameMatchCount(text) {
-    var input = form.querySelector('[name="full_name"]'), parts = normalizeOcr(input ? input.value : '').split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
+    var input = form.querySelector('[name="full_name"]'), parts = normalizeOcr(input ? input.value : '').split(/[^A-Z]+/).filter(function (part) { return part.length >= 2; });
     if (parts.length < 2) return 0;
-    var words = normalizeOcr(text).split(' ').filter(function (part) { return /^[A-Z]+$/.test(part) && part.length >= 2; });
+    // Passport MRZ names use "<" separators (SURNAME<<GIVEN<NAMES), so split
+    // on every non-letter instead of spaces only. The old behavior discarded
+    // an otherwise readable MRZ name as one invalid token.
+    var words = normalizeOcr(text).split(/[^A-Z]+/).filter(function (part) { return part.length >= 2; });
     return [parts[0], parts[parts.length - 1]].filter(function (part) { return ocrWordMatches(part, words); }).length;
   }
   function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Valid Government-Issued ID'; }
@@ -461,8 +464,9 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!detectedType) throw new Error(scanningPassport ? 'Passport not detected. Open the biodata page and keep the word PASSPORT, your name, photo, and both P<PHL lines fully visible.' : 'The scanner could not confirm the ID type. Move closer and keep the ID title, logo, and number fully visible.');
       if (detectedType !== select.value) throw new Error('The camera detected ' + idTypeLabel(detectedType) + ', but you selected ' + idTypeLabel(select.value) + '. Select the correct type and scan again.');
       if (nameMatchCount < 1) throw new Error(scanningPassport ? 'The passport was detected, but the applicant name was not readable. Move closer and keep SURNAME and GIVEN NAMES clear.' : 'The scanner could not read any matching name from the ID. Move closer and keep the name area clear.');
-      var readableTokens = normalizeOcr(text).split(' ').filter(function (part) { return part.length >= 2; }).length;
-      if (readableTokens < 4 || confidence < 8) throw new Error('Not enough readable ID text was found. Move closer, avoid glare, and scan again.');
+      var readableTokens = normalizeOcr(text).split(/[^A-Z0-9]+/).filter(function (part) { return part.length >= 2; }).length;
+      var minimumOcrConfidence = scanningPassport ? 3 : 8;
+      if (readableTokens < 4 || confidence < minimumOcrConfidence) throw new Error(scanningPassport ? 'The passport markers were found, but too little text was readable. Keep the biodata page flat and the two MRZ lines fully inside the guide.' : 'Not enough readable ID text was found. Move closer, avoid glare, and scan again.');
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
       card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, type_basis: 'ocr_marker', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };

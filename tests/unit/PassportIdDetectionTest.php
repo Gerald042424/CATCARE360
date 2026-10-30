@@ -25,4 +25,15 @@ final class PassportIdDetectionTest extends CIUnitTestCase
 
         $this->assertNull($method->invoke(new DocumentOcrService(), 'ORDINARY PRINTED DOCUMENT JUAN DELA CRUZ'));
     }
+
+    public function testApplicantNameMatchesPassportMrzSeparators(): void
+    {
+        $method = new ReflectionMethod(DocumentOcrService::class, 'nameMatches');
+
+        $this->assertTrue($method->invoke(
+            new DocumentOcrService(),
+            'Juan Santos Dela Cruz',
+            'P<PHLDELA<CRUZ<<JUAN<SANTOS<<<<<<<<<<<<<<<<',
+        ));
+    }
 }

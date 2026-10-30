@@ -317,6 +317,10 @@ class ApplicationController extends BaseController
         $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
         $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
         $validTypeEvidence = $detectedType === $selectedType && $typeBasis === 'ocr_marker';
+        // Passport MRZ OCR confidence is often lower on mobile Safari because
+        // of the dense "<" characters. The captured image still goes through
+        // independent server OCR and exact first/surname matching on submit.
+        $minimumConfidence = $selectedType === 'passport' ? 3 : 8;
 
         if (! is_array($verification)
             || ($verification['verified'] ?? false) !== true
@@ -326,7 +330,7 @@ class ApplicationController extends BaseController
             || ! $validTypeEvidence
             || $provider !== 'tesseract_js'
             || $confidence === false
-            || $confidence < 8
+            || $confidence < $minimumConfidence
             || $secondsFromVerification < 0
             || $secondsFromVerification > 90) {
             return 'Scan and pass the selected valid government-issued ID type and Full Name check before capturing it.';
