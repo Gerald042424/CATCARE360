@@ -1,7 +1,25 @@
 <?= $this->extend('layouts/adopter') ?>
 <?= $this->section('adopter_content') ?>
+<?php
+$verificationMetadata = ! empty($portalApplication)
+    ? (json_decode((string) ($portalApplication['verification_metadata'] ?? ''), true) ?: [])
+    : [];
+$applicationDocuments = ! empty($portalApplication) ? [
+    'Verified Live Selfie' => $portalApplication['selfie_path'] ?? null,
+    'Valid Government-Issued ID' => $portalApplication['gov_id_path'] ?? null,
+    'Proof of Address' => $portalApplication['address_proof_path'] ?? null,
+    'Indoor Living Area' => $portalApplication['home_photos_path'] ?? null,
+    'Windows / Outdoor Access Area' => $verificationMetadata['home_access']['stored_path'] ?? null,
+] : [];
+$applicationAnswers = ! empty($portalApplication['assessment_rows'])
+    ? array_values(array_filter(
+        $portalApplication['assessment_rows'],
+        static fn (array $row): bool => trim((string) ($row['response'] ?? '')) !== '',
+    ))
+    : [];
+?>
 
-<div class="max-w-6xl mx-auto px-6 py-12">
+<div x-data="{ applicationOpen: false, catOpen: false, updatePhoto: '', updatePhotoLabel: '' }" class="max-w-6xl mx-auto px-6 py-12">
     <a href="<?= site_url('adopter/portal') ?>" class="mb-5 inline-flex items-center gap-2 text-sm font-semibold text-rescue-600 hover:text-rescue-700"><i data-lucide="arrow-left" class="h-4 w-4"></i>Back to My Adoptions</a>
     <div class="mb-10">
         <h1 class="text-3xl font-semibold text-slate-900 mb-2">My Adoption Dashboard</h1>
@@ -25,16 +43,15 @@
                 <div class="aspect-[4/3] relative overflow-hidden group"><img src="<?= esc(!empty($cat['image_url']) ? base_url($cat['image_url']) : 'https://images.unsplash.com/photo-1574158622682-e40ad296ce3f?auto=format&fit=crop&w=400&q=80') ?>" class="w-full h-full object-cover"><div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent flex flex-col justify-end p-4"><h3 class="text-xl font-semibold text-white"><?= esc($cat['name'] ?? 'No pet') ?></h3><p class="text-sm text-rescue-100"><?= esc($cat['breed'] ?? '') ?></p></div><div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-semibold text-slate-900 shadow-sm">CAT-<?= str_pad($cat['id'] ?? 0,5,'0',STR_PAD_LEFT) ?></div></div>
                 <div class="p-5">
                     <div class="flex items-center gap-2 mb-4 flex-wrap"><span class="inline-flex items-center gap-1 text-xs font-medium text-rescue-700 bg-rescue-50 border border-rescue-100 px-2 py-0.5 rounded-full"><?= esc($cat['gender'] ?? '') ?></span><span class="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full"><?= esc($cat['age'] ?? '') ?></span></div>
-                    <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden text-sm"><div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Adoption Date</span><span class="text-slate-900 font-semibold"><?= esc($adopter['adoption_date'] ?? date('M d, Y')) ?></span></div><div class="flex justify-between p-3"><span class="text-slate-500 font-medium">Vaccinated</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div><div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Neutered</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div><div class="flex justify-between p-3"><span class="text-slate-500 font-medium">Microchipped</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div></div>
+                    <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden text-sm"><div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Adoption Date</span><span class="text-slate-900 font-semibold"><?= ! empty($cat['adoption_date']) ? esc(date('M d, Y', strtotime($cat['adoption_date']))) : 'Not recorded' ?></span></div><div class="flex justify-between p-3"><span class="text-slate-500 font-medium">Vaccinated</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div><div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Neutered</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div><div class="flex justify-between p-3"><span class="text-slate-500 font-medium">Microchipped</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div></div>
                 </div>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4">Quick Actions</h3>
                 <div class="space-y-3">
-                    <a href="<?= site_url('adopter/application') ?>" class="w-full bg-rescue-50 text-rescue-700 py-3 rounded-lg font-medium text-sm hover:bg-rescue-100 transition-colors flex items-center justify-center gap-2"><i data-lucide="file-text" class="w-4 h-4"></i>View Full Application</a>
-                    <a href="#" class="w-full bg-rescue-50 text-rescue-700 py-3 rounded-lg font-medium text-sm hover:bg-rescue-100 transition-colors flex items-center justify-center gap-2"><i data-lucide="heart" class="w-4 h-4"></i>Contact Shelter</a>
-                    <a href="<?= site_url('adopter/home') ?>" class="w-full bg-rescue-50 text-rescue-700 py-3 rounded-lg font-medium text-sm hover:bg-rescue-100 transition-colors flex items-center justify-center gap-2"><i data-lucide="heart" class="w-4 h-4"></i>View Cat Profile</a>
+                    <button type="button" @click="applicationOpen = true" <?= empty($portalApplication) ? 'disabled' : '' ?> class="w-full bg-rescue-50 text-rescue-700 py-3 rounded-lg font-medium text-sm hover:bg-rescue-100 transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"><i data-lucide="file-text" class="w-4 h-4"></i><?= empty($portalApplication) ? 'Application Unavailable' : 'View Full Application' ?></button>
+                    <button type="button" @click="catOpen = true" class="w-full bg-rescue-50 text-rescue-700 py-3 rounded-lg font-medium text-sm hover:bg-rescue-100 transition-colors flex items-center justify-center gap-2"><i data-lucide="cat" class="w-4 h-4"></i>View Cat Profile</button>
                 </div>
             </div>
         </div>
@@ -107,10 +124,18 @@
                 <div class="flex items-center justify-between mb-6"><h3 class="text-lg font-semibold text-slate-900">Recent Updates</h3><i data-lucide="trending-up" class="w-5 h-5 text-adopted-600"></i></div>
                 <div class="space-y-3">
                     <?php if (! empty($recentUpdates)): foreach ($recentUpdates as $update): ?>
-                    <div class="border border-slate-200 rounded-lg p-4 hover:border-slate-300 transition-colors">
-                        <div class="flex items-start justify-between mb-2"><p class="text-sm font-semibold text-slate-900"><?= esc($update['checkpoint']) ?> · <?= esc(ucfirst($update['health_status'])) ?></p><?= statusBadge($update['status']) ?></div>
-                        <p class="text-xs text-slate-500 mb-2"><?= date('M d, Y h:i A', strtotime($update['submission_date'])) ?></p>
-                        <p class="text-sm text-slate-700"><?= esc(substr($update['behavior_notes'],0,150)) ?></p>
+                    <div class="overflow-hidden rounded-xl border border-slate-200 hover:border-slate-300 transition-colors <?= ! empty($update['photo_url']) ? 'sm:grid sm:grid-cols-[11rem_1fr]' : '' ?>">
+                        <?php if (! empty($update['photo_url'])): ?>
+                        <button type="button" data-photo-url="<?= esc(base_url($update['photo_url']), 'attr') ?>" data-photo-label="<?= esc($update['checkpoint'] . ' monitoring photo', 'attr') ?>" @click="updatePhoto = $el.dataset.photoUrl; updatePhotoLabel = $el.dataset.photoLabel" class="group relative min-h-40 overflow-hidden bg-slate-100 text-left" aria-label="View <?= esc($update['checkpoint']) ?> monitoring photo fullscreen">
+                            <img src="<?= esc(base_url($update['photo_url'])) ?>" alt="<?= esc($update['checkpoint']) ?> monitoring update" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
+                            <span class="absolute bottom-2 right-2 rounded-lg bg-black/65 p-2 text-white"><i data-lucide="maximize-2" class="h-4 w-4"></i></span>
+                        </button>
+                        <?php endif; ?>
+                        <div class="p-4">
+                            <div class="flex items-start justify-between mb-2"><p class="text-sm font-semibold text-slate-900"><?= esc($update['checkpoint']) ?> · <?= esc(ucfirst($update['health_status'])) ?></p><?= statusBadge($update['status']) ?></div>
+                            <p class="text-xs text-slate-500 mb-2"><?= date('M d, Y h:i A', strtotime($update['submission_date'])) ?></p>
+                            <p class="text-sm leading-6 text-slate-700"><?= esc($update['behavior_notes']) ?></p>
+                        </div>
                     </div>
                     <?php endforeach; else: ?>
                     <p class="text-center py-8 text-slate-500 text-sm">No updates yet. Submit your first update!</p>
@@ -129,6 +154,29 @@
             </div>
         </div>
     </div>
+
+    <?php if (! empty($portalApplication)): ?>
+    <div x-cloak x-show="applicationOpen" x-transition.opacity @keydown.escape.window="applicationOpen = false" @click.self="applicationOpen = false" class="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <section class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="application-modal-title">
+            <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-6"><div><p class="text-xs font-bold uppercase tracking-[.14em] text-rescue-600"><?= esc($portalApplication['application_id'] ?? 'Application') ?></p><h2 id="application-modal-title" class="mt-1 text-xl font-semibold text-slate-900">Full Adoption Application</h2><p class="mt-1 text-sm text-slate-500">Submitted <?= ! empty($portalApplication['submitted_at']) ? esc(date('F d, Y h:i A', strtotime($portalApplication['submitted_at']))) : 'date unavailable' ?></p></div><button type="button" @click="applicationOpen = false" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close full application"><i data-lucide="x" class="h-5 w-5"></i></button></header>
+            <div class="space-y-6 overflow-y-auto p-5 sm:p-6">
+                <section><div class="flex items-center justify-between gap-3"><h3 class="font-semibold text-slate-900">Application Summary</h3><?= statusBadge($portalApplication['status'] ?? 'Under Review') ?></div><dl class="mt-4 grid gap-4 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2"><div><dt class="text-slate-500">Full name</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['full_name'] ?? '—') ?></dd></div><div><dt class="text-slate-500">Phone</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['phone'] ?? '—') ?></dd></div><div><dt class="text-slate-500">Occupation</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['occupation'] ?? '—') ?></dd></div><div><dt class="text-slate-500">Assessment score</dt><dd class="mt-1 font-semibold text-slate-900"><?= isset($portalApplication['assessment_score']) ? esc(number_format((float) $portalApplication['assessment_score'], 2)) . '%' : '—' ?></dd></div><div class="sm:col-span-2"><dt class="text-slate-500">Address</dt><dd class="mt-1 font-semibold text-slate-900"><?= esc($portalApplication['address'] ?? '—') ?></dd></div></dl></section>
+                <?php if ($applicationAnswers): ?><section><h3 class="font-semibold text-slate-900">Application Answers</h3><div class="mt-3 space-y-3"><?php foreach ($applicationAnswers as $row): ?><article class="rounded-xl border border-slate-200 p-4"><h4 class="text-sm font-semibold text-slate-900"><?= esc($row['label'] ?? $row['criterion_key']) ?></h4><p class="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700"><?= esc($row['response']) ?></p></article><?php endforeach; ?></div></section><?php endif; ?>
+                <?php if (array_filter($applicationDocuments)): ?><section><h3 class="font-semibold text-slate-900">Verification Documents</h3><div class="mt-3 grid gap-3 sm:grid-cols-2"><?php foreach ($applicationDocuments as $label => $path): ?><?php if ($path): ?><button type="button" data-photo-url="<?= esc(base_url($path), 'attr') ?>" data-photo-label="<?= esc($label, 'attr') ?>" @click="updatePhoto = $el.dataset.photoUrl; updatePhotoLabel = $el.dataset.photoLabel" class="flex items-center gap-3 rounded-xl border border-slate-200 p-3 text-left text-sm font-semibold text-slate-800 hover:border-rescue-300 hover:bg-rescue-50"><i data-lucide="file-check-2" class="h-5 w-5 text-rescue-600"></i><span class="min-w-0 flex-1"><?= esc($label) ?></span><i data-lucide="maximize-2" class="h-4 w-4 text-slate-400"></i></button><?php endif; ?><?php endforeach; ?></div></section><?php endif; ?>
+            </div>
+            <footer class="flex justify-end border-t border-slate-200 bg-slate-50 px-5 py-4"><button type="button" @click="applicationOpen = false" class="rounded-lg bg-rescue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rescue-700">Close</button></footer>
+        </section>
+    </div>
+    <?php endif; ?>
+
+    <div x-cloak x-show="catOpen" x-transition.opacity @keydown.escape.window="catOpen = false" @click.self="catOpen = false" class="fixed inset-0 z-[180] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm">
+        <section class="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl" role="dialog" aria-modal="true" aria-labelledby="cat-modal-title">
+            <div class="relative aspect-[16/8] overflow-hidden bg-slate-100"><img src="<?= esc(! empty($cat['image_url']) ? base_url($cat['image_url']) : 'https://images.unsplash.com/photo-1574158622682-e40ad296ce3f?auto=format&fit=crop&w=1000&q=80') ?>" alt="<?= esc($cat['name']) ?>" class="h-full w-full object-cover"><div class="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20"></div><div class="absolute bottom-5 left-5 text-white"><p class="text-xs font-bold uppercase tracking-wider text-rescue-100">Adopted cat profile</p><h2 id="cat-modal-title" class="mt-1 text-3xl font-semibold"><?= esc($cat['name']) ?></h2><p class="text-sm text-white/80"><?= esc($cat['breed'] ?: 'Mixed breed') ?></p></div><button type="button" @click="catOpen = false" class="absolute right-4 top-4 rounded-lg bg-white/90 p-2 text-slate-700 shadow" aria-label="Close cat profile"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+            <div class="space-y-5 p-5 sm:p-6"><div class="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4"><?php foreach (['Age' => ($cat['age'] ?: '—'), 'Gender' => ($cat['gender'] ?: '—'), 'Color' => ($cat['color'] ?: '—'), 'Weight' => ($cat['weight'] ?: '—')] as $label => $value): ?><div class="rounded-xl bg-slate-50 p-3"><p class="text-xs text-slate-500"><?= esc($label) ?></p><p class="mt-1 font-semibold text-slate-900"><?= esc($value) ?></p></div><?php endforeach; ?></div><div class="grid gap-4 sm:grid-cols-2"><div class="rounded-xl border border-slate-200 p-4"><h3 class="text-sm font-semibold text-slate-900">Behavior notes</h3><p class="mt-2 text-sm leading-6 text-slate-600"><?= esc($cat['behavior_notes'] ?: 'No behavior notes recorded.') ?></p></div><div class="rounded-xl border border-rose-100 bg-rose-50 p-4"><h3 class="text-sm font-semibold text-rose-800">Medical notes</h3><p class="mt-2 text-sm leading-6 text-slate-700"><?= esc($cat['medical_notes'] ?: 'No medical notes recorded.') ?></p></div></div><?php if (! empty($galleryPhotos)): ?><div><h3 class="text-sm font-semibold text-slate-900">More photos</h3><div class="mt-3 grid grid-cols-3 gap-3"><?php foreach ($galleryPhotos as $photo): ?><?php $photoCaption = trim((string) ($photo['caption'] ?? '')) ?: $cat['name'] . ' photo'; ?><button type="button" data-photo-url="<?= esc(base_url($photo['photo_url']), 'attr') ?>" data-photo-label="<?= esc($photoCaption, 'attr') ?>" @click="updatePhoto = $el.dataset.photoUrl; updatePhotoLabel = $el.dataset.photoLabel" class="aspect-square overflow-hidden rounded-xl border border-slate-200"><img src="<?= esc(base_url($photo['photo_url'])) ?>" alt="<?= esc($photoCaption) ?>" loading="lazy" class="h-full w-full object-cover transition hover:scale-105"></button><?php endforeach; ?></div></div><?php endif; ?></div>
+        </section>
+    </div>
+
+    <div x-cloak x-show="updatePhoto" x-transition.opacity @keydown.escape.window="updatePhoto = ''" @click.self="updatePhoto = ''" class="fixed inset-0 z-[220] flex items-center justify-center bg-black/90 p-4"><button type="button" @click="updatePhoto = ''" class="absolute right-4 top-4 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-800">Close</button><img :src="updatePhoto" :alt="updatePhotoLabel" class="max-h-full max-w-full rounded-lg object-contain"></div>
 </div>
 
 <script src="<?= base_url('js/adopter-portal-camera.js') ?>?v=<?= filemtime(FCPATH . 'js/adopter-portal-camera.js') ?>"></script>

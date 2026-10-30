@@ -20,6 +20,11 @@ class MediaController extends BaseController
                 return $this->response->setStatusCode(404);
             }
 
+            if (str_starts_with($pathname, 'updates/')
+                && ! $this->canAccessMonitoringPhoto($reference)) {
+                return $this->response->setStatusCode(404);
+            }
+
             if (! $isPublic && ! str_starts_with($pathname, 'applications/') && ! $this->hasAuthenticatedUser()) {
                 return $this->response->setStatusCode(404);
             }
@@ -88,5 +93,22 @@ class MediaController extends BaseController
         }
 
         return false;
+    }
+
+    private function canAccessMonitoringPhoto(string $reference): bool
+    {
+        if ((int) session('staff_id') > 0) {
+            return true;
+        }
+
+        $adopterId = (int) session('adopter_user.adopter_id');
+        if ($adopterId <= 0) {
+            return false;
+        }
+
+        return db_connect()->table('monitoring_submissions')
+            ->where('adopter_id', $adopterId)
+            ->where('photo_url', 'media/' . $reference)
+            ->countAllResults() > 0;
     }
 }

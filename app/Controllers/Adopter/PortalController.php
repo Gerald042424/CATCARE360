@@ -82,6 +82,46 @@ class PortalController extends BaseController
         foreach (['3-day', '3-week', '3-month'] as $checkpoint) { if (! in_array($checkpoint, $completedCheckpoints, true)) { $nextCheckpoint = $checkpoint; break; } }
         $nextCheckIn = $nextCheckpoint ? ($checkpoints[$nextCheckpoint] ?? null) : null;
 
+        // Resolve the application that belongs to this adopted cat. Newer
+        // multi-cat applications use adoption_application_cats, while older
+        // records keep the selected cat directly on adoption_applications.
+        $applicationModel = new AdoptionApplicationModel();
+        $applicationLink = (new ApplicationCatModel())
+            ->select('adoption_application_cats.application_id')
+            ->join('adoption_applications', 'adoption_applications.id = adoption_application_cats.application_id')
+            ->where('adoption_applications.adopter_id', $user['adopter_id'])
+            ->where('adoption_application_cats.cat_id', $adoptedCat['id'])
+            ->orderBy('adoption_applications.submitted_at', 'DESC')
+            ->first();
+        $portalApplication = $applicationLink
+            ? $applicationModel->find((int) $applicationLink['application_id'])
+            : $applicationModel
+                ->where('adopter_id', $user['adopter_id'])
+                ->where('cat_id', $adoptedCat['id'])
+                ->orderBy('submitted_at', 'DESC')
+                ->first();
+
+        if ($portalApplication) {
+            $assessmentRows = (new AdoptionAssessmentModel())
+                ->where('application_id', $portalApplication['id'])
+                ->findAll();
+            $rowsByKey = array_column($assessmentRows, null, 'criterion_key');
+            $portalApplication['assessment_rows'] = [];
+            foreach ((new AdoptionAssessmentService())->criteria() as $key => $criterion) {
+                $portalApplication['assessment_rows'][] = array_merge(
+                    $criterion,
+                    $rowsByKey[$key] ?? ['criterion_key' => $key, 'response' => '', 'rating' => null, 'earned_points' => null],
+                );
+            }
+            if (isset($rowsByKey['overall_reflection'])) {
+                $portalApplication['assessment_rows'][] = array_merge([
+                    'criterion_key' => 'overall_reflection',
+                    'label' => 'Overall Readiness and Responsible Follow-Through',
+                    'weight' => 0,
+                ], $rowsByKey['overall_reflection']);
+            }
+        }
+
         return view('adopter/portal', [
             'title' => 'Adopter Portal',
             'adopter' => $adopter,
@@ -93,6 +133,11 @@ class PortalController extends BaseController
             'checkpoints' => $checkpoints,
             'completedCheckpoints' => $completedCheckpoints,
             'nextCheckpoint' => $nextCheckpoint,
+            'portalApplication' => $portalApplication,
+            'galleryPhotos' => (new AnimalPhotoModel())
+                ->where('animal_id', $adoptedCat['id'])
+                ->orderBy('created_at', 'DESC')
+                ->findAll(),
         ]);
     }
 
