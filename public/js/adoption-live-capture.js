@@ -229,18 +229,29 @@ document.addEventListener('DOMContentLoaded', function () {
     if (openCvPromise) return openCvPromise;
     openCvPromise = loadScriptOnce(OPENCV_URL, function () { return !!(window.cv && window.cv.Mat); }).then(function () {
       return new Promise(function (resolve, reject) {
-        var startedAt = Date.now(), settled = false;
+        var startedAt = Date.now(), settled = false, thenAttached = false;
         function readyCv(candidate) {
-          if (settled || !candidate || !candidate.Mat) return false;
+          if (settled) return true;
+          if (!candidate || !candidate.Mat) return false;
           settled = true;
           resolve(candidate);
           return true;
         }
         function check() {
           if (readyCv(window.cv)) return;
-          if (window.cv && typeof window.cv.then === 'function') {
-            window.cv.then(readyCv).catch(reject);
-            return;
+          if (window.cv && typeof window.cv.then === 'function' && !thenAttached) {
+            // OpenCV.js exposes an Emscripten thenable on some browsers. Its
+            // then() return value is not a real Promise, so chaining .catch()
+            // breaks on Safari even though OpenCV loaded successfully.
+            thenAttached = true;
+            try {
+              window.cv.then(function (candidate) {
+                if (!readyCv(candidate || window.cv)) setTimeout(check, 50);
+              }, reject);
+            } catch (reason) {
+              reject(reason);
+              return;
+            }
           }
           if (window.cv && typeof window.cv === 'object') window.cv.onRuntimeInitialized = function () { readyCv(window.cv); };
           if (Date.now() - startedAt > 20000) return reject(new Error('The document detector took too long to start. Reopen the camera and try again.'));
