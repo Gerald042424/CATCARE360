@@ -34,7 +34,7 @@ $currentIcon = $approved ? 'check-circle-2' : ($unavailable ? 'circle-alert' : (
     </div>
 
     <?php
-    $documents = ['Selfie with ID' => 'selfie_path', 'Government ID' => 'gov_id_path', 'Proof of Address' => 'address_proof_path', 'Home Photos' => 'home_photos_path'];
+    $documents = ['Verified Live Selfie' => 'selfie_path', 'Government ID' => 'gov_id_path', 'Proof of Address' => 'address_proof_path', 'Home Photos' => 'home_photos_path'];
     ?>
     <div x-cloak x-show="showForm" x-transition.opacity class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @keydown.escape.window="showForm = false" @click.self="showForm = false">
         <div class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" @click.stop>

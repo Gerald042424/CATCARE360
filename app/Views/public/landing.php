@@ -25,7 +25,7 @@
         <div class="mt-12 grid gap-6 md:grid-cols-2">
             <div class="card">
                 <div class="mb-6 flex items-center gap-3"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-rescue-50 text-rescue-600"><i data-lucide="heart"></i></span><h3 class="text-xl font-bold">Adoption Requirements</h3></div>
-                <?php foreach (['Valid government ID', 'Proof of address', 'Home photos', 'Selfie with ID', 'Commitment to 3-3-3 monitoring', 'No re-homing without shelter approval'] as $row): ?>
+                <?php foreach (['Valid government ID', 'Proof of address', 'Home photos', 'Live selfie verification', 'Commitment to 3-3-3 monitoring', 'No re-homing without shelter approval'] as $row): ?>
                     <div class="flex gap-3 rounded-xl p-3 hover:bg-slate-50"><i data-lucide="check-circle-2" class="h-5 w-5 text-adopted-500"></i><div><div class="font-semibold text-slate-900"><?= esc($row) ?></div><p class="text-sm text-slate-500">Required before staff can finalize an adoption approval.</p></div></div>
                 <?php endforeach; ?>
             </div>

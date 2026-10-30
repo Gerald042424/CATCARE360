@@ -10,7 +10,7 @@ $questions = [
     'love_attention' => 'Will my pet get love and attention?',
 ];
 $documents = [
-    'selfie' => ['Selfie with Government ID', 'Face and ID must be clearly visible.', 'camera'],
+    'selfie' => ['Live Selfie Verification', 'Use the front camera and complete the blink or head-turn challenge.', 'scan-face'],
     'gov_id' => ['Government-Issued ID', 'Passport, driver’s license, or national ID.', 'credit-card'],
     'address_proof' => ['Proof of Address', 'Utility bill, lease agreement, or bank statement.', 'file-text'],
     'home_photos' => ['Home / Living Space Photos', 'Show the indoor area, windows, and outdoor access.', 'house'],

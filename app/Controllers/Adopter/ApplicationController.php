@@ -105,7 +105,7 @@ class ApplicationController extends BaseController
             $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']));
             if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
-        $ocrScreening = ['status' => 'Passed', 'message' => 'Government ID name and proof-of-address text were read successfully; selfie and home photos passed live image-quality checks.'];
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Government ID name and proof-of-address text were read successfully; the live selfie passed its face challenge and the home photo passed image-quality checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();
@@ -229,6 +229,10 @@ class ApplicationController extends BaseController
         if ($capturedAt === false || abs(time() - $capturedAt) > 15 * 60) {
             return "{$label} must be captured live within the last 15 minutes.";
         }
+        if ($field === 'selfie') {
+            $livenessError = $this->validateFaceLivenessMetadata($metadata, $capturedAt);
+            if ($livenessError !== null) return $livenessError;
+        }
         $latitude = filter_var($metadata['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($metadata['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($metadata['accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
@@ -245,6 +249,25 @@ class ApplicationController extends BaseController
         if ($this->isNearlyBlankImage($file->getTempName())) {
             return "{$label} appears blank, plain, or too dark. Please retake a clear photo of the required document or area.";
         }
+        return null;
+    }
+
+    private function validateFaceLivenessMetadata(array $metadata, int $capturedAt): ?string
+    {
+        $liveness = $metadata['face_liveness'] ?? null;
+        $verifiedAt = is_array($liveness) ? strtotime((string) ($liveness['verified_at'] ?? '')) : false;
+        $challenge = is_array($liveness) ? (string) ($liveness['challenge'] ?? '') : '';
+        $provider = is_array($liveness) ? (string) ($liveness['provider'] ?? '') : '';
+        $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
+        if (! is_array($liveness)
+            || ($liveness['verified'] ?? false) !== true
+            || ! in_array($challenge, ['blink', 'turn'], true)
+            || $provider !== 'mediapipe_face_landmarker'
+            || $secondsFromVerification < 0
+            || $secondsFromVerification > 60) {
+            return 'Complete the live blink or head-turn face challenge before capturing your selfie.';
+        }
+
         return null;
     }
 
