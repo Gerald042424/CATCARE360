@@ -12,6 +12,7 @@ class MonitoringController extends BaseController
     public function index(): string
     {
         helper('monitoring');
+        refreshActiveAdopterMonitoringCompliance();
         $cases = db_connect()->table('adoptions')
             ->select('adoptions.*, adopters.name as adopter_name, adopters.compliance_score, adopters.flag, animals.name as animal_name')
             ->join('adopters', 'adopters.id = adoptions.adopter_id', 'left')

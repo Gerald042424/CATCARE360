@@ -24,6 +24,7 @@ class PortalController extends BaseController
             return redirect()->to('/')->with('error', 'Please sign in to continue.')->with('auth_modal', 'signin')->with('signin_type', 'adopter');
         }
 
+        $monitoringSnapshot = recalculateAdopterMonitoringCompliance((int) $user['adopter_id']);
         $adopter = (new AdopterModel())->find($user['adopter_id']);
         $adoptedCats = (new AnimalModel())
             ->join('adoptions', 'adoptions.animal_id = animals.id')
@@ -36,9 +37,9 @@ class PortalController extends BaseController
         $updateModel = new MonitoringSubmissionModel();
         if ($adoptionId === null) {
             foreach ($adoptedCats as &$adoptedCat) {
-                $adoptedCat['updates_completed'] = $updateModel->where('adoption_id', $adoptedCat['adoption_id'])->countAllResults();
+                $adoptedCat['updates_completed'] = $updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->countAllResults();
                 $adoptedCat['next_check_in'] = null;
-                $completed = array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->findAll(), 'checkpoint');
+                $completed = array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->findAll(), 'checkpoint');
                 foreach (['3-day', '3-week', '3-month'] as $checkpoint) {
                     if (! in_array($checkpoint, $completed, true)) {
                         $dates = monitoringCheckpoints($adoptedCat['adoption_date']);
@@ -77,7 +78,7 @@ class PortalController extends BaseController
             ->findAll(5);
 
         $checkpoints = $adoptedCat ? monitoringCheckpoints($adoptedCat['adoption_date']) : [];
-        $completedCheckpoints = $adoptedCat ? array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->findAll(), 'checkpoint') : [];
+        $completedCheckpoints = $adoptedCat ? array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->findAll(), 'checkpoint') : [];
         $nextCheckpoint = null;
         foreach (['3-day', '3-week', '3-month'] as $checkpoint) { if (! in_array($checkpoint, $completedCheckpoints, true)) { $nextCheckpoint = $checkpoint; break; } }
         $nextCheckIn = $nextCheckpoint ? ($checkpoints[$nextCheckpoint] ?? null) : null;
@@ -120,6 +121,7 @@ class PortalController extends BaseController
             'completedCheckpoints' => $completedCheckpoints,
             'nextCheckpoint' => $nextCheckpoint,
             'portalApplication' => $portalApplication,
+            'monitoringSnapshot' => $monitoringSnapshot,
             'galleryPhotos' => (new AnimalPhotoModel())
                 ->where('animal_id', $adoptedCat['id'])
                 ->orderBy('created_at', 'DESC')

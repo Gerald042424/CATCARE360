@@ -30,46 +30,114 @@ if (! function_exists('monitoringFlagFromMissed')) {
     }
 }
 
-if (! function_exists('recalculateAdopterMonitoringCompliance')) {
-    function recalculateAdopterMonitoringCompliance(int $adopterId): void
+if (! function_exists('calculateMonitoringComplianceSnapshot')) {
+    function calculateMonitoringComplianceSnapshot(array $adoptions, array $submissions, ?string $today = null): array
     {
-        $db = db_connect();
-        $adoptions = $db->table('adoptions')->where(['adopter_id' => $adopterId, 'status' => 'Active'])->get()->getResultArray();
+        $today ??= date('Y-m-d');
         $expected = [];
-        $nextDue = [];
+        $allCheckpoints = [];
         foreach ($adoptions as $adoption) {
             foreach (monitoringCheckpoints($adoption['adoption_date']) as $checkpoint => $dueDate) {
-                // A checkpoint becomes overdue only after its due date has passed.
-                // The adopter keeps the full due date to submit the required update.
-                if ($dueDate < date('Y-m-d')) $expected[$adoption['id'] . ':' . $checkpoint] = true;
-                else $nextDue[] = $dueDate;
+                $key = $adoption['id'] . ':' . $checkpoint;
+                $allCheckpoints[$key] = $dueDate;
+                // A checkpoint is required on its due date. A verified update
+                // submitted early is still credited when that date arrives.
+                if ($dueDate <= $today) {
+                    $expected[$key] = true;
+                }
             }
         }
 
-        $submissions = $db->table('monitoring_submissions')->where('adopter_id', $adopterId)->get()->getResultArray();
         $verified = [];
         $gpsVerified = 0;
         foreach ($submissions as $submission) {
-            if (! empty($submission['gps_verified'])) ++$gpsVerified;
-            if (($submission['status'] ?? '') === 'Verified') $verified[$submission['adoption_id'] . ':' . $submission['checkpoint']] = true;
+            if (! empty($submission['gps_verified'])) {
+                ++$gpsVerified;
+            }
+            if (strcasecmp((string) ($submission['status'] ?? ''), 'Verified') === 0) {
+                $verified[$submission['adoption_id'] . ':' . $submission['checkpoint']] = true;
+            }
         }
+
         $verifiedExpected = count(array_intersect_key($verified, $expected));
         $expectedCount = count($expected);
         $missed = max(0, $expectedCount - $verifiedExpected);
-        // There is no compliance percentage before the first required
-        // checkpoint is due. The UI presents this as "Not due yet / On track"
-        // instead of a misleading 100% after an early voluntary update.
         $score = $expectedCount > 0 ? (int) round(($verifiedExpected / $expectedCount) * 100) : 0;
+        $outstandingDates = array_diff_key($allCheckpoints, $verified);
 
-        $db->table('adopters')->where('id', $adopterId)->update([
-            'compliance_score' => $score,
+        return [
+            'score' => $score,
+            'expected_count' => $expectedCount,
+            'verified_expected_count' => $verifiedExpected,
+            'missed_count' => $missed,
+            'has_started' => $expectedCount > 0,
             'total_submissions' => count($submissions),
             'gps_verified_count' => $gpsVerified,
-            'overdue_visits' => $missed,
             'flag' => monitoringFlagFromMissed($missed),
-            'next_check_in' => empty($nextDue) ? null : min($nextDue),
+            'next_check_in' => empty($outstandingDates) ? null : min($outstandingDates),
+        ];
+    }
+}
+
+if (! function_exists('recalculateAdopterMonitoringCompliance')) {
+    function recalculateAdopterMonitoringCompliance(int $adopterId): array
+    {
+        $db = db_connect();
+        $snapshot = adopterMonitoringComplianceSnapshot($adopterId);
+
+        $db->table('adopters')->where('id', $adopterId)->update([
+            'compliance_score' => $snapshot['score'],
+            'total_submissions' => $snapshot['total_submissions'],
+            'gps_verified_count' => $snapshot['gps_verified_count'],
+            'overdue_visits' => $snapshot['missed_count'],
+            'flag' => $snapshot['flag'],
+            'next_check_in' => $snapshot['next_check_in'],
             'updated_at' => date('Y-m-d H:i:s'),
         ]);
+
+        return $snapshot;
+    }
+}
+
+if (! function_exists('adopterMonitoringComplianceSnapshot')) {
+    function adopterMonitoringComplianceSnapshot(int $adopterId): array
+    {
+        $db = db_connect();
+        $adoptions = $db->table('adoptions')->where(['adopter_id' => $adopterId, 'status' => 'Active'])->get()->getResultArray();
+        $submissions = $db->table('monitoring_submissions')->where('adopter_id', $adopterId)->get()->getResultArray();
+
+        return calculateMonitoringComplianceSnapshot($adoptions, $submissions);
+    }
+}
+
+if (! function_exists('activeAdopterMonitoringComplianceSnapshots')) {
+    function activeAdopterMonitoringComplianceSnapshots(): array
+    {
+        $activeAdopters = db_connect()->table('adoptions')
+            ->select('adopter_id')
+            ->where('status', 'Active')
+            ->distinct()
+            ->get()
+            ->getResultArray();
+        $snapshots = [];
+        foreach ($activeAdopters as $row) {
+            $adopterId = (int) $row['adopter_id'];
+            $snapshots[$adopterId] = adopterMonitoringComplianceSnapshot($adopterId);
+        }
+
+        return $snapshots;
+    }
+}
+
+if (! function_exists('refreshActiveAdopterMonitoringCompliance')) {
+    function refreshActiveAdopterMonitoringCompliance(): array
+    {
+        $snapshots = [];
+        foreach (array_keys(activeAdopterMonitoringComplianceSnapshots()) as $adopterId) {
+            $snapshots[$adopterId] = recalculateAdopterMonitoringCompliance($adopterId);
+        }
+
+        return $snapshots;
     }
 }
 

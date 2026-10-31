@@ -16,7 +16,7 @@
         <div><div class="text-4xl font-bold text-white"><?= esc($stats['cats'] ?: 312) ?>+</div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Cats Intake</div></div>
         <div><div class="text-4xl font-bold text-white"><?= esc($stats['adoptions'] ?: 247) ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Successful Adoptions</div></div>
         <div><div class="text-4xl font-bold text-white"><?= esc($stats['volunteers'] ?: 42) ?>+</div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Active Volunteers</div></div>
-        <div><div class="text-4xl font-bold text-white"><?= esc($stats['compliance'] ?: 91) ?>%</div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Compliance Rate</div></div>
+        <div><div class="text-4xl font-bold text-white"><?= $stats['compliance'] === null ? '—' : esc($stats['compliance']) . '%' ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Compliance Rate</div></div>
     </div>
 </section>
 <section id="rules" class="bg-slate-50 py-24">

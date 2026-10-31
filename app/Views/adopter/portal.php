@@ -23,11 +23,18 @@ $applicationDocuments = ! empty($portalApplication) ? [
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
         <div class="bg-white border-2 border-adopted-200 bg-adopted-50 rounded-2xl shadow-sm p-6">
             <div class="flex items-start justify-between mb-4"><i data-lucide="award" class="w-8 h-8 text-adopted-600"></i><span class="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded bg-adopted-50 text-adopted-600">Status</span></div>
-            <p class="text-sm font-medium text-slate-500 mb-1">Compliance Score</p>
-            <p class="text-4xl font-bold text-adopted-600"><?= esc($adopter['compliance_score'] ?? 92) ?>%</p>
+            <?php if (empty($monitoringSnapshot['has_started'])): ?>
+                <p class="text-sm font-medium text-slate-500 mb-1">Monitoring Status</p>
+                <p class="text-3xl font-bold text-adopted-600">On Track</p>
+                <p class="mt-1 text-xs text-slate-500">No check-in is due yet.</p>
+            <?php else: ?>
+                <p class="text-sm font-medium text-slate-500 mb-1">Compliance Score</p>
+                <p class="text-4xl font-bold text-adopted-600"><?= esc($monitoringSnapshot['score']) ?>%</p>
+                <p class="mt-1 text-xs text-slate-500"><?= esc($monitoringSnapshot['verified_expected_count']) ?> of <?= esc($monitoringSnapshot['expected_count']) ?> due check-ins verified</p>
+            <?php endif; ?>
         </div>
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="check-circle-2" class="w-8 h-8 text-rescue-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Total Updates</p><p class="text-4xl font-bold text-slate-900"><?= esc($totalUpdates ?? 0) ?></p></div>
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="calendar" class="w-8 h-8 text-purple-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Next Check-In</p><p class="text-lg font-semibold text-slate-900"><?= esc($nextCheckIn ?? date('M d')) ?></p></div>
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="calendar" class="w-8 h-8 text-purple-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Next Check-In</p><p class="text-lg font-semibold text-slate-900"><?= $nextCheckIn ? esc(date('M d, Y', strtotime($nextCheckIn))) : 'Completed' ?></p></div>
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="alert-circle" class="w-8 h-8 text-green-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Pending</p><p class="text-4xl font-bold text-green-600"><?= esc($pendingCount ?? 0) ?></p></div>
     </div>
 

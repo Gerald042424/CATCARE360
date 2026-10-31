@@ -3,7 +3,6 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
-use App\Models\AdopterModel;
 use App\Models\AnimalModel;
 use App\Models\AdoptionApplicationModel;
 use App\Models\TaskModel;
@@ -14,7 +13,10 @@ class DashboardController extends BaseController
     public function index(): string
     {
         $animals = new AnimalModel();
-        $adopters = new AdopterModel();
+        helper('monitoring');
+        $monitoringSnapshots = refreshActiveAdopterMonitoringCompliance();
+        $startedScores = array_column(array_filter($monitoringSnapshots, static fn (array $snapshot): bool => $snapshot['has_started']), 'score');
+        $compliance = empty($startedScores) ? null : (int) round(array_sum($startedScores) / count($startedScores));
         $applications = new AdoptionApplicationModel();
         $tasks = new TaskModel();
         $db = db_connect();
@@ -30,12 +32,8 @@ class DashboardController extends BaseController
             'recentApplications' => $applications->select('adoption_applications.full_name AS applicant_name, adoption_applications.compatibility_score, adoption_applications.status, adoption_applications.submitted_at, animals.name AS animal_name')
                 ->join('animals', 'animals.id = adoption_applications.cat_id', 'left')->orderBy('submitted_at', 'DESC')->limit(5)->findAll(),
             'tasks' => $tasks->select('tasks.*, volunteers.name as volunteer_name')->join('volunteers', 'volunteers.id = tasks.assigned_to', 'left')->orderBy('task_date', 'ASC')->limit(5)->find(),
-            // Compliance Health represents adopters with an active adoption only.
-            // Registered applicants without an active adoption must not lower it.
-            'compliance' => round($adopters
-                ->where("id IN (SELECT adopter_id FROM adoptions WHERE status = 'Active')", null, false)
-                ->selectAvg('compliance_score')
-                ->first()['compliance_score'] ?? 0),
+            'compliance' => $compliance,
+            'complianceMonitoredCount' => count($startedScores),
             'pipeline' => [
                 ['label' => 'Intake', 'value' => $animals->countAllResults(), 'tone' => 'blue'],
                 ['label' => 'Applications', 'value' => $applications->countAllResults(), 'tone' => 'amber'],
