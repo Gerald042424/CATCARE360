@@ -293,13 +293,13 @@ class ApplicationsController extends BaseController
         $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
         $safeCat = htmlspecialchars($catName, ENT_QUOTES, 'UTF-8');
         $safeReason = nl2br(htmlspecialchars(trim($reason), ENT_QUOTES, 'UTF-8'));
-        $title = $approved ? 'Your adoption application was approved!' : 'Update on your adoption application';
+        $title = $approved ? 'Your adoption application was approved!' : 'An update on your adoption application';
         $message = $approved
-            ? "Wonderful news — your application to adopt {$safeCat} has been approved. Please sign in to CatCare 360 for the next steps."
-            : "Thank you for applying to adopt {$safeCat}. After review, we’re unable to approve this application at this time.";
+            ? "Wonderful news — your application to adopt {$safeCat} has been approved. Thank you for opening your home and heart to a rescued cat. Please sign in to CatCare 360 for the next steps."
+            : "Thank you sincerely for taking the time to apply and for your interest in giving {$safeCat} a safe and loving home. We truly appreciate your willingness to care for one of our cats. After careful review, we’re sorry that we’re unable to approve this application at this time.";
         $color = $approved ? '#059669' : '#dc2626';
         $reasonBlock = ! $approved && $safeReason !== ''
-            ? "<div style=\"margin:22px 0;padding:18px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca\"><p style=\"margin:0 0 8px;font-size:12px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#991b1b\">Reason for the decision</p><p style=\"margin:0;line-height:1.6;color:#7f1d1d\">{$safeReason}</p></div>"
+            ? "<div style=\"margin:22px 0;padding:18px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca\"><p style=\"margin:0 0 8px;font-size:12px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#991b1b\">What influenced this decision</p><p style=\"margin:0;line-height:1.6;color:#7f1d1d\">{$safeReason}</p></div><p style=\"line-height:1.6;color:#4b5563\">Please know that this decision is made with the cat’s long-term safety, well-being, and compatibility in mind. It is not meant to dismiss the care and concern you have shown.</p><p style=\"line-height:1.6;color:#4b5563\">If your circumstances change or the concerns above can be addressed, we warmly welcome you to apply again in the future and continue supporting McKinley West Cats.</p>"
             : '';
         $email = service('email');
         $config = config('Email');
