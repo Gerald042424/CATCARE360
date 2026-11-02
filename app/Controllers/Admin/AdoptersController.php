@@ -16,11 +16,33 @@ class AdoptersController extends BaseController
 
         $adopters = $db->table('adopters')->orderBy('created_at', 'DESC')->get()->getResultArray();
         $adoptions = $db->table('adoptions')
-            ->select('adoptions.adopter_id, adoptions.adoption_date, animals.name AS animal_name')
+            ->select('adoptions.id AS adoption_id, adoptions.adopter_id, adoptions.adoption_date, animals.name AS animal_name')
             ->join('animals', 'animals.id = adoptions.animal_id', 'left')
             ->where('adoptions.status', 'Active')
             ->orderBy('adoptions.adoption_date', 'DESC')
             ->get()->getResultArray();
+        $activeAdoptionIds = array_map('intval', array_column($adoptions, 'adoption_id'));
+        $submissions = $activeAdoptionIds === [] ? [] : $db->table('monitoring_submissions')
+            ->whereIn('adoption_id', $activeAdoptionIds)
+            ->get()
+            ->getResultArray();
+
+        foreach ($adoptions as &$adoption) {
+            $adoptionSubmissions = array_values(array_filter(
+                $submissions,
+                static fn (array $submission): bool => (int) $submission['adoption_id'] === (int) $adoption['adoption_id'],
+            ));
+            $snapshot = calculateMonitoringComplianceSnapshot(
+                [['id' => $adoption['adoption_id'], 'adoption_date' => $adoption['adoption_date']]],
+                $adoptionSubmissions,
+            );
+            $adoption['compliance_score'] = $snapshot['score'];
+            $adoption['monitoring_due_count'] = $snapshot['expected_count'];
+            $adoption['monitoring_verified_due_count'] = $snapshot['verified_expected_count'];
+            $adoption['next_check_in'] = $snapshot['next_check_in'];
+            $adoption['flag'] = $snapshot['flag'];
+        }
+        unset($adoption);
 
         foreach ($adopters as &$adopter) {
             $adopter['adopted_cats'] = array_values(array_filter($adoptions, static fn (array $adoption): bool => (int) $adoption['adopter_id'] === (int) $adopter['id']));
@@ -36,7 +58,7 @@ class AdoptersController extends BaseController
     public function profile(int $id)
     {
         helper('monitoring');
-        $monitoringSnapshot = recalculateAdopterMonitoringCompliance($id);
+        recalculateAdopterMonitoringCompliance($id);
         $model = new AdopterModel();
         $adopter = $model->find($id);
         if (! $adopter) {
@@ -58,14 +80,37 @@ class AdoptersController extends BaseController
         }
 
         $db = db_connect();
-        $adoptions = $db->table('adoptions')->select('adoptions.*, animals.name, animals.breed, animals.image_url')->join('animals', 'animals.id = adoptions.animal_id')->where('adopter_id', $id)->where('adoptions.status', 'Active')->get()->getResultArray();
+        $adoptions = $db->table('adoptions')->select('adoptions.*, animals.name, animals.breed, animals.image_url')->join('animals', 'animals.id = adoptions.animal_id')->where('adopter_id', $id)->where('adoptions.status', 'Active')->orderBy('adoptions.adoption_date', 'DESC')->get()->getResultArray();
+        $requestedAdoptionId = (int) $this->request->getGet('adoption_id');
+        $selectedAdoption = null;
+        foreach ($adoptions as $adoption) {
+            if ($requestedAdoptionId <= 0 || (int) $adoption['id'] === $requestedAdoptionId) {
+                $selectedAdoption = $adoption;
+                break;
+            }
+        }
+        if ($requestedAdoptionId > 0 && $selectedAdoption === null) {
+            return redirect()->to('/admin/adopters/' . $id)->with('error', 'The selected active adoption was not found.');
+        }
+        $submissions = $selectedAdoption === null ? [] : $db->table('monitoring_submissions')
+            ->where('adoption_id', $selectedAdoption['id'])
+            ->orderBy('submission_date', 'DESC')
+            ->get()
+            ->getResultArray();
+        $selectedSnapshot = $selectedAdoption === null
+            ? calculateMonitoringComplianceSnapshot([], [])
+            : calculateMonitoringComplianceSnapshot(
+                [['id' => $selectedAdoption['id'], 'adoption_date' => $selectedAdoption['adoption_date']]],
+                $submissions,
+            );
 
         return view('admin/adopters/profile', [
             'title' => 'Adopter Profile',
             'adopter' => $adopter,
             'adoptions' => $adoptions,
-            'monitoringDueCount' => $monitoringSnapshot['expected_count'],
-            'submissions' => $db->table('monitoring_submissions')->where('adopter_id', $id)->orderBy('submission_date', 'DESC')->get()->getResultArray(),
+            'selectedAdoption' => $selectedAdoption,
+            'selectedSnapshot' => $selectedSnapshot,
+            'submissions' => $submissions,
         ]);
     }
 }

@@ -62,4 +62,25 @@ final class MonitoringComplianceTest extends CIUnitTestCase
         $this->assertSame('None', $snapshot['flag']);
         $this->assertSame('2026-10-30', $snapshot['next_check_in']);
     }
+
+    public function testEachAdoptionUsesOnlyItsOwnMonitoringSubmissions(): void
+    {
+        $lucky = calculateMonitoringComplianceSnapshot(
+            [['id' => 13, 'adoption_date' => '2026-10-27']],
+            [['adoption_id' => 13, 'checkpoint' => '3-day', 'status' => 'Verified', 'gps_verified' => 1]],
+            '2026-11-02',
+        );
+        $kitsune = calculateMonitoringComplianceSnapshot(
+            [['id' => 21, 'adoption_date' => '2026-11-02']],
+            [],
+            '2026-11-02',
+        );
+
+        $this->assertSame(100, $lucky['score']);
+        $this->assertSame(1, $lucky['verified_expected_count']);
+        $this->assertSame('2026-11-17', $lucky['next_check_in']);
+        $this->assertFalse($kitsune['has_started']);
+        $this->assertSame(0, $kitsune['verified_expected_count']);
+        $this->assertSame('2026-11-05', $kitsune['next_check_in']);
+    }
 }
