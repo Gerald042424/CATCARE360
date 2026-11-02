@@ -30,6 +30,41 @@ document.addEventListener('DOMContentLoaded', () => {
     const decisionHeading = [...document.querySelectorAll('.card h2')].find((heading) => heading.textContent.trim() === 'Decision');
     if (!modal || !scheduleContainer || !addButton || !decisionHeading) return;
 
+    const decisionCard = decisionHeading.closest('.card');
+    const decisionForms = [...decisionCard.querySelectorAll('form[action*="/cats/"]')];
+    const recordedStatuses = <?= json_encode(array_values(array_column($application['requested_cats'] ?? [], 'status')), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    let hasPendingDecision = false;
+    decisionForms.forEach((form, index) => {
+        const status = recordedStatuses[index] || form.querySelector('select[name="status"]')?.value || '';
+        if (status === 'Under Review') {
+            hasPendingDecision = true;
+            return;
+        }
+        if (!['Approved', 'Rejected', 'Unavailable'].includes(status)) return;
+        const reason = form.querySelector('textarea[name="decision_reason"]')?.value.trim() || '';
+        const locked = document.createElement('div');
+        locked.className = status === 'Approved'
+            ? 'mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3'
+            : (status === 'Unavailable' ? 'mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3' : 'mt-3 rounded-xl border border-red-200 bg-red-50 p-3');
+        const badge = document.createElement('p');
+        badge.className = status === 'Approved' ? 'font-bold text-emerald-800' : (status === 'Unavailable' ? 'font-bold text-amber-800' : 'font-bold text-red-800');
+        badge.textContent = status;
+        const notice = document.createElement('p');
+        notice.className = 'mt-1 text-xs text-slate-600';
+        notice.textContent = 'Final decision recorded. This decision can no longer be modified.';
+        locked.append(badge, notice);
+        if (status === 'Rejected' && reason) {
+            const reasonLabel = document.createElement('p');
+            reasonLabel.className = 'mt-3 text-xs font-bold uppercase tracking-wide text-red-700';
+            reasonLabel.textContent = 'Reason for rejection';
+            const reasonText = document.createElement('p');
+            reasonText.className = 'mt-1 whitespace-pre-line text-sm leading-6 text-red-900';
+            reasonText.textContent = reason;
+            locked.append(reasonLabel, reasonText);
+        }
+        form.replaceWith(locked);
+    });
+
     const emailButton = document.createElement('button');
     emailButton.type = 'button';
     emailButton.className = 'inline-flex items-center gap-2 rounded-lg border border-rescue-200 bg-rescue-50 px-3 py-2 text-sm font-semibold text-rescue-700 hover:bg-rescue-100';
@@ -37,7 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const headingRow = document.createElement('div');
     headingRow.className = 'flex flex-wrap items-center justify-between gap-3';
     decisionHeading.replaceWith(headingRow);
-    headingRow.append(decisionHeading, emailButton);
+    headingRow.append(decisionHeading);
+    if (hasPendingDecision) headingRow.append(emailButton);
 
     const closeModal = () => {
         modal.classList.add('hidden');

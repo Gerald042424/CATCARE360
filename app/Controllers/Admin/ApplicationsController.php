@@ -135,9 +135,15 @@ class ApplicationsController extends BaseController
                 foreach ((array) $this->request->getPost('flag_notes') as $flagId => $note) (new AdoptionAssessmentFlagModel())->update((int) $flagId, ['review_notes' => trim((string) $note), 'review_status' => in_array(($this->request->getPost('flag_status')[(int) $flagId] ?? 'Open'), ['Open', 'Resolved'], true) ? $this->request->getPost('flag_status')[(int) $flagId] : 'Open', 'reviewed_by' => (int) session('staff_id'), 'reviewed_at' => date('Y-m-d H:i:s')]);
                 return redirect()->to('/admin/applications/' . $id)->with('success', 'Assessment scores and review notes saved.');
             }
+            if ($application['requested_cats'] !== []) {
+                return redirect()->back()->with('error', 'Use the individual cat decision control. Final cat decisions cannot be modified.');
+            }
             $status = (string) $this->request->getPost('status');
             if (! in_array($status, ['Under Review', 'Approved', 'Rejected'], true)) {
                 return redirect()->back()->with('error', 'Invalid application status.');
+            }
+            if (in_array((string) $application['status'], ['Approved', 'Rejected', 'Unavailable'], true)) {
+                return redirect()->back()->with('error', 'This application already has a final decision and can no longer be modified.');
             }
             $decisionReason = trim((string) $this->request->getPost('decision_reason'));
             if ($status === 'Rejected' && (mb_strlen($decisionReason) < 10 || mb_strlen($decisionReason) > 1000)) {
@@ -189,6 +195,9 @@ class ApplicationsController extends BaseController
         $status = (string) $this->request->getPost('status');
         if (! $item || ! $application || ! in_array($status, ['Under Review', 'Approved', 'Rejected'], true)) {
             return redirect()->back()->with('error', 'Invalid cat review request.');
+        }
+        if (in_array((string) $item['status'], ['Approved', 'Rejected', 'Unavailable'], true)) {
+            return redirect()->back()->with('error', 'This cat already has a final decision and can no longer be modified.');
         }
         $decisionReason = trim((string) $this->request->getPost('decision_reason'));
         if ($status === 'Rejected' && (mb_strlen($decisionReason) < 10 || mb_strlen($decisionReason) > 1000)) {
@@ -298,6 +307,13 @@ class ApplicationsController extends BaseController
         }
         if (empty($application['adopter_email']) || ! filter_var($application['adopter_email'], FILTER_VALIDATE_EMAIL)) {
             return redirect()->back()->with('error', 'This applicant does not have a valid email address.');
+        }
+        $catDecisions = (new ApplicationCatModel())->where('application_id', $applicationId)->findAll();
+        $hasPendingDecision = $catDecisions === []
+            ? ($application['status'] ?? '') === 'Under Review'
+            : array_filter($catDecisions, static fn (array $decision): bool => ($decision['status'] ?? '') === 'Under Review') !== [];
+        if (! $hasPendingDecision) {
+            return redirect()->back()->with('error', 'This application already has a final decision, so an interview invitation can no longer be sent.');
         }
 
         $dates = array_values((array) $this->request->getPost('interview_date'));
