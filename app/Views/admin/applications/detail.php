@@ -8,4 +8,77 @@
 <script>document.addEventListener('DOMContentLoaded',()=>{const legacy=[...document.querySelectorAll('article')].find(c=>c.querySelector('h3')?.textContent.trim().startsWith('6. Overall Readiness'));const output=document.getElementById('consolidatedAnswerCards');if(!legacy||!output)return;const raw=legacy.querySelector('p.whitespace-pre-line')?.textContent||'Not provided.';const card=document.createElement('article'),head=document.createElement('div'),title=document.createElement('h3'),badge=document.createElement('span');card.className='rounded-xl border border-slate-200 p-4';head.className='flex items-start justify-between gap-3';title.className='font-semibold text-slate-900';title.textContent='6. Overall Readiness and Responsible Follow-Through';badge.className='rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700';badge.textContent='Unweighted reflection';head.append(title,badge);card.append(head);raw.split(/\n\s*\n/).forEach((value,index)=>{const [label,...body]=value.split(': '),box=document.createElement('div'),strong=document.createElement('p'),text=document.createElement('p');box.className=index===0?'mt-4 rounded-lg bg-violet-50 p-3':'mt-3 border-l-2 border-violet-200 pl-3';strong.className='text-sm font-bold text-violet-800';strong.textContent=label;text.className='mt-1 whitespace-pre-line text-sm leading-6 text-slate-700';text.textContent=body.join(': ');box.append(strong,text);card.append(box)});output.append(card)})</script>
 <?php $documentViewerItems = []; foreach ($documents as $label => $path) { if ($path) { $documentViewerItems[] = ['label' => $label, 'url' => base_url($path)]; } } ?>
 <?= view('components/document_viewer', ['documents' => $documentViewerItems]) ?>
+<div id="interviewInvitationModal" class="fixed inset-0 z-[350] hidden items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-labelledby="interviewInvitationTitle">
+    <div class="flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <header class="flex shrink-0 items-start justify-between gap-4 border-b border-slate-200 px-6 py-5"><div><p class="text-xs font-bold uppercase tracking-wider text-rescue-600">Email adopter</p><h2 id="interviewInvitationTitle" class="mt-1 text-xl font-bold text-slate-900">Interview Invitation</h2><p class="mt-1 text-sm text-slate-500">Choose up to three schedules. The professional invitation message and Google Meet link are included automatically.</p></div><button id="closeInterviewInvitation" type="button" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Close interview invitation"><i data-lucide="x" class="h-5 w-5"></i></button></header>
+        <form method="post" action="<?= site_url('admin/applications/' . $application['id'] . '/send-interview-invitation') ?>" class="min-h-0 overflow-y-auto p-6" id="interviewInvitationForm">
+            <?= csrf_field() ?>
+            <div class="rounded-xl border border-rescue-100 bg-rescue-50 p-4 text-sm leading-6 text-rescue-900"><strong>Fixed email message:</strong> The applicant will be thanked for their interest and invited to an online interview to discuss and finalize the application assessment. They will be asked to reply and confirm one preferred schedule.</div>
+            <div id="interviewScheduleChoices" class="mt-5 space-y-3"></div>
+            <button id="addInterviewSchedule" type="button" class="mt-3 inline-flex items-center gap-2 rounded-lg border border-rescue-200 bg-rescue-50 px-3 py-2 text-sm font-semibold text-rescue-700 hover:bg-rescue-100"><i data-lucide="plus" class="h-4 w-4"></i>Add another schedule</button>
+            <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p class="text-xs font-bold uppercase tracking-wide text-emerald-800">Google Meet</p><a href="https://meet.google.com/meet/thj-tvep-mwz" target="_blank" rel="noopener" class="mt-1 block break-all text-sm font-semibold text-emerald-700 hover:underline">https://meet.google.com/meet/thj-tvep-mwz</a></div>
+            <p class="mt-4 text-xs leading-5 text-slate-500">All displayed schedules use Philippine Time. Sending this email does not approve the application.</p>
+            <div class="mt-6 flex justify-end gap-3 border-t border-slate-100 pt-5"><button id="cancelInterviewInvitation" type="button" class="btn btn-ghost">Cancel</button><button class="btn btn-primary"><i data-lucide="send" class="h-4 w-4"></i>Send email invitation</button></div>
+        </form>
+    </div>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('interviewInvitationModal');
+    const scheduleContainer = document.getElementById('interviewScheduleChoices');
+    const addButton = document.getElementById('addInterviewSchedule');
+    const decisionHeading = [...document.querySelectorAll('.card h2')].find((heading) => heading.textContent.trim() === 'Decision');
+    if (!modal || !scheduleContainer || !addButton || !decisionHeading) return;
+
+    const emailButton = document.createElement('button');
+    emailButton.type = 'button';
+    emailButton.className = 'inline-flex items-center gap-2 rounded-lg border border-rescue-200 bg-rescue-50 px-3 py-2 text-sm font-semibold text-rescue-700 hover:bg-rescue-100';
+    emailButton.innerHTML = '<i data-lucide="mail" class="h-4 w-4"></i>Email interview invitation';
+    const headingRow = document.createElement('div');
+    headingRow.className = 'flex flex-wrap items-center justify-between gap-3';
+    decisionHeading.replaceWith(headingRow);
+    headingRow.append(decisionHeading, emailButton);
+
+    const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.documentElement.classList.remove('overflow-hidden');
+    };
+    const openModal = () => {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.documentElement.classList.add('overflow-hidden');
+        scheduleContainer.querySelector('input')?.focus();
+    };
+    const updateControls = () => {
+        const slots = [...scheduleContainer.children];
+        addButton.disabled = slots.length >= 3;
+        addButton.classList.toggle('opacity-50', slots.length >= 3);
+        slots.forEach((slot) => {
+            const remove = slot.querySelector('[data-remove-schedule]');
+            remove.classList.toggle('hidden', slots.length === 1);
+        });
+    };
+    const addSchedule = () => {
+        if (scheduleContainer.children.length >= 3) return;
+        const number = scheduleContainer.children.length + 1;
+        const slot = document.createElement('fieldset');
+        slot.className = 'rounded-xl border border-slate-200 p-4';
+        slot.innerHTML = `<div class="mb-3 flex items-center justify-between"><legend class="font-bold text-slate-800">Schedule option ${number}</legend><button type="button" data-remove-schedule class="text-xs font-semibold text-red-600 hover:underline">Remove</button></div><div class="grid gap-3 sm:grid-cols-3"><div><label class="label">Date</label><input type="date" name="interview_date[]" required class="field"></div><div><label class="label">Start time</label><input type="time" name="interview_start[]" required class="field"></div><div><label class="label">End time</label><input type="time" name="interview_end[]" required class="field"></div></div>`;
+        slot.querySelector('[data-remove-schedule]').addEventListener('click', () => { slot.remove(); [...scheduleContainer.querySelectorAll('legend')].forEach((legend, index) => { legend.textContent = `Schedule option ${index + 1}`; }); updateControls(); });
+        scheduleContainer.append(slot);
+        updateControls();
+        if (window.lucide) window.lucide.createIcons();
+    };
+
+    emailButton.addEventListener('click', openModal);
+    document.getElementById('closeInterviewInvitation').addEventListener('click', closeModal);
+    document.getElementById('cancelInterviewInvitation').addEventListener('click', closeModal);
+    modal.addEventListener('click', (event) => { if (event.target === modal) closeModal(); });
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(); });
+    addButton.addEventListener('click', addSchedule);
+    addSchedule();
+    if (window.lucide) window.lucide.createIcons();
+});
+</script>
 <?= $this->endSection() ?>

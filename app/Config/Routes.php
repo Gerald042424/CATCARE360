@@ -68,6 +68,7 @@ $routes->group('admin', ['filter' => 'staffAuth'], static function (RouteCollect
     $routes->post('applications/(:num)/cats/(:num)', 'Admin\ApplicationsController::catStatus/$1/$2');
     $routes->post('applications/(:num)/documents/(:num)', 'Admin\ApplicationsController::document/$1/$2');
     $routes->post('applications/(:num)/resend-decision', 'Admin\ApplicationsController::resendDecision/$1');
+    $routes->post('applications/(:num)/send-interview-invitation', 'Admin\ApplicationsController::sendInterviewInvitation/$1');
 
     $routes->get('adopters', 'Admin\AdoptersController::index');
     $routes->match(['get', 'post'], 'adopters/(:num)', 'Admin\AdoptersController::profile/$1');

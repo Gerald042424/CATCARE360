@@ -287,6 +287,80 @@ class ApplicationsController extends BaseController
         return redirect()->to('/admin/applications/' . $applicationId)->with('success', 'Decision email resent to the applicant.');
     }
 
+    public function sendInterviewInvitation(int $applicationId)
+    {
+        $application = (new AdoptionApplicationModel())
+            ->select('adoption_applications.*, adopters.email AS adopter_email')
+            ->join('adopters', 'adopters.id = adoption_applications.adopter_id', 'left')
+            ->find($applicationId);
+        if (! $application) {
+            return redirect()->back()->with('error', 'Application not found.');
+        }
+        if (empty($application['adopter_email']) || ! filter_var($application['adopter_email'], FILTER_VALIDATE_EMAIL)) {
+            return redirect()->back()->with('error', 'This applicant does not have a valid email address.');
+        }
+
+        $dates = array_values((array) $this->request->getPost('interview_date'));
+        $starts = array_values((array) $this->request->getPost('interview_start'));
+        $ends = array_values((array) $this->request->getPost('interview_end'));
+        $slotCount = count($dates);
+        if ($slotCount < 1 || $slotCount > 3 || count($starts) !== $slotCount || count($ends) !== $slotCount) {
+            return redirect()->back()->withInput()->with('error', 'Provide one to three complete interview schedule choices.');
+        }
+
+        $timezone = new \DateTimeZone('Asia/Manila');
+        $now = new \DateTimeImmutable('now', $timezone);
+        $scheduleChoices = [];
+        $uniqueSlots = [];
+        foreach ($dates as $index => $date) {
+            $date = trim((string) $date);
+            $start = trim((string) ($starts[$index] ?? ''));
+            $end = trim((string) ($ends[$index] ?? ''));
+            $startAt = \DateTimeImmutable::createFromFormat('!Y-m-d H:i', "{$date} {$start}", $timezone);
+            $endAt = \DateTimeImmutable::createFromFormat('!Y-m-d H:i', "{$date} {$end}", $timezone);
+            if (! $startAt || ! $endAt
+                || $startAt->format('Y-m-d H:i') !== "{$date} {$start}"
+                || $endAt->format('Y-m-d H:i') !== "{$date} {$end}") {
+                return redirect()->back()->withInput()->with('error', 'Enter a valid date, start time, and end time for every interview choice.');
+            }
+            if ($startAt <= $now) {
+                return redirect()->back()->withInput()->with('error', 'Interview choices must be scheduled in the future.');
+            }
+            if ($endAt <= $startAt) {
+                return redirect()->back()->withInput()->with('error', 'Each interview end time must be later than its start time.');
+            }
+            $slotKey = $startAt->format('Y-m-d H:i') . '|' . $endAt->format('H:i');
+            if (isset($uniqueSlots[$slotKey])) {
+                return redirect()->back()->withInput()->with('error', 'Interview schedule choices must not be duplicated.');
+            }
+            $uniqueSlots[$slotKey] = true;
+            $scheduleChoices[] = $startAt->format('l, F j, Y') . ' · ' . $startAt->format('g:i A') . '–' . $endAt->format('g:i A');
+        }
+
+        $safeName = htmlspecialchars((string) $application['full_name'], ENT_QUOTES, 'UTF-8');
+        $scheduleHtml = '';
+        foreach ($scheduleChoices as $index => $choice) {
+            $number = $index + 1;
+            $scheduleHtml .= '<div style="margin-top:10px;padding:13px 15px;border:1px solid #bae6fd;border-radius:10px;background:#f0f9ff;color:#0c4a6e"><strong>Option ' . $number . ':</strong> ' . htmlspecialchars($choice, ENT_QUOTES, 'UTF-8') . ' <span style="font-size:12px;color:#64748b">(Philippine Time)</span></div>';
+        }
+        $meetingUrl = 'https://meet.google.com/meet/thj-tvep-mwz';
+        $email = service('email');
+        $config = config('Email');
+        $fromAddress = $config->fromEmail ?: 'no-reply@catcare360.org';
+        $email->setFrom($fromAddress, $config->fromName ?: 'CatCare 360');
+        $email->setReplyTo($fromAddress, $config->fromName ?: 'CatCare 360');
+        $email->setTo($application['adopter_email']);
+        $email->setSubject('Interview Invitation | CatCare 360 Adoption Application');
+        $email->setMailType('html');
+        $email->setMessage('<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#172033;padding:28px 16px"><div style="max-width:600px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(10,106,138,.12)"><div style="background:#0a6a8a;color:#fff;padding:24px 30px;font-weight:bold;font-size:18px">🐾 CatCare 360 · McKinley West Cats</div><div style="padding:30px"><p style="margin:0 0 10px;color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:.08em;font-weight:bold">Adoption interview</p><h1 style="margin:0 0 18px;font-size:25px;color:#0f172a">We would like to meet with you</h1><p style="line-height:1.7;color:#475569">Hello ' . $safeName . ',</p><p style="line-height:1.7;color:#475569">Thank you for your interest in providing a safe and loving home to one of our cats. Following our initial review, we would like to invite you to an online interview to discuss your application, clarify any remaining details, and help us complete the adoption assessment.</p><p style="margin:22px 0 8px;font-weight:bold;color:#0f172a">Please choose one of the available schedules:</p>' . $scheduleHtml . '<div style="margin-top:24px;padding:18px;border-radius:12px;background:#ecfdf5;border:1px solid #a7f3d0"><p style="margin:0 0 8px;font-weight:bold;color:#065f46">Google Meet interview</p><a href="' . $meetingUrl . '" style="display:inline-block;margin-top:4px;background:#059669;color:#fff;text-decoration:none;padding:11px 16px;border-radius:8px;font-weight:bold">Join Google Meet</a><p style="margin:10px 0 0;font-size:12px;color:#047857;word-break:break-all">' . $meetingUrl . '</p></div><p style="margin:24px 0 0;line-height:1.7;color:#475569"><strong>Please reply to this email to confirm your preferred interview date and time from the choices above.</strong> If none of the proposed schedules are possible, let us know your availability so our team can coordinate with you.</p><p style="line-height:1.7;color:#475569">We look forward to speaking with you. Please note that the interview is part of the application review and does not by itself guarantee approval.</p></div><div style="padding:16px 30px;background:#f8fafc;color:#94a3b8;font-size:12px">CatCare 360 · McKinley West Cats</div></div></body></html>');
+        if (! $email->send()) {
+            log_message('error', 'Application interview invitation could not be sent for application {id}.', ['id' => $applicationId]);
+            return redirect()->back()->with('error', 'The interview invitation could not be sent. Please try again.');
+        }
+
+        return redirect()->to('/admin/applications/' . $applicationId)->with('success', 'Interview invitation sent with ' . $slotCount . ' schedule choice' . ($slotCount === 1 ? '' : 's') . '.');
+    }
+
     private function sendDecisionEmail(string $recipient, string $name, string $catName, string $status, string $reason = ''): void
     {
         $approved = $status === 'Approved';
