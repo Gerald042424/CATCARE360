@@ -10,12 +10,14 @@ class DocumentOcrService
 {
     public function screen(string $imagePath, string $documentType, string $applicantName, ?string $expectedIdType = null): array
     {
-        $apiKey = trim((string) env('ocr.apiKey'));
+        // Vercel accepts shell-style environment names, while local
+        // CodeIgniter installations commonly use dotted .env keys.
+        $apiKey = trim((string) (getenv('OCR_API_KEY') ?: env('ocr.apiKey')));
         if ($apiKey === '') {
             return $this->failed('Valid government-issued ID and proof of address verification is temporarily unavailable. Please try again shortly.');
         }
 
-        $endpoint = trim((string) env('ocr.endpoint', 'https://api.ocr.space/parse/image'));
+        $endpoint = trim((string) (getenv('OCR_ENDPOINT') ?: env('ocr.endpoint', 'https://api.ocr.space/parse/image')));
         $ocrImagePath = $this->prepareForOcr($imagePath);
         $curl = curl_init($endpoint);
         if ($curl === false) {
