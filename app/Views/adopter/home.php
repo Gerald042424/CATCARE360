@@ -2,7 +2,7 @@
 <?= $this->section('adopter_content') ?>
 
 <section class="relative bg-rescue-600 text-white overflow-hidden">
-    <img class="absolute inset-0 opacity-20 object-cover w-full h-full" src="https://images.unsplash.com/photo-1570824104453-508955ab713e?auto=format&fit=crop&w=1800&q=80" alt="Cat shelter">
+    <img class="absolute inset-0 opacity-20 object-cover w-full h-full" src="https://images.unsplash.com/photo-1570824104453-508955ab713e?auto=format&fit=crop&w=1800&q=80" alt="Community cats">
     <div class="absolute inset-0 bg-gradient-to-r from-rescue-900/80 to-rescue-600/40"></div>
     <div class="relative max-w-7xl mx-auto px-4 sm:px-6 py-16 sm:py-24 md:py-32">
         <div class="max-w-2xl">

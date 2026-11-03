@@ -1,7 +1,7 @@
 <?= $this->extend('layouts/public') ?>
 <?= $this->section('content') ?>
 <section id="home" class="relative min-h-screen bg-slate-900 pt-16">
-    <img class="absolute inset-0 h-full w-full object-cover opacity-45" src="https://images.unsplash.com/photo-1570824104453-508955ab713e?auto=format&fit=crop&w=1800&q=80" alt="Cat shelter">
+    <img class="absolute inset-0 h-full w-full object-cover opacity-45" src="https://images.unsplash.com/photo-1570824104453-508955ab713e?auto=format&fit=crop&w=1800&q=80" alt="Community cats">
     <div class="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/65 to-slate-900/20"></div>
     <div class="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center px-4 pb-16">
         <div class="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur"><span class="h-2 w-2 animate-pulse rounded-full bg-adopted-400"></span>McKinley West Cats - Open for Adoption</span></div>
@@ -25,14 +25,14 @@
         <div class="mt-12 grid gap-6 md:grid-cols-2">
             <div class="card">
                 <div class="mb-6 flex items-center gap-3"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-rescue-50 text-rescue-600"><i data-lucide="heart"></i></span><h3 class="text-xl font-bold">Adoption Requirements</h3></div>
-                <?php foreach (['Valid government ID', 'Proof of address', 'Home photos', 'Live selfie verification', 'Commitment to 3-3-3 monitoring', 'No re-homing without shelter approval'] as $row): ?>
+                <?php foreach (['Valid government ID', 'Proof of address', 'Home photos', 'Live selfie verification', 'Commitment to 3-3-3 monitoring', 'No re-homing without community approval'] as $row): ?>
                     <div class="flex gap-3 rounded-xl p-3 hover:bg-slate-50"><i data-lucide="check-circle-2" class="h-5 w-5 text-adopted-500"></i><div><div class="font-semibold text-slate-900"><?= esc($row) ?></div><p class="text-sm text-slate-500">Required before staff can finalize an adoption approval.</p></div></div>
                 <?php endforeach; ?>
             </div>
             <div class="space-y-6">
                 <div class="card">
-                    <div class="mb-6 flex items-center gap-3"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-adopted-50 text-adopted-600"><i data-lucide="shield"></i></span><h3 class="text-xl font-bold">Shelter Policies</h3></div>
-                    <?php foreach (['Respect cats and volunteers', 'Follow scheduled handoffs', 'Submit truthful documents', 'Allow check-ins when requested', 'Report health concerns quickly', 'Protect adopter and shelter privacy'] as $row): ?>
+                    <div class="mb-6 flex items-center gap-3"><span class="flex h-12 w-12 items-center justify-center rounded-xl bg-adopted-50 text-adopted-600"><i data-lucide="shield"></i></span><h3 class="text-xl font-bold">Community Policies</h3></div>
+                    <?php foreach (['Respect cats and volunteers', 'Follow scheduled handoffs', 'Submit truthful documents', 'Allow check-ins when requested', 'Report health concerns quickly', 'Protect adopter and community privacy'] as $row): ?>
                         <div class="mb-3 flex items-center gap-3 text-sm font-medium text-slate-700"><i data-lucide="check-circle-2" class="h-4 w-4 text-adopted-500"></i><?= esc($row) ?></div>
                     <?php endforeach; ?>
                 </div>
@@ -50,5 +50,5 @@
         </div>
     </div>
 </section>
-<section class="relative bg-slate-900 py-20 text-center text-white"><img class="absolute inset-0 h-full w-full object-cover opacity-10" src="https://images.unsplash.com/photo-1494256997604-768d1f608cac?auto=format&fit=crop&w=1600&q=80" alt=""><div class="relative mx-auto max-w-3xl px-4"><h2 class="text-4xl font-bold tracking-[-.025em]">Ready to make room for one more life?</h2><p class="mt-4 text-slate-400">Browse available cats or help the shelter through volunteer work.</p><div class="mt-8 flex justify-center gap-3"><a href="#" @click.prevent="authOpen=true; authTab='signup'; signType='adopter'" class="btn btn-primary">Adopt a Cat</a><a href="#volunteer" class="btn border border-white/20 bg-white/10 text-white">Volunteer With Us</a></div></div></section>
+<section class="relative bg-slate-900 py-20 text-center text-white"><img class="absolute inset-0 h-full w-full object-cover opacity-10" src="https://images.unsplash.com/photo-1494256997604-768d1f608cac?auto=format&fit=crop&w=1600&q=80" alt=""><div class="relative mx-auto max-w-3xl px-4"><h2 class="text-4xl font-bold tracking-[-.025em]">Ready to make room for one more life?</h2><p class="mt-4 text-slate-400">Browse available cats or support the community through volunteer work.</p><div class="mt-8 flex justify-center gap-3"><a href="#" @click.prevent="authOpen=true; authTab='signup'; signType='adopter'" class="btn btn-primary">Adopt a Cat</a><a href="#volunteer" class="btn border border-white/20 bg-white/10 text-white">Volunteer With Us</a></div></div></section>
 <?= $this->endSection() ?>

@@ -105,8 +105,8 @@ class MonitoringController extends BaseController
         $isVerified = $status === 'Verified';
         $heading = $isVerified ? 'Your monitoring update was verified' : 'Your monitoring update needs attention';
         $message = $isVerified
-            ? 'Thank you. Your ' . esc($submission['checkpoint']) . ' update for ' . $catName . ' has been verified by the shelter.'
-            : 'Your ' . esc($submission['checkpoint']) . ' update for ' . $catName . ' was flagged for staff follow-up. Please check your adoption portal or contact the shelter.';
+            ? 'Thank you. Your ' . esc($submission['checkpoint']) . ' update for ' . $catName . ' has been verified by the community team.'
+            : 'Your ' . esc($submission['checkpoint']) . ' update for ' . $catName . ' was flagged for staff follow-up. Please check your adoption portal or contact the community team.';
         $color = $isVerified ? '#059669' : '#dc2626';
         $email = service('email');
         $config = config('Email');

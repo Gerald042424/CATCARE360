@@ -82,7 +82,7 @@ class CatCareSeeder extends Seeder
         $this->db->table('volunteer_users')->insert($volunteerUser);
 
         $this->db->table('tasks')->insertBatch([
-            ['title' => 'Morning feeding rotation', 'description' => 'Feed shelter cats and refresh water bowls.', 'category' => 'Feeding', 'priority' => 'High', 'status' => 'Pending', 'assigned_to' => 1, 'animal_id' => null, 'task_date' => date('Y-m-d'), 'task_time' => '08:00:00', 'location' => 'Shelter A', 'created_at' => $now, 'updated_at' => $now],
+            ['title' => 'Morning feeding rotation', 'description' => 'Feed the community cats and refresh water bowls.', 'category' => 'Feeding', 'priority' => 'High', 'status' => 'Pending', 'assigned_to' => 1, 'animal_id' => null, 'task_date' => date('Y-m-d'), 'task_time' => '08:00:00', 'location' => 'McKinley West community area', 'created_at' => $now, 'updated_at' => $now],
             ['title' => 'Vet transport for Oliver', 'description' => 'Bring Oliver to clinic follow-up.', 'category' => 'Transport', 'priority' => 'Medium', 'status' => 'In Progress', 'assigned_to' => 2, 'animal_id' => 3, 'task_date' => date('Y-m-d', strtotime('+1 day')), 'task_time' => '13:30:00', 'location' => 'McKinley West', 'created_at' => $now, 'updated_at' => $now],
             ['title' => 'Socialize shy kittens', 'description' => 'Gentle play and handling practice.', 'category' => 'Socialization', 'priority' => 'Low', 'status' => 'Pending', 'assigned_to' => 3, 'animal_id' => null, 'task_date' => date('Y-m-d', strtotime('+2 days')), 'task_time' => '10:00:00', 'location' => 'Foster Room', 'created_at' => $now, 'updated_at' => $now],
         ]);

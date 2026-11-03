@@ -55,7 +55,7 @@ class AdoptionAssessmentService
         $answer = strtolower(trim($answer));
         if ($answer === '') return 'Pending Staff Review';
         if ($type === 'humane' && $this->proposesPermanentCageConfinement($answer)) return 'Needs Clarification';
-        if ($type === 'safe_living' && preg_match('/\b(secure|supervis|fence|enclos|screen|collar|microchip|traffic|hazard|escape|door|window|shelter)\b/', $answer)) return 'Meets Requirements';
+        if ($type === 'safe_living' && preg_match('/\b(secure|supervis|fence|enclos|screen|collar|microchip|traffic|hazard|escape|door|window|covered|protected)\b/', $answer)) return 'Meets Requirements';
         if ($type === 'humane' && preg_match('/\b(free roam|space|play|hide|explore|move)\b/', $answer)) return 'Meets Requirements';
         return 'Needs Clarification';
     }
