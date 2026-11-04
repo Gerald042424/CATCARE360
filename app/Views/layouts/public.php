@@ -54,8 +54,8 @@
 </nav>
 <?= view('components/flash_message', ['top' => '5rem']) ?>
 <?= $this->renderSection('content') ?>
-<div x-cloak x-show="authOpen" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4 backdrop-blur-sm" @keydown.escape.window="authOpen=false">
-    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl" @click.outside="authOpen=false">
+<div x-cloak x-show="authOpen" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/50 p-4 backdrop-blur-sm" @keydown.escape.window="termsOpen ? closeTerms() : authOpen=false">
+    <div class="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-2xl" @click.outside="if (!termsOpen) authOpen=false">
         <div class="relative border-b border-slate-200 p-6 text-center">
             <button class="absolute right-4 top-4 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" @click="authOpen=false"><i data-lucide="x" class="h-5 w-5"></i></button>
             <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-rescue-600 text-white"><i data-lucide="paw-print"></i></div>
@@ -133,9 +133,9 @@
         </div>
     </div>
 </div>
-<div x-cloak x-show="termsOpen" class="fixed inset-0 z-[60] grid place-items-center overflow-hidden bg-slate-900/60 p-4 backdrop-blur-sm" @wheel.prevent @touchmove.prevent>
+<div x-cloak x-show="termsOpen" class="fixed inset-0 z-[60] grid place-items-center overflow-hidden bg-slate-900/60 p-4 backdrop-blur-sm" @click.stop @wheel.prevent @touchmove.prevent>
     <div class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" @wheel.stop @touchmove.stop>
-        <div class="flex items-center justify-between border-b p-5"><div class="flex items-center gap-3 font-bold"><i data-lucide="scroll-text" class="h-5 w-5 text-rescue-600"></i>Terms & Conditions</div><button type="button" @click="closeTerms"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+        <div class="flex items-center justify-between border-b p-5"><div class="flex items-center gap-3 font-bold"><i data-lucide="scroll-text" class="h-5 w-5 text-rescue-600"></i>Terms & Conditions</div><button type="button" @click.stop="closeTerms" aria-label="Close Terms and Conditions"><i data-lucide="x" class="h-5 w-5"></i></button></div>
         <div x-ref="termsPanel" class="max-h-[46vh] flex-1 space-y-5 overflow-y-auto overscroll-contain p-6 text-sm leading-6 text-slate-600" @scroll="termsScrolled = $event.target.scrollTop + $event.target.clientHeight >= $event.target.scrollHeight - 8">
             <p><b>1. Acceptance and Scope.</b> These Terms &amp; Conditions govern your use of the CatCare 360 website and application. By creating an account, submitting a form, uploading a file, or using any feature, you agree to follow these terms. If you do not agree, please do not use the system.</p>
             <p><b>2. Purpose of CatCare 360.</b> CatCare 360 is used to manage cat profiles, adoption applications, document review, account communication, and post-adoption monitoring. Use of the system does not guarantee account approval, application approval, or the availability of a particular cat.</p>
@@ -153,7 +153,7 @@
             <p><b>14. Updates to These Terms and Contact.</b> We may update these Terms &amp; Conditions when website features, privacy practices, monitoring procedures, or applicable requirements change. Material updates may be shown in the system or sent to your registered contact details. For questions about account access, documents, privacy, or monitoring, contact the official CatCare 360 or McKinley West Cats communication channel.</p>
             <div class="rounded-xl border border-rescue-100 bg-rescue-50 p-4 text-rescue-800"><b>You reached the end.</b> Confirm below to record your acceptance before continuing.</div>
         </div>
-        <div class="border-t bg-slate-50/50 p-5"><label class="flex items-start gap-3 text-sm font-medium text-slate-700"><input type="checkbox" x-model="termsChecked" :disabled="!termsScrolled" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-rescue-600 disabled:cursor-not-allowed disabled:opacity-40"><span :class="!termsScrolled && 'text-slate-400'">I have read and agree to the Terms &amp; Conditions.</span></label><p x-show="!termsScrolled" class="mt-2 text-xs text-slate-500">Scroll through the terms to enable this checkbox.</p><div class="mt-4 flex justify-end gap-3"><button type="button" class="btn btn-ghost" @click="closeTerms">Close</button><button type="button" class="btn btn-primary" :disabled="!termsChecked" :class="!termsChecked && 'cursor-not-allowed opacity-50'" @click="acceptTerms">Continue</button></div></div>
+        <div class="border-t bg-slate-50/50 p-5"><label class="flex items-start gap-3 text-sm font-medium text-slate-700"><input type="checkbox" x-model="termsChecked" :disabled="!termsScrolled" class="mt-0.5 h-4 w-4 rounded border-slate-300 text-rescue-600 disabled:cursor-not-allowed disabled:opacity-40"><span :class="!termsScrolled && 'text-slate-400'">I have read and agree to the Terms &amp; Conditions.</span></label><p x-show="!termsScrolled" class="mt-2 text-xs text-slate-500">Scroll through the terms to enable this checkbox.</p><div class="mt-4 flex justify-end gap-3"><button type="button" class="btn btn-ghost" @click.stop="closeTerms">Close</button><button type="button" class="btn btn-primary" :disabled="!termsChecked" :class="!termsChecked && 'cursor-not-allowed opacity-50'" @click.stop="acceptTerms">Continue</button></div></div>
     </div>
 </div>
 <footer class="border-t border-slate-800 bg-slate-900 py-8 text-slate-400">
