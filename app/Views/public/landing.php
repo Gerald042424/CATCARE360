@@ -8,15 +8,16 @@
         <h1 class="max-w-4xl text-5xl font-bold tracking-[-.025em] text-white md:text-7xl"><span class="block">Give a Cat a</span><span class="mt-1 block text-rescue-400 md:mt-2">Forever Home.</span></h1>
         <p class="mt-6 max-w-xl text-xl leading-8 text-slate-200">Adopt, volunteer, and help rescued cats find the safe, loving homes they deserve.</p>
         <div class="mt-8 flex flex-wrap gap-3"><a href="#" @click.prevent="authOpen=true; authTab='signup'; signType='adopter'" class="btn btn-primary"><i data-lucide="heart" class="h-4 w-4"></i>Adopt a Cat</a><a href="#volunteer" class="btn border border-white/20 bg-white/15 text-white hover:bg-white/20">Become a Volunteer</a></div>
+        <div class="landing-care-note"><strong>Care begins in the community.</strong><span>Responsible matching, documented adoption, and continued welfare support.</span></div>
         <div class="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce text-center text-xs font-bold tracking-wider text-white/70"><i data-lucide="chevron-down" class="mx-auto h-5 w-5"></i>SCROLL</div>
     </div>
 </section>
-<section class="bg-rescue-600 py-10" style="background-color:#0A6A8A">
+<section class="bg-rescue-600 py-10" style="background-color:#0B6B61">
     <div class="mx-auto grid max-w-7xl grid-cols-2 gap-6 px-4 text-center md:grid-cols-4">
-        <div><div class="text-4xl font-bold text-white"><?= esc($stats['cats'] ?: 312) ?>+</div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Cats Intake</div></div>
-        <div><div class="text-4xl font-bold text-white"><?= esc($stats['adoptions'] ?: 247) ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Successful Adoptions</div></div>
-        <div><div class="text-4xl font-bold text-white"><?= esc($stats['volunteers'] ?: 42) ?>+</div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Active Volunteers</div></div>
-        <div><div class="text-4xl font-bold text-white"><?= $stats['compliance'] === null ? '—' : esc($stats['compliance']) . '%' ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D4EDF7">Compliance Rate</div></div>
+        <div><div class="text-4xl font-bold text-white"><?= esc($stats['cats'] ?: 312) ?>+</div><div class="text-sm font-medium text-rescue-100" style="color:#D9EEE7">Cats Intake</div></div>
+        <div><div class="text-4xl font-bold text-white"><?= esc($stats['adoptions'] ?: 247) ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D9EEE7">Successful Adoptions</div></div>
+        <div><div class="text-4xl font-bold text-white"><?= esc($stats['volunteers'] ?: 42) ?>+</div><div class="text-sm font-medium text-rescue-100" style="color:#D9EEE7">Active Volunteers</div></div>
+        <div><div class="text-4xl font-bold text-white"><?= $stats['compliance'] === null ? '—' : esc($stats['compliance']) . '%' ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D9EEE7">Compliance Rate</div></div>
     </div>
 </section>
 <section id="rules" class="bg-slate-50 py-24">

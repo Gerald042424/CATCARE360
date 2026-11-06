@@ -14,21 +14,22 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = { theme: { extend: { colors: { rescue: { 50: '#EFF8FC', 100: '#D4EDF7', 200: '#A9DBEF', 300: '#6DC3E3', 400: '#30A8D2', 500: '#0D7EA3', 600: '#0A6A8A', 700: '#085670', 800: '#064257', 900: '#03293A' }, catgold: { 50: '#FFFBEB', 100: '#FEF3C7', 200: '#FDE68A', 300: '#FCD34D', 400: '#FBBF24', 500: '#F59E0B', 600: '#D97706', 700: '#B45309', 800: '#92400E', 900: '#78350F' }, adopted: { 50: '#F0FDF4', 100: '#DCFCE7', 200: '#BBF7D0', 300: '#86EFAC', 400: '#4ADE80', 500: '#22C55E', 600: '#16A34A', 700: '#15803D', 800: '#166534', 900: '#14532D' }, wanted: { 50: '#FEF2F2', 100: '#FEE2E2', 200: '#FECACA', 300: '#FCA5A5', 400: '#F87171', 500: '#EF4444', 600: '#DC2626', 700: '#B91C1C', 800: '#991B1B', 900: '#7F1D1D' }, foster: { 50: '#FAF5FF', 100: '#F3E8FF', 200: '#E9D5FF', 300: '#D8B4FE', 400: '#C084FC', 500: '#A855F7', 600: '#9333EA', 700: '#7E22CE', 800: '#6B21A8', 900: '#581C87' } }, fontFamily: { sans: ['Inter', 'sans-serif'] } } } };
+      tailwind.config = { theme: { extend: { colors: { rescue: { 50: '#EFF8F5', 100: '#D9EEE7', 200: '#B8DED2', 300: '#86C8B6', 400: '#55AE96', 500: '#2F9278', 600: '#0B6B61', 700: '#075A51', 800: '#06483F', 900: '#153832' }, catgold: { 50: '#FFFBEB', 100: '#FEF3C7', 200: '#FDE68A', 300: '#FCD34D', 400: '#FBBF24', 500: '#F59E0B', 600: '#D97706', 700: '#B45309', 800: '#92400E', 900: '#78350F' }, adopted: { 50: '#F0FDF4', 100: '#DCFCE7', 200: '#BBF7D0', 300: '#86EFAC', 400: '#4ADE80', 500: '#22C55E', 600: '#16A34A', 700: '#15803D', 800: '#166534', 900: '#14532D' }, wanted: { 50: '#FEF2F2', 100: '#FEE2E2', 200: '#FECACA', 300: '#FCA5A5', 400: '#F87171', 500: '#EF4444', 600: '#DC2626', 700: '#B91C1C', 800: '#991B1B', 900: '#7F1D1D' }, foster: { 50: '#FAF5FF', 100: '#F3E8FF', 200: '#E9D5FF', 300: '#D8B4FE', 400: '#C084FC', 500: '#A855F7', 600: '#9333EA', 700: '#7E22CE', 800: '#6B21A8', 900: '#581C87' } }, fontFamily: { sans: ['Inter', 'sans-serif'] } } } };
     </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script>document.addEventListener('DOMContentLoaded', () => lucide.createIcons())</script>
     <style>[x-cloak]{display:none!important}body{font-family:Inter,sans-serif;background:#F5F7FA}h1,h2,h3,.brand,.metric-value{font-family:'Plus Jakarta Sans',Inter,sans-serif;letter-spacing:-.02em}button,input,select,textarea{font-family:inherit}</style>
+    <link rel="stylesheet" href="<?= base_url('css/catcare-ui.css') ?>?v=<?= filemtime(FCPATH . 'css/catcare-ui.css') ?>">
 </head>
-<body class="min-h-screen">
+<body class="catcare-adopter min-h-screen">
 
 <?php $profileSetupRequired = (bool) session('adopter_profile_setup_required'); ?>
 <div x-data="{ showProfile: <?= $profileSetupRequired ? 'true' : 'false' ?>, mobileMenu: false, profileRequired: <?= $profileSetupRequired ? 'true' : 'false' ?> }" @keydown.escape.window="if (!profileRequired) showProfile = false; mobileMenu = false">
-    <header class="sticky top-0 z-50 bg-white border-b border-slate-200 h-16">
+    <header class="adopter-header sticky top-0 z-50 bg-white border-b border-slate-200 h-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-full">
             <a href="<?= site_url('adopter/home') ?>" class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-rescue-600 rounded-lg flex items-center justify-center text-white shadow-sm"><i data-lucide="paw-print" class="w-4 h-4"></i></div>
+                <div class="portal-brand-mark w-8 h-8 bg-rescue-600 rounded-lg flex items-center justify-center text-white shadow-sm"><i data-lucide="paw-print" class="w-4 h-4"></i></div>
                 <span class="brand font-semibold text-lg tracking-tight text-slate-900">CatCare</span>
             </a>
 

@@ -1,0 +1,298 @@
+:root {
+  --cc-ink: #152623;
+  --cc-ink-soft: #314440;
+  --cc-teal: #0b6b61;
+  --cc-teal-dark: #075249;
+  --cc-leaf: #2f9278;
+  --cc-mist: #e8f3ef;
+  --cc-paper: #f7f9f7;
+  --cc-panel: #ffffff;
+  --cc-line: #dbe5e1;
+  --cc-muted: #64746f;
+  --cc-amber: #c77a28;
+  --cc-danger: #b84b4b;
+  --cc-radius-sm: 0.625rem;
+  --cc-radius-md: 0.875rem;
+  --cc-radius-lg: 1.125rem;
+  --cc-shadow-sm: 0 1px 2px rgb(21 38 35 / 0.05), 0 8px 24px rgb(21 38 35 / 0.04);
+  --cc-shadow-md: 0 18px 45px rgb(21 38 35 / 0.12);
+}
+
+html { scroll-behavior: smooth; }
+
+body.catcare-public,
+body.catcare-admin,
+body.catcare-adopter,
+body.catcare-volunteer,
+body.catcare-auth {
+  background: var(--cc-paper);
+  color: var(--cc-ink);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body.catcare-public h1,
+body.catcare-public h2,
+body.catcare-public h3,
+body.catcare-admin h1,
+body.catcare-admin h2,
+body.catcare-admin h3,
+body.catcare-adopter h1,
+body.catcare-adopter h2,
+body.catcare-adopter h3,
+body.catcare-volunteer h1,
+body.catcare-volunteer h2,
+body.catcare-volunteer h3,
+body.catcare-auth h1,
+body.catcare-auth h2,
+body.catcare-auth h3,
+.brand,
+.metric-value {
+  color: var(--cc-ink);
+  font-family: "Plus Jakarta Sans", Inter, sans-serif;
+  letter-spacing: -0.035em;
+}
+
+::selection { background: #bfe3d7; color: var(--cc-ink); }
+
+a, button, input, select, textarea { transition-duration: 180ms; transition-timing-function: ease; }
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 3px solid rgb(47 146 120 / 0.3) !important;
+  outline-offset: 2px;
+}
+
+body[class*="catcare-"] .card {
+  background: var(--cc-panel);
+  border: 1px solid var(--cc-line);
+  border-radius: var(--cc-radius-lg);
+  box-shadow: var(--cc-shadow-sm);
+}
+
+body[class*="catcare-"] a.card:hover {
+  border-color: #a9cec2;
+  box-shadow: 0 12px 30px rgb(21 38 35 / 0.08);
+  transform: translateY(-2px);
+}
+
+body[class*="catcare-"] .btn {
+  min-height: 2.625rem;
+  border-radius: var(--cc-radius-sm);
+  justify-content: center;
+  letter-spacing: -0.01em;
+}
+
+body[class*="catcare-"] .btn-primary {
+  background: var(--cc-teal) !important;
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.14), 0 5px 14px rgb(11 107 97 / 0.16);
+  color: #fff !important;
+}
+
+body[class*="catcare-"] .btn-primary:hover {
+  background: var(--cc-teal-dark) !important;
+  box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.12), 0 8px 20px rgb(11 107 97 / 0.22);
+  transform: translateY(-1px);
+}
+
+body[class*="catcare-"] .btn-ghost {
+  background: #fff;
+  border-color: var(--cc-line);
+  color: var(--cc-ink-soft);
+}
+
+body[class*="catcare-"] .btn-ghost:hover { background: #f0f5f3; border-color: #bfd4cc; }
+
+body[class*="catcare-"] .field,
+body[class*="catcare-"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+body[class*="catcare-"] select,
+body[class*="catcare-"] textarea {
+  min-height: 2.75rem;
+  border-color: var(--cc-line);
+  border-radius: var(--cc-radius-sm);
+  background-color: #fbfcfb;
+  color: var(--cc-ink);
+}
+
+body[class*="catcare-"] .field:hover,
+body[class*="catcare-"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):hover,
+body[class*="catcare-"] select:hover,
+body[class*="catcare-"] textarea:hover { border-color: #b5ccc4; }
+
+body[class*="catcare-"] .field:focus,
+body[class*="catcare-"] input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):focus,
+body[class*="catcare-"] select:focus,
+body[class*="catcare-"] textarea:focus {
+  background: #fff;
+  border-color: var(--cc-leaf) !important;
+  box-shadow: 0 0 0 4px rgb(47 146 120 / 0.12) !important;
+  outline: none;
+}
+
+body[class*="catcare-"] .label {
+  color: #4f625d;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+body[class*="catcare-"] table { border-collapse: separate; border-spacing: 0; }
+body[class*="catcare-"] thead { background: #eef4f1 !important; }
+body[class*="catcare-"] th {
+  color: #52655f !important;
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+  text-transform: none !important;
+}
+body[class*="catcare-"] tbody tr { transition: background-color 140ms ease; }
+body[class*="catcare-"] tbody tr:hover { background: #f5f9f7; }
+body[class*="catcare-"] td { border-color: #e5ece9 !important; }
+
+/* Public shell */
+.catcare-public .public-nav {
+  background: rgb(255 255 255 / 0.94) !important;
+  border-color: rgb(219 229 225 / 0.9) !important;
+  box-shadow: 0 1px 18px rgb(21 38 35 / 0.04);
+}
+
+.catcare-public .public-brand-mark,
+.catcare-adopter .portal-brand-mark {
+  background: var(--cc-teal) !important;
+  box-shadow: 0 6px 18px rgb(11 107 97 / 0.2);
+}
+
+.catcare-public .public-nav a,
+.catcare-public .public-nav button,
+.catcare-adopter .adopter-header a,
+.catcare-adopter .adopter-header button {
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.catcare-public #home h1 { color: #fff !important; }
+
+.landing-care-note {
+  animation: cc-note-in 520ms ease-out both;
+  backdrop-filter: blur(14px);
+  background: rgb(17 35 32 / 0.88);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  bottom: 2rem;
+  color: #fff;
+  max-width: 19rem;
+  padding: 1rem 1.1rem 1rem 1.25rem;
+  position: absolute;
+  right: 1rem;
+  z-index: 3;
+}
+
+.landing-care-note::before {
+  background: #62b89d;
+  bottom: 1rem;
+  content: "";
+  left: 0;
+  position: absolute;
+  top: 1rem;
+  width: 3px;
+}
+
+.landing-care-note strong {
+  color: #fff;
+  display: block;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: -0.02em;
+}
+
+.landing-care-note span {
+  color: #bed0ca;
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.55;
+  margin-top: 0.3rem;
+}
+
+/* Existing layout polish */
+.catcare-admin aside nav a,
+.catcare-volunteer .volunteer-sidebar nav a {
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.catcare-admin aside nav a:hover,
+.catcare-volunteer .volunteer-sidebar nav a:hover {
+  background: var(--cc-mist) !important;
+  color: var(--cc-teal-dark) !important;
+  transform: translateX(2px);
+}
+
+.catcare-admin aside nav a.bg-rescue-50,
+.catcare-volunteer .volunteer-sidebar nav a.bg-rescue-50 {
+  box-shadow: inset 3px 0 0 var(--cc-leaf);
+}
+
+.catcare-admin main > div,
+.catcare-volunteer main,
+.catcare-adopter main {
+  text-wrap: pretty;
+}
+
+.catcare-adopter .adopter-header,
+.catcare-volunteer .volunteer-header {
+  background: rgb(255 255 255 / 0.94) !important;
+  border-color: var(--cc-line) !important;
+  backdrop-filter: blur(14px);
+}
+
+.catcare-adopter .adopter-header nav a {
+  border-bottom: 2px solid transparent;
+  padding-block: 1.35rem;
+}
+
+.catcare-adopter .adopter-header nav a:hover {
+  color: var(--cc-teal) !important;
+}
+
+.catcare-adopter .adopter-header nav a.text-rescue-600 {
+  border-bottom-color: var(--cc-teal);
+  color: var(--cc-teal) !important;
+}
+
+@keyframes cc-note-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Adopter and volunteer portals */
+.catcare-adopter .adopter-header,
+.catcare-volunteer .volunteer-header { background: rgb(255 255 255 / 0.94) !important; border-color: var(--cc-line) !important; backdrop-filter: blur(14px); }
+.catcare-adopter .adopter-header nav a { border-bottom: 2px solid transparent; padding-block: 1.35rem; }
+.catcare-adopter .adopter-header nav a.text-rescue-600 { border-bottom-color: var(--cc-teal); color: var(--cc-teal) !important; }
+.catcare-volunteer .volunteer-sidebar { border-color: var(--cc-line) !important; box-shadow: 8px 0 28px rgb(21 38 35 / 0.06); }
+.catcare-volunteer .volunteer-sidebar nav a { border-radius: 0.65rem !important; }
+.catcare-volunteer .volunteer-sidebar nav a.bg-rescue-50 { background: var(--cc-mist) !important; color: var(--cc-teal-dark) !important; box-shadow: inset 3px 0 0 var(--cc-leaf); }
+
+/* Authentication */
+.catcare-auth .auth-visual::after { background: linear-gradient(180deg, transparent 15%, rgb(10 32 29 / 0.88) 100%); content: ""; inset: 0; position: absolute; }
+.catcare-auth .auth-visual > div { z-index: 2; }
+.catcare-auth .auth-panel { background: var(--cc-paper) !important; }
+.catcare-auth form { border-color: var(--cc-line) !important; border-radius: var(--cc-radius-lg) !important; box-shadow: var(--cc-shadow-md) !important; }
+
+@media (max-width: 767px) {
+  .landing-care-note {
+    bottom: 6.25rem;
+    left: 1rem;
+    max-width: min(19rem, calc(100% - 2rem));
+    right: auto;
+  }
+  body[class*="catcare-"] .card { border-radius: 0.875rem; }
+  body[class*="catcare-"] table { font-size: 0.82rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
