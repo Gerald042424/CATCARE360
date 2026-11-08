@@ -112,7 +112,7 @@ $cnvrSteps = [
                         <input id="photoInput" type="file" name="photo" accept="image/*" class="hidden">
 
                         <div id="cameraArea" class="mt-2">
-                            <video id="cameraStream" class="w-full max-h-64 rounded-lg object-cover border border-slate-200 bg-black hidden" autoplay playsinline></video>
+                            <video id="cameraStream" class="hidden h-auto w-full max-h-[70vh] rounded-lg border border-slate-200 bg-black object-contain" autoplay playsinline></video>
                             <canvas id="captureCanvas" class="hidden"></canvas>
 
                             <div class="mt-3 flex flex-wrap gap-2">
@@ -125,7 +125,7 @@ $cnvrSteps = [
                             <div id="photoError" class="mt-2 text-sm text-red-600 hidden"></div>
 
                             <div class="mt-3">
-                                <img id="photoPreview" src="" alt="Preview — click to view fullscreen" class="hidden w-full max-h-64 cursor-zoom-in rounded-lg border border-slate-200 object-cover">
+                                <img id="photoPreview" src="" alt="Preview — click to view fullscreen" class="hidden w-full max-h-[70vh] cursor-zoom-in rounded-lg border border-slate-200 object-contain">
                             </div>
 
                             <p class="mt-2 text-xs text-slate-500">For authenticity, only a live photo captured on this page is accepted. The final photo is stamped with the device’s current GPS place, coordinates, date, time, and measured accuracy—not the profile address.</p>

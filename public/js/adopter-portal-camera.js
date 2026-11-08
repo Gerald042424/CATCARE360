@@ -129,6 +129,14 @@
         sceneReady = false;
     }
 
+    function showFullCameraFrame() {
+        video.style.width = '100%';
+        video.style.height = 'auto';
+        video.style.maxHeight = '70vh';
+        video.style.objectFit = 'contain';
+        video.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight;
+    }
+
     function coordinateLocation(coords) {
         return 'GPS ' + coords.latitude.toFixed(6) + ', ' + coords.longitude.toFixed(6);
     }
@@ -215,6 +223,7 @@
             video.srcObject = stream;
             video.classList.remove('hidden');
             await video.play();
+            showFullCameraFrame();
             cameraReady = true;
             startLightingMonitor();
             updateCaptureButton();

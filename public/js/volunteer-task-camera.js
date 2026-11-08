@@ -7,7 +7,7 @@
     fileInput.classList.add('hidden');
     var area = document.createElement('div');
     area.className = 'rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4';
-    area.innerHTML = '<video class="hidden w-full max-h-72 rounded-lg bg-black object-cover" playsinline muted></video><p class="lighting-status mt-2 hidden text-sm font-semibold"></p><canvas class="hidden"></canvas><div class="preview-wrap hidden overflow-hidden rounded-lg border border-emerald-200 bg-white"><img class="capture-preview block w-full max-h-72 object-contain" alt="Captured live task report photo"><p class="preview-caption border-t border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800"></p></div><div class="mt-3 flex flex-wrap gap-2"><button type="button" class="start-camera btn btn-ghost">Open Camera</button><button type="button" class="switch-camera btn btn-ghost hidden">Switch to Front Camera</button><button type="button" class="capture-photo btn bg-emerald-600 text-white" disabled>Capture Photo</button><button type="button" class="retake-photo btn btn-ghost hidden">Retake</button></div><p class="camera-status mt-3 text-sm text-gray-500">A live photo and current GPS location are required.</p><p class="geotag-status mt-1 break-words text-xs text-gray-500"></p>';
+    area.innerHTML = '<video class="hidden h-auto w-full max-h-[70vh] rounded-lg bg-black object-contain" playsinline muted></video><p class="lighting-status mt-2 hidden text-sm font-semibold"></p><canvas class="hidden"></canvas><div class="preview-wrap hidden overflow-hidden rounded-lg border border-emerald-200 bg-white"><img class="capture-preview block w-full max-h-[70vh] object-contain" alt="Captured live task report photo"><p class="preview-caption border-t border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800"></p></div><div class="mt-3 flex flex-wrap gap-2"><button type="button" class="start-camera btn btn-ghost">Open Camera</button><button type="button" class="switch-camera btn btn-ghost hidden">Switch to Front Camera</button><button type="button" class="capture-photo btn bg-emerald-600 text-white" disabled>Capture Photo</button><button type="button" class="retake-photo btn btn-ghost hidden">Retake</button></div><p class="camera-status mt-3 text-sm text-gray-500">A live photo and current GPS location are required.</p><p class="geotag-status mt-1 break-words text-xs text-gray-500"></p>';
     fileInput.parentNode.insertBefore(area, fileInput);
     ['latitude', 'longitude', 'gps_accuracy', 'capture_source', 'captured_at_client'].forEach(function (name) {
         var input = document.createElement('input');
@@ -100,6 +100,14 @@
         sceneReady = false;
     }
 
+    function showFullCameraFrame() {
+        video.style.width = '100%';
+        video.style.height = 'auto';
+        video.style.maxHeight = '70vh';
+        video.style.objectFit = 'contain';
+        video.style.aspectRatio = video.videoWidth + ' / ' + video.videoHeight;
+    }
+
     function stop() {
         stopLightingMonitor();
         if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
@@ -182,6 +190,7 @@
             video.srcObject = stream;
             video.classList.remove('hidden');
             await video.play();
+            showFullCameraFrame();
             cameraReady = true;
             startLightingMonitor();
             updateCaptureButton();
