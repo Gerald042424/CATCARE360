@@ -8,6 +8,12 @@
       "maxDuration": 60
     }
   },
+  "crons": [
+    {
+      "path": "/cron/monitoring-reminders",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "routes": [
     {
       "src": "/(.*\\.(?:css|js|map|json|webmanifest|ico|png|jpe?g|gif|svg|webp|woff2?|ttf))",

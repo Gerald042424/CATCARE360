@@ -5,6 +5,7 @@ use CodeIgniter\Router\RouteCollection;
 /** @var RouteCollection $routes */
 $routes->get('/', 'Public\LandingController::index');
 $routes->get('health/runtime', 'HealthController::runtime');
+$routes->get('cron/monitoring-reminders', 'CronController::monitoringReminders');
 $routes->get('media/(:segment)', 'MediaController::show/$1');
 
 $routes->addRedirect('/home', 'adopter/home');
