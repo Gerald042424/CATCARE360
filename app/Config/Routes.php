@@ -100,6 +100,7 @@ $routes->post('volunteer/apply', 'Volunteer\ApplicationController::submit');
 $routes->get('/volunteer/logout', 'Volunteer\AuthController::logout');
 $routes->group('volunteer', ['filter' => 'volunteerAuth'], static function (RouteCollection $routes): void {
     $routes->get('session/keep-alive', 'SessionController::keepAlive');
+    $routes->get('location/reverse', 'Adopter\LocationController::reverse');
     $routes->get('/', 'Volunteer\TasksController::index');
     $routes->get('schedule', 'Volunteer\TasksController::schedule');
     $routes->match(['get', 'post'], 'task/(:num)', 'Volunteer\TasksController::detail/$1');
