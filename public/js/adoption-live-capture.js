@@ -32,9 +32,10 @@ document.addEventListener('DOMContentLoaded', function () {
   function note(card, message, color) { var el = card.querySelector('.location-status'); el.textContent = message; el.className = 'location-status mt-3 text-xs font-medium ' + color; }
   function isSelfie(card) { return card.dataset.key === 'selfie'; }
   function isGovernmentId(card) { return card.dataset.key === 'gov_id'; }
+  function isAddressProof(card) { return card.dataset.key === 'address_proof'; }
   function isHomeScene(card) { return card.dataset.key === 'home_photos' || card.dataset.key === 'home_access'; }
   function homeSceneType(card) { return card.dataset.key === 'home_access' ? 'windows_outdoor_access' : 'indoor_living_area'; }
-  function stopHomeSceneMonitor(card) {
+  function stopCaptureQualityMonitor(card) {
     if (card._sceneTimer) window.clearInterval(card._sceneTimer);
     card._sceneTimer = null;
     card._sceneReady = false;
@@ -127,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (panel) panel.classList.add('hidden');
   }
   function stop(card) {
-    stopHomeSceneMonitor(card);
+    stopCaptureQualityMonitor(card);
     if (card._stream) card._stream.getTracks().forEach(function (track) { track.stop(); });
     card._stream = null;
     if (isSelfie(card)) resetFaceVerification(card);
@@ -371,7 +372,7 @@ document.addEventListener('DOMContentLoaded', function () {
       glareRatio: glare / gray.length
     };
   }
-  function analyzeHomeScene(card) {
+  function analyzeCaptureQuality(card) {
     var video = card.querySelector('.camera-stream');
     var button = card.querySelector('.capture-photo');
     if (!card._stream || video.readyState < 2 || !video.videoWidth) {
@@ -381,9 +382,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     var analysis = analyzeIdFrame(frameCanvas(video, 320));
     card._sceneAnalysis = analysis;
+    var subject = isAddressProof(card) ? 'document' : 'room';
     if (analysis.brightness < 45) {
       card._sceneReady = false;
-      card._sceneMessage = 'Too dark — turn on the lights or move to a brighter area before capturing.';
+      card._sceneMessage = 'Too dark — turn on a light or move to a brighter area before capturing.';
       note(card, card._sceneMessage, 'text-red-600');
     } else if (analysis.brightness > 245 || analysis.glareRatio > 0.50) {
       card._sceneReady = false;
@@ -391,20 +393,20 @@ document.addEventListener('DOMContentLoaded', function () {
       note(card, card._sceneMessage, 'text-red-600');
     } else if (analysis.contrast < 8 && analysis.sharpness < 2.5) {
       card._sceneReady = false;
-      card._sceneMessage = 'No clear room detail detected — uncover the camera and show the actual area.';
+      card._sceneMessage = 'No clear ' + subject + ' detail detected — uncover the camera and show the actual ' + subject + '.';
       note(card, card._sceneMessage, 'text-red-600');
     } else {
       card._sceneReady = true;
-      card._sceneMessage = 'Lighting and room view look clear. You can capture now.';
+      card._sceneMessage = 'Lighting and ' + subject + ' view look clear. You can capture now.';
       note(card, card._sceneMessage, 'text-emerald-700');
     }
     button.disabled = !card._sceneReady;
     return card._sceneReady;
   }
-  function startHomeSceneMonitor(card) {
-    stopHomeSceneMonitor(card);
-    analyzeHomeScene(card);
-    card._sceneTimer = window.setInterval(function () { analyzeHomeScene(card); }, 700);
+  function startCaptureQualityMonitor(card) {
+    stopCaptureQualityMonitor(card);
+    analyzeCaptureQuality(card);
+    card._sceneTimer = window.setInterval(function () { analyzeCaptureQuality(card); }, 700);
   }
   function cropCanvas(source, rect) {
     var padding = Math.round(Math.min(rect.width, rect.height) * 0.025), x = Math.max(0, rect.x - padding), y = Math.max(0, rect.y - padding), width = Math.min(source.width - x, rect.width + padding * 2), height = Math.min(source.height - y, rect.height + padding * 2);
@@ -607,6 +609,7 @@ document.addEventListener('DOMContentLoaded', function () {
     try {
       if (isSelfie(card)) card._facing = 'user';
       if (isGovernmentId(card)) { card._facing = 'environment'; resetIdVerification(card); }
+      if (isAddressProof(card)) card._facing = 'environment';
       if (isHomeScene(card)) card._facing = 'environment';
       var stream = await streamFor(card._facing || 'environment');
       card._stream = stream;
@@ -636,11 +639,16 @@ document.addEventListener('DOMContentLoaded', function () {
         getTesseractWorker().catch(function (reason) {
           idMessage(card, 'OCR could not start', reason.message || 'Check your connection, then reopen the camera.', 'warning');
         });
+      } else if (isAddressProof(card)) {
+        card.querySelector('.capture-photo').disabled = true;
+        card.querySelector('.switch-camera').classList.add('hidden');
+        note(card, 'Checking the proof-of-address document and lighting…', 'text-gray-500');
+        startCaptureQualityMonitor(card);
       } else if (isHomeScene(card)) {
         card.querySelector('.capture-photo').disabled = true;
         card.querySelector('.switch-camera').classList.add('hidden');
         note(card, card.dataset.key === 'home_access' ? 'Checking the window or outdoor-access view and lighting…' : 'Checking the indoor living area and lighting…', 'text-gray-500');
-        startHomeSceneMonitor(card);
+        startCaptureQualityMonitor(card);
       } else {
         card.querySelector('.capture-photo').disabled = false;
         card.querySelector('.switch-camera').classList.remove('hidden');
@@ -665,8 +673,11 @@ document.addEventListener('DOMContentLoaded', function () {
       return error('Scan and pass the valid government-issued ID type and applicant-name check before capturing.');
     }
     var homeSceneVerification = null;
+    if (isAddressProof(card) && !analyzeCaptureQuality(card)) {
+      return error(card._sceneMessage || 'Show a bright, clear view of the proof-of-address document before capturing.');
+    }
     if (isHomeScene(card)) {
-      if (!analyzeHomeScene(card)) return error(card._sceneMessage || 'Show a bright, clear view of the actual area before capturing.');
+      if (!analyzeCaptureQuality(card)) return error(card._sceneMessage || 'Show a bright, clear view of the actual area before capturing.');
       var homeAnalysis = card._sceneAnalysis;
       homeSceneVerification = { verified: true, capture_type: homeSceneType(card), brightness: Math.round(homeAnalysis.brightness), contrast: Math.round(homeAnalysis.contrast), sharpness: Math.round(homeAnalysis.sharpness * 10) / 10, verified_at: new Date().toISOString(), provider: 'native_canvas_scene_quality', version: '1.0' };
     }
@@ -723,7 +734,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (isGovernmentId(card)) card.querySelector('.capture-photo').textContent = 'Scan ID first';
     card.querySelector('.start-camera').onclick = function () { open(card); };
     card.querySelector('.switch-camera').onclick = function () {
-      if (isSelfie(card) || isGovernmentId(card) || isHomeScene(card)) return;
+      if (isSelfie(card) || isGovernmentId(card) || isAddressProof(card) || isHomeScene(card)) return;
       card._facing = card._facing === 'environment' ? 'user' : 'environment';
       open(card);
     };
@@ -736,7 +747,7 @@ document.addEventListener('DOMContentLoaded', function () {
       card.querySelector('.capture-preview-wrap').classList.add('hidden');
       card.querySelector('.retake-photo').classList.add('hidden');
       card.querySelector('.capture-photo').classList.remove('hidden');
-      if (!isSelfie(card) && !isGovernmentId(card) && !isHomeScene(card)) card.querySelector('.switch-camera').classList.remove('hidden');
+      if (!isSelfie(card) && !isGovernmentId(card) && !isAddressProof(card) && !isHomeScene(card)) card.querySelector('.switch-camera').classList.remove('hidden');
       if (isGovernmentId(card)) { card.querySelector('.id-type-select').disabled = false; resetIdVerification(card); }
       card.querySelector('.capture-state').textContent = 'Not captured';
       card.querySelector('.capture-state').className = 'capture-state rounded-full bg-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-600';
