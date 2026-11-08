@@ -26,21 +26,31 @@ $cnvrSteps = [
         <p class="text-slate-500 font-medium">Track your adopted cat's journey and submit updates</p>
     </div>
 
+    <?php if (! empty($isOverdue)): ?>
+        <div class="mb-8 flex items-start gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 shadow-sm" role="alert">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700"><i data-lucide="triangle-alert" class="h-5 w-5"></i></span>
+            <div>
+                <h2 class="font-semibold">Monitoring update overdue for <?= esc($cat['name']) ?></h2>
+                <p class="mt-1 text-sm leading-6 text-red-800">The <strong><?= esc($nextCheckpoint) ?></strong> update was due on <strong><?= esc(date('F d, Y', strtotime($nextCheckIn))) ?></strong>. Please submit a current photo and wellbeing update as soon as possible.</p>
+            </div>
+        </div>
+    <?php endif; ?>
+
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
-        <div class="bg-white border-2 border-adopted-200 bg-adopted-50 rounded-2xl shadow-sm p-6">
-            <div class="flex items-start justify-between mb-4"><i data-lucide="award" class="w-8 h-8 text-adopted-600"></i><span class="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded bg-adopted-50 text-adopted-600">Status</span></div>
+        <div class="border-2 <?= ! empty($isOverdue) ? 'border-red-200 bg-red-50' : 'border-adopted-200 bg-adopted-50' ?> rounded-2xl shadow-sm p-6">
+            <div class="flex items-start justify-between mb-4"><i data-lucide="<?= ! empty($isOverdue) ? 'triangle-alert' : 'award' ?>" class="w-8 h-8 <?= ! empty($isOverdue) ? 'text-red-600' : 'text-adopted-600' ?>"></i><span class="text-xs font-semibold uppercase tracking-wider px-2 py-1 rounded <?= ! empty($isOverdue) ? 'bg-red-100 text-red-700' : 'bg-adopted-50 text-adopted-600' ?>"><?= ! empty($isOverdue) ? 'Overdue' : 'Status' ?></span></div>
             <?php if (empty($monitoringSnapshot['has_started'])): ?>
                 <p class="text-sm font-medium text-slate-500 mb-1">Monitoring Status</p>
                 <p class="text-3xl font-bold text-adopted-600">On Track</p>
                 <p class="mt-1 text-xs text-slate-500">No check-in is due yet.</p>
             <?php else: ?>
                 <p class="text-sm font-medium text-slate-500 mb-1">Compliance Score</p>
-                <p class="text-4xl font-bold text-adopted-600"><?= esc($monitoringSnapshot['score']) ?>%</p>
+                <p class="text-4xl font-bold <?= ! empty($isOverdue) ? 'text-red-600' : 'text-adopted-600' ?>"><?= esc($monitoringSnapshot['score']) ?>%</p>
                 <p class="mt-1 text-xs text-slate-500"><?= esc($monitoringSnapshot['verified_expected_count']) ?> of <?= esc($monitoringSnapshot['expected_count']) ?> due check-ins verified</p>
             <?php endif; ?>
         </div>
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="check-circle-2" class="w-8 h-8 text-rescue-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Total Updates</p><p class="text-4xl font-bold text-slate-900"><?= esc($totalUpdates ?? 0) ?></p></div>
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="calendar" class="w-8 h-8 text-purple-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Next Check-In</p><p class="text-lg font-semibold text-slate-900"><?= $nextCheckIn ? esc(date('M d, Y', strtotime($nextCheckIn))) : 'Completed' ?></p></div>
+        <div class="bg-white border <?= ! empty($isOverdue) ? 'border-red-200' : 'border-slate-200' ?> rounded-2xl shadow-sm p-6"><i data-lucide="<?= ! empty($isOverdue) ? 'triangle-alert' : 'calendar' ?>" class="w-8 h-8 <?= ! empty($isOverdue) ? 'text-red-600' : 'text-purple-600' ?> mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1"><?= ! empty($isOverdue) ? 'Overdue Check-In' : 'Next Check-In' ?></p><p class="text-lg font-semibold <?= ! empty($isOverdue) ? 'text-red-700' : 'text-slate-900' ?>"><?= $nextCheckIn ? esc(date('M d, Y', strtotime($nextCheckIn))) : 'Completed' ?></p></div>
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6"><i data-lucide="alert-circle" class="w-8 h-8 text-green-600 mb-4"></i><p class="text-sm font-medium text-slate-500 mb-1">Pending</p><p class="text-4xl font-bold text-green-600"><?= esc($pendingCount ?? 0) ?></p></div>
     </div>
 
@@ -80,7 +90,7 @@ $cnvrSteps = [
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4">3-3-3 Check-ins</h3>
                 <div class="grid grid-cols-3 gap-3 text-center text-xs"><?php foreach (['3-day','3-week','3-month'] as $checkpoint): ?><?php $done = in_array($checkpoint, $completedCheckpoints ?? [], true); ?><div class="rounded-xl border p-3 <?= $done ? 'border-adopted-100 bg-adopted-50 text-adopted-700' : 'border-slate-200 bg-slate-50 text-slate-600' ?>"><i data-lucide="<?= $done ? 'check-circle-2' : 'clock-3' ?>" class="mx-auto mb-1 h-5 w-5"></i><p class="font-semibold"><?= esc($checkpoint) ?></p><p class="mt-1 text-slate-500"><?= !empty($checkpoints[$checkpoint]) ? date('M d', strtotime($checkpoints[$checkpoint])) : '—' ?></p></div><?php endforeach; ?></div>
-                <?php if (!empty($nextCheckpoint)): ?><p class="mt-4 rounded-lg bg-rescue-50 p-3 text-sm text-rescue-800">Your next required update is <strong><?= esc($nextCheckpoint) ?></strong>, due <?= esc(date('F d, Y', strtotime($nextCheckIn))) ?>.</p><?php endif; ?>
+                <?php if (!empty($nextCheckpoint)): ?><p class="mt-4 rounded-lg <?= ! empty($isOverdue) ? 'bg-red-50 text-red-800' : 'bg-rescue-50 text-rescue-800' ?> p-3 text-sm"><?= ! empty($isOverdue) ? 'Your overdue update is' : 'Your next required update is' ?> <strong><?= esc($nextCheckpoint) ?></strong>, <?= ! empty($isOverdue) ? 'originally due' : 'due' ?> <?= esc(date('F d, Y', strtotime($nextCheckIn))) ?>.</p><?php endif; ?>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">

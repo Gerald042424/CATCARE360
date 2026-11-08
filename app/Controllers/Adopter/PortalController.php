@@ -39,16 +39,31 @@ class PortalController extends BaseController
         $updateModel = new MonitoringSubmissionModel();
         if ($adoptionId === null) {
             foreach ($adoptedCats as &$adoptedCat) {
-                $adoptedCat['updates_completed'] = $updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->countAllResults();
+                $adoptionUpdates = $updateModel
+                    ->where('adoption_id', $adoptedCat['adoption_id'])
+                    ->findAll();
+                $verifiedCheckpoints = array_column(array_filter(
+                    $adoptionUpdates,
+                    static fn (array $update): bool => strcasecmp((string) ($update['status'] ?? ''), 'Verified') === 0,
+                ), 'checkpoint');
+                $submittedCheckpoints = array_column(array_filter(
+                    $adoptionUpdates,
+                    static fn (array $update): bool => in_array(strtolower((string) ($update['status'] ?? '')), ['pending', 'verified'], true),
+                ), 'checkpoint');
+
+                $adoptedCat['updates_completed'] = count(array_unique($verifiedCheckpoints));
                 $adoptedCat['next_check_in'] = null;
-                $completed = array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->findAll(), 'checkpoint');
+                $adoptedCat['next_checkpoint'] = null;
                 foreach (['3-day', '3-week', '3-month'] as $checkpoint) {
-                    if (! in_array($checkpoint, $completed, true)) {
+                    if (! in_array($checkpoint, $submittedCheckpoints, true)) {
                         $dates = monitoringCheckpoints($adoptedCat['adoption_date']);
                         $adoptedCat['next_check_in'] = $dates[$checkpoint] ?? null;
+                        $adoptedCat['next_checkpoint'] = $checkpoint;
                         break;
                     }
                 }
+                $adoptedCat['is_overdue'] = ! empty($adoptedCat['next_check_in'])
+                    && $adoptedCat['next_check_in'] < date('Y-m-d');
             }
             unset($adoptedCat);
 
@@ -90,11 +105,27 @@ class PortalController extends BaseController
             $adoptionSubmissions,
         );
 
-        $checkpoints = $adoptedCat ? monitoringCheckpoints($adoptedCat['adoption_date']) : [];
-        $completedCheckpoints = $adoptedCat ? array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->findAll(), 'checkpoint') : [];
+        $checkpoints = monitoringCheckpoints($adoptedCat['adoption_date']);
+        $completedCheckpoints = array_column(array_filter(
+            $adoptionSubmissions,
+            static fn (array $submission): bool => strcasecmp((string) ($submission['status'] ?? ''), 'Verified') === 0,
+        ), 'checkpoint');
+        // Pending submissions count as submitted so adopters are not warned
+        // while staff review an update they already sent. Rejected updates
+        // remain actionable and may become overdue until they are resubmitted.
+        $submittedCheckpoints = array_column(array_filter(
+            $adoptionSubmissions,
+            static fn (array $submission): bool => in_array(strtolower((string) ($submission['status'] ?? '')), ['pending', 'verified'], true),
+        ), 'checkpoint');
         $nextCheckpoint = null;
-        foreach (['3-day', '3-week', '3-month'] as $checkpoint) { if (! in_array($checkpoint, $completedCheckpoints, true)) { $nextCheckpoint = $checkpoint; break; } }
+        foreach (['3-day', '3-week', '3-month'] as $checkpoint) {
+            if (! in_array($checkpoint, $submittedCheckpoints, true)) {
+                $nextCheckpoint = $checkpoint;
+                break;
+            }
+        }
         $nextCheckIn = $nextCheckpoint ? ($checkpoints[$nextCheckpoint] ?? null) : null;
+        $isOverdue = ! empty($nextCheckIn) && $nextCheckIn < date('Y-m-d');
 
         // Resolve the application that belongs to this adopted cat. Newer
         // multi-cat applications use adoption_application_cats, while older
@@ -133,6 +164,7 @@ class PortalController extends BaseController
             'checkpoints' => $checkpoints,
             'completedCheckpoints' => $completedCheckpoints,
             'nextCheckpoint' => $nextCheckpoint,
+            'isOverdue' => $isOverdue,
             'portalApplication' => $portalApplication,
             'monitoringSnapshot' => $monitoringSnapshot,
             'galleryPhotos' => (new AnimalPhotoModel())
