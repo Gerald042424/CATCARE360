@@ -238,8 +238,18 @@
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '', capturedAt: new Date().toISOString(),
                 location: currentPlace ? currentPlace.location : '', locationSource: currentPlace ? currentPlace.source : 'gps_coordinates'
             });
-            preview.src = URL.createObjectURL(file);
+            var previewReader = new FileReader();
+            previewReader.onload = function () {
+                preview.src = previewReader.result;
+                preview.classList.remove('hidden');
+                preview.style.cssText = 'display:block!important;width:100%;min-height:220px;max-height:420px;object-fit:contain';
+            };
+            previewReader.onerror = function () {
+                showPhotoError('The photo was captured but its preview could not be displayed. Please retake it.');
+            };
+            previewReader.readAsDataURL(file);
             preview.classList.remove('hidden');
+            preview.style.cssText = 'display:block!important;width:100%;min-height:220px;max-height:420px;object-fit:contain';
             captureBtn.classList.add('hidden');
             retakeBtn.classList.remove('hidden');
             if (photoError) photoError.classList.add('hidden');
@@ -252,6 +262,7 @@
         captureSourceInput.value = '';
         preview.removeAttribute('src');
         preview.classList.add('hidden');
+        preview.style.cssText = '';
         retakeBtn.classList.add('hidden');
         captureBtn.classList.remove('hidden');
         requestCamera();
