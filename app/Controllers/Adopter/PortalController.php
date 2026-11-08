@@ -24,7 +24,9 @@ class PortalController extends BaseController
             return redirect()->to('/')->with('error', 'Please sign in to continue.')->with('auth_modal', 'signin')->with('signin_type', 'adopter');
         }
 
-        $monitoringSnapshot = recalculateAdopterMonitoringCompliance((int) $user['adopter_id']);
+        // Keep the adopter-wide aggregate current for admin reporting. The
+        // selected adoption dashboard gets its own per-cat snapshot below.
+        recalculateAdopterMonitoringCompliance((int) $user['adopter_id']);
         $adopter = (new AdopterModel())->find($user['adopter_id']);
         $adoptedCats = (new AnimalModel())
             ->join('adoptions', 'adoptions.animal_id = animals.id')
@@ -76,6 +78,17 @@ class PortalController extends BaseController
             ->where('adoption_id', $adoptedCat['adoption_id'])
             ->orderBy('submission_date', 'DESC')
             ->findAll(5);
+
+        $adoptionSubmissions = $updateModel
+            ->where('adoption_id', $adoptedCat['adoption_id'])
+            ->findAll();
+        $monitoringSnapshot = calculateMonitoringComplianceSnapshot(
+            [[
+                'id' => $adoptedCat['adoption_id'],
+                'adoption_date' => $adoptedCat['adoption_date'],
+            ]],
+            $adoptionSubmissions,
+        );
 
         $checkpoints = $adoptedCat ? monitoringCheckpoints($adoptedCat['adoption_date']) : [];
         $completedCheckpoints = $adoptedCat ? array_column($updateModel->where('adoption_id', $adoptedCat['adoption_id'])->where('status', 'Verified')->findAll(), 'checkpoint') : [];
