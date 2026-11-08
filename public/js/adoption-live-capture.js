@@ -34,6 +34,11 @@ document.addEventListener('DOMContentLoaded', function () {
   function isGovernmentId(card) { return card.dataset.key === 'gov_id'; }
   function isHomeScene(card) { return card.dataset.key === 'home_photos' || card.dataset.key === 'home_access'; }
   function homeSceneType(card) { return card.dataset.key === 'home_access' ? 'windows_outdoor_access' : 'indoor_living_area'; }
+  function stopHomeSceneMonitor(card) {
+    if (card._sceneTimer) window.clearInterval(card._sceneTimer);
+    card._sceneTimer = null;
+    card._sceneReady = false;
+  }
   function ensureFacePanel(card) {
     if (!isSelfie(card) || card.querySelector('.face-liveness-panel')) return;
     var panel = document.createElement('div');
@@ -121,7 +126,24 @@ document.addEventListener('DOMContentLoaded', function () {
     var panel = card.querySelector('.face-liveness-panel');
     if (panel) panel.classList.add('hidden');
   }
-  function stop(card) { if (card._stream) card._stream.getTracks().forEach(function (track) { track.stop(); }); card._stream = null; if (isSelfie(card)) resetFaceVerification(card); var video = card.querySelector('.camera-stream'); video.pause(); video.srcObject = null; setCameraOrientation(video, 'environment'); video.classList.add('hidden'); if (isGovernmentId(card)) { var frame = card.querySelector('.id-camera-frame'), scan = card.querySelector('.scan-id'); if (frame) frame.classList.add('hidden'); if (scan) scan.classList.add('hidden'); } card.querySelector('.capture-photo').disabled = true; if (active === card) active = null; }
+  function stop(card) {
+    stopHomeSceneMonitor(card);
+    if (card._stream) card._stream.getTracks().forEach(function (track) { track.stop(); });
+    card._stream = null;
+    if (isSelfie(card)) resetFaceVerification(card);
+    var video = card.querySelector('.camera-stream');
+    video.pause();
+    video.srcObject = null;
+    setCameraOrientation(video, 'environment');
+    video.classList.add('hidden');
+    if (isGovernmentId(card)) {
+      var frame = card.querySelector('.id-camera-frame'), scan = card.querySelector('.scan-id');
+      if (frame) frame.classList.add('hidden');
+      if (scan) scan.classList.add('hidden');
+    }
+    card.querySelector('.capture-photo').disabled = true;
+    if (active === card) active = null;
+  }
   function passFaceChallenge(card) {
     card._livenessVerified = true;
     card._livenessVerifiedAt = Date.now();
@@ -311,8 +333,9 @@ document.addEventListener('DOMContentLoaded', function () {
       : 'Place the complete ID inside the guide with all text facing the camera. Portrait or landscape phone orientation is supported.';
     idMessage(card, select && select.value ? 'Ready to scan' : 'Select your ID type', select && select.value ? readyMessage : 'The ID type must be selected before opening or scanning the camera.', 'info');
   }
-  function frameCanvas(video) {
-    var canvas = document.createElement('canvas'), longest = Math.max(video.videoWidth, video.videoHeight), scale = Math.min(1, 1280 / longest);
+  function frameCanvas(video, maximumSide) {
+    var limit = maximumSide || 1280;
+    var canvas = document.createElement('canvas'), longest = Math.max(video.videoWidth, video.videoHeight), scale = Math.min(1, limit / longest);
     canvas.width = Math.round(video.videoWidth * scale);
     canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -347,6 +370,41 @@ document.addEventListener('DOMContentLoaded', function () {
       contrast: Math.sqrt(variance),
       glareRatio: glare / gray.length
     };
+  }
+  function analyzeHomeScene(card) {
+    var video = card.querySelector('.camera-stream');
+    var button = card.querySelector('.capture-photo');
+    if (!card._stream || video.readyState < 2 || !video.videoWidth) {
+      card._sceneReady = false;
+      button.disabled = true;
+      return false;
+    }
+    var analysis = analyzeIdFrame(frameCanvas(video, 320));
+    card._sceneAnalysis = analysis;
+    if (analysis.brightness < 45) {
+      card._sceneReady = false;
+      card._sceneMessage = 'Too dark — turn on the lights or move to a brighter area before capturing.';
+      note(card, card._sceneMessage, 'text-red-600');
+    } else if (analysis.brightness > 245 || analysis.glareRatio > 0.50) {
+      card._sceneReady = false;
+      card._sceneMessage = 'Too bright or overexposed — adjust the camera away from direct light.';
+      note(card, card._sceneMessage, 'text-red-600');
+    } else if (analysis.contrast < 8 && analysis.sharpness < 2.5) {
+      card._sceneReady = false;
+      card._sceneMessage = 'No clear room detail detected — uncover the camera and show the actual area.';
+      note(card, card._sceneMessage, 'text-red-600');
+    } else {
+      card._sceneReady = true;
+      card._sceneMessage = 'Lighting and room view look clear. You can capture now.';
+      note(card, card._sceneMessage, 'text-emerald-700');
+    }
+    button.disabled = !card._sceneReady;
+    return card._sceneReady;
+  }
+  function startHomeSceneMonitor(card) {
+    stopHomeSceneMonitor(card);
+    analyzeHomeScene(card);
+    card._sceneTimer = window.setInterval(function () { analyzeHomeScene(card); }, 700);
   }
   function cropCanvas(source, rect) {
     var padding = Math.round(Math.min(rect.width, rect.height) * 0.025), x = Math.max(0, rect.x - padding), y = Math.max(0, rect.y - padding), width = Math.min(source.width - x, rect.width + padding * 2), height = Math.min(source.height - y, rect.height + padding * 2);
@@ -579,9 +637,10 @@ document.addEventListener('DOMContentLoaded', function () {
           idMessage(card, 'OCR could not start', reason.message || 'Check your connection, then reopen the camera.', 'warning');
         });
       } else if (isHomeScene(card)) {
-        card.querySelector('.capture-photo').disabled = false;
+        card.querySelector('.capture-photo').disabled = true;
         card.querySelector('.switch-camera').classList.add('hidden');
-        note(card, card.dataset.key === 'home_access' ? 'Rear camera ready. Show the complete window, door, balcony, or outdoor-access area.' : 'Rear camera ready. Capture a wide view of the actual indoor living area.', 'text-emerald-700');
+        note(card, card.dataset.key === 'home_access' ? 'Checking the window or outdoor-access view and lighting…' : 'Checking the indoor living area and lighting…', 'text-gray-500');
+        startHomeSceneMonitor(card);
       } else {
         card.querySelector('.capture-photo').disabled = false;
         card.querySelector('.switch-camera').classList.remove('hidden');
@@ -607,10 +666,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     var homeSceneVerification = null;
     if (isHomeScene(card)) {
-      var homeAnalysis = analyzeIdFrame(frameCanvas(video));
-      if (homeAnalysis.brightness < 45) return error('The home area is too dark. Turn on the lights or capture it during daylight.');
-      if (homeAnalysis.brightness > 235 || homeAnalysis.glareRatio > 0.35) return error('The home photo has too much glare or overexposure. Adjust the camera angle and retake it.');
-      if (homeAnalysis.sharpness < 5 || homeAnalysis.contrast < 14) return error('Not enough room detail is visible. Hold the phone steady and capture a wider, clearer view of the actual area.');
+      if (!analyzeHomeScene(card)) return error(card._sceneMessage || 'Show a bright, clear view of the actual area before capturing.');
+      var homeAnalysis = card._sceneAnalysis;
       homeSceneVerification = { verified: true, capture_type: homeSceneType(card), brightness: Math.round(homeAnalysis.brightness), contrast: Math.round(homeAnalysis.contrast), sharpness: Math.round(homeAnalysis.sharpness * 10) / 10, verified_at: new Date().toISOString(), provider: 'native_canvas_scene_quality', version: '1.0' };
     }
     var button = card.querySelector('.capture-photo'), canvas = card.querySelector('.capture-canvas');

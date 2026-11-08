@@ -353,9 +353,9 @@ class ApplicationController extends BaseController
             || ($scene['verified'] ?? false) !== true
             || ($scene['capture_type'] ?? '') !== $expectedType
             || ($scene['provider'] ?? '') !== 'native_canvas_scene_quality'
-            || $brightness === false || $brightness < 45 || $brightness > 235
-            || $contrast === false || $contrast < 14
-            || $sharpness === false || $sharpness < 5
+            || $brightness === false || $brightness < 45 || $brightness > 245
+            || $contrast === false || $sharpness === false
+            || ($contrast < 8 && $sharpness < 2.5)
             || $secondsFromVerification < 0 || $secondsFromVerification > 60) {
             return $field === 'home_access'
                 ? 'Capture a clear, well-lit view of the windows, doors, balcony, or outdoor-access area.'
@@ -473,7 +473,7 @@ class ApplicationController extends BaseController
         $samples = 20 * 28;
         $mean = $sum / $samples;
         $variance = ($sumSquares / $samples) - ($mean ** 2);
-        return $variance >= 120 && ($edges / max(1, $edgeSamples)) >= 4.5;
+        return $variance >= 64 || ($edges / max(1, $edgeSamples)) >= 2.5;
     }
 
     /** Reject black/lens-covered and near-solid frames without counting the GPS stamp. */
