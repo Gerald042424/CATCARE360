@@ -11,6 +11,12 @@ $applicationDocuments = ! empty($portalApplication) ? [
     'Indoor Living Area' => $portalApplication['home_photos_path'] ?? null,
     'Windows / Outdoor Access Area' => $verificationMetadata['home_access']['stored_path'] ?? null,
 ] : [];
+$cnvrSteps = [
+    'catch' => 'Catch',
+    'neuter' => 'Neuter',
+    'vaccinate' => 'Vaccinate',
+    'return' => 'Return',
+];
 ?>
 
 <div x-data="{ applicationOpen: false, catOpen: false, updatePhoto: '', updatePhotoLabel: '' }" class="max-w-6xl mx-auto px-6 py-12">
@@ -44,7 +50,20 @@ $applicationDocuments = ! empty($portalApplication) ? [
                 <div class="aspect-[4/3] relative overflow-hidden group"><img src="<?= esc(!empty($cat['image_url']) ? base_url($cat['image_url']) : 'https://images.unsplash.com/photo-1574158622682-e40ad296ce3f?auto=format&fit=crop&w=400&q=80') ?>" class="w-full h-full object-cover"><div class="absolute inset-0 bg-gradient-to-t from-slate-900/60 to-transparent flex flex-col justify-end p-4"><h3 class="text-xl font-semibold text-white"><?= esc($cat['name'] ?? 'No pet') ?></h3><p class="text-sm text-rescue-100"><?= esc($cat['breed'] ?? '') ?></p></div><div class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-semibold text-slate-900 shadow-sm">CAT-<?= str_pad($cat['id'] ?? 0,5,'0',STR_PAD_LEFT) ?></div></div>
                 <div class="p-5">
                     <div class="flex items-center gap-2 mb-4 flex-wrap"><span class="inline-flex items-center gap-1 text-xs font-medium text-rescue-700 bg-rescue-50 border border-rescue-100 px-2 py-0.5 rounded-full"><?= esc($cat['gender'] ?? '') ?></span><span class="inline-flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full"><?= esc($cat['age'] ?? '') ?></span></div>
-                    <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden text-sm"><div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Adoption Date</span><span class="text-slate-900 font-semibold"><?= ! empty($cat['adoption_date']) ? esc(date('M d, Y', strtotime($cat['adoption_date']))) : 'Not recorded' ?></span></div><div class="flex justify-between p-3"><span class="text-slate-500 font-medium">Vaccinated</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div><div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Neutered</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div><div class="flex justify-between p-3"><span class="text-slate-500 font-medium">Microchipped</span><i data-lucide="check-circle-2" class="w-5 h-5 text-adopted-600"></i></div></div>
+                    <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden text-sm">
+                        <div class="flex justify-between p-3 bg-slate-50"><span class="text-slate-500 font-medium">Adoption Date</span><span class="text-slate-900 font-semibold"><?= ! empty($cat['adoption_date']) ? esc(date('M d, Y', strtotime($cat['adoption_date']))) : 'Not recorded' ?></span></div>
+                        <div class="p-3">
+                            <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">CNVR Progress</p>
+                            <div class="grid grid-cols-2 gap-2">
+                                <?php foreach ($cnvrSteps as $step => $label): ?>
+                                    <?php $complete = ! empty($cat['cnvr_' . $step]); ?>
+                                    <span class="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold <?= $complete ? 'bg-adopted-50 text-adopted-700' : 'bg-slate-100 text-slate-400' ?>">
+                                        <i data-lucide="<?= $complete ? 'check-circle-2' : 'x-circle' ?>" class="h-4 w-4"></i><?= esc($label) ?>
+                                    </span>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
