@@ -30,8 +30,17 @@
     var facingMode = 'environment';
     var cameraReady = false;
     var locationReady = false;
+    var sceneReady = false;
+    var lightingTimer = null;
 
     if (!startBtn) return;
+
+    var lightingStatus = document.createElement('p');
+    lightingStatus.className = 'mt-2 hidden text-sm font-semibold';
+    video.insertAdjacentElement('afterend', lightingStatus);
+    var qualityCanvas = document.createElement('canvas');
+    qualityCanvas.width = 160;
+    qualityCanvas.height = 120;
 
     function showFullscreenPreview() {
         if (!preview || !preview.src) return;
@@ -60,7 +69,64 @@
     }
 
     function updateCaptureButton() {
-        captureBtn.disabled = !(cameraReady && locationReady);
+        captureBtn.disabled = !(cameraReady && locationReady && sceneReady);
+    }
+
+    function showLightingStatus(message, passed) {
+        lightingStatus.textContent = message;
+        lightingStatus.classList.remove('hidden', 'text-red-600', 'text-emerald-600');
+        lightingStatus.classList.add(passed ? 'text-emerald-600' : 'text-red-600');
+    }
+
+    function analyzeCameraFrame() {
+        if (!cameraReady || video.readyState < 2 || !video.videoWidth) {
+            sceneReady = false;
+            updateCaptureButton();
+            return false;
+        }
+
+        var qualityContext = qualityCanvas.getContext('2d', { willReadFrequently: true });
+        qualityContext.drawImage(video, 0, 0, qualityCanvas.width, qualityCanvas.height);
+        var pixels = qualityContext.getImageData(0, 0, qualityCanvas.width, qualityCanvas.height).data;
+        var total = 0;
+        var totalSquares = 0;
+        var darkPixels = 0;
+        var samples = 0;
+        for (var index = 0; index < pixels.length; index += 4) {
+            var brightness = (pixels[index] * 0.2126) + (pixels[index + 1] * 0.7152) + (pixels[index + 2] * 0.0722);
+            total += brightness;
+            totalSquares += brightness * brightness;
+            if (brightness < 42) darkPixels++;
+            samples++;
+        }
+        var average = total / Math.max(samples, 1);
+        var deviation = Math.sqrt(Math.max(0, (totalSquares / Math.max(samples, 1)) - (average * average)));
+        var darkRatio = darkPixels / Math.max(samples, 1);
+
+        if (average < 48 || darkRatio > 0.82) {
+            sceneReady = false;
+            showLightingStatus('Too dark — turn on a light or move to a brighter area before capturing.', false);
+        } else if (deviation < 8) {
+            sceneReady = false;
+            showLightingStatus('No clear scene detected — uncover the camera and point it at the cat or area.', false);
+        } else {
+            sceneReady = true;
+            showLightingStatus('Lighting and camera view look clear. You can capture now.', true);
+        }
+        updateCaptureButton();
+        return sceneReady;
+    }
+
+    function startLightingMonitor() {
+        if (lightingTimer) window.clearInterval(lightingTimer);
+        analyzeCameraFrame();
+        lightingTimer = window.setInterval(analyzeCameraFrame, 600);
+    }
+
+    function stopLightingMonitor() {
+        if (lightingTimer) window.clearInterval(lightingTimer);
+        lightingTimer = null;
+        sceneReady = false;
     }
 
     function coordinateLocation(coords) {
@@ -150,6 +216,7 @@
             video.classList.remove('hidden');
             await video.play();
             cameraReady = true;
+            startLightingMonitor();
             updateCaptureButton();
             startBtn.classList.add('hidden');
             switchBtn.classList.remove('hidden');
@@ -164,6 +231,7 @@
     }
 
     function stopCamera() {
+        stopLightingMonitor();
         if (stream) {
             stream.getTracks().forEach(function (track) { track.stop(); });
             stream = null;
@@ -171,6 +239,7 @@
         video.srcObject = null;
         video.classList.add('hidden');
         cameraReady = false;
+        lightingStatus.classList.add('hidden');
         updateCaptureButton();
         startBtn.classList.remove('hidden');
         switchBtn.classList.add('hidden');
@@ -187,6 +256,10 @@
     captureBtn.addEventListener('click', function () {
         if (!video.videoWidth || !video.videoHeight) {
             showPhotoError('Camera is still starting. Please wait a moment and try Capture again.');
+            return;
+        }
+        if (!analyzeCameraFrame()) {
+            showPhotoError('The photo cannot be captured until the camera view is bright and clear.');
             return;
         }
         canvas.width = video.videoWidth;

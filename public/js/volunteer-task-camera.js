@@ -7,7 +7,7 @@
     fileInput.classList.add('hidden');
     var area = document.createElement('div');
     area.className = 'rounded-xl border border-dashed border-gray-300 bg-gray-50 p-4';
-    area.innerHTML = '<video class="hidden w-full max-h-72 rounded-lg bg-black object-cover" playsinline muted></video><canvas class="hidden"></canvas><div class="preview-wrap hidden overflow-hidden rounded-lg border border-emerald-200 bg-white"><img class="capture-preview block w-full max-h-72 object-contain" alt="Captured live task report photo"><p class="preview-caption border-t border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800"></p></div><div class="mt-3 flex flex-wrap gap-2"><button type="button" class="start-camera btn btn-ghost">Open Camera</button><button type="button" class="switch-camera btn btn-ghost hidden">Switch to Front Camera</button><button type="button" class="capture-photo btn bg-emerald-600 text-white" disabled>Capture Photo</button><button type="button" class="retake-photo btn btn-ghost hidden">Retake</button></div><p class="camera-status mt-3 text-sm text-gray-500">A live photo and current GPS location are required.</p><p class="geotag-status mt-1 break-words text-xs text-gray-500"></p>';
+    area.innerHTML = '<video class="hidden w-full max-h-72 rounded-lg bg-black object-cover" playsinline muted></video><p class="lighting-status mt-2 hidden text-sm font-semibold"></p><canvas class="hidden"></canvas><div class="preview-wrap hidden overflow-hidden rounded-lg border border-emerald-200 bg-white"><img class="capture-preview block w-full max-h-72 object-contain" alt="Captured live task report photo"><p class="preview-caption border-t border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800"></p></div><div class="mt-3 flex flex-wrap gap-2"><button type="button" class="start-camera btn btn-ghost">Open Camera</button><button type="button" class="switch-camera btn btn-ghost hidden">Switch to Front Camera</button><button type="button" class="capture-photo btn bg-emerald-600 text-white" disabled>Capture Photo</button><button type="button" class="retake-photo btn btn-ghost hidden">Retake</button></div><p class="camera-status mt-3 text-sm text-gray-500">A live photo and current GPS location are required.</p><p class="geotag-status mt-1 break-words text-xs text-gray-500"></p>';
     fileInput.parentNode.insertBefore(area, fileInput);
     ['latitude', 'longitude', 'gps_accuracy', 'capture_source', 'captured_at_client'].forEach(function (name) {
         var input = document.createElement('input');
@@ -27,17 +27,88 @@
     var retake = area.querySelector('.retake-photo');
     var status = area.querySelector('.camera-status');
     var geotag = area.querySelector('.geotag-status');
+    var lightingStatus = area.querySelector('.lighting-status');
     var stream;
     var coords;
     var currentPlace;
     var cameraFacing = 'environment';
+    var cameraReady = false;
+    var sceneReady = false;
+    var lightingTimer = null;
+    var qualityCanvas = document.createElement('canvas');
+    qualityCanvas.width = 160;
+    qualityCanvas.height = 120;
+
+    function updateCaptureButton() {
+        capture.disabled = !(cameraReady && coords && currentPlace && sceneReady);
+    }
+
+    function showLightingStatus(message, passed) {
+        lightingStatus.textContent = message;
+        lightingStatus.classList.remove('hidden', 'text-red-600', 'text-emerald-600');
+        lightingStatus.classList.add(passed ? 'text-emerald-600' : 'text-red-600');
+    }
+
+    function analyzeCameraFrame() {
+        if (!cameraReady || video.readyState < 2 || !video.videoWidth) {
+            sceneReady = false;
+            updateCaptureButton();
+            return false;
+        }
+
+        var qualityContext = qualityCanvas.getContext('2d', { willReadFrequently: true });
+        qualityContext.drawImage(video, 0, 0, qualityCanvas.width, qualityCanvas.height);
+        var pixels = qualityContext.getImageData(0, 0, qualityCanvas.width, qualityCanvas.height).data;
+        var total = 0;
+        var totalSquares = 0;
+        var darkPixels = 0;
+        var samples = 0;
+        for (var index = 0; index < pixels.length; index += 4) {
+            var brightness = (pixels[index] * 0.2126) + (pixels[index + 1] * 0.7152) + (pixels[index + 2] * 0.0722);
+            total += brightness;
+            totalSquares += brightness * brightness;
+            if (brightness < 42) darkPixels++;
+            samples++;
+        }
+        var average = total / Math.max(samples, 1);
+        var deviation = Math.sqrt(Math.max(0, (totalSquares / Math.max(samples, 1)) - (average * average)));
+        var darkRatio = darkPixels / Math.max(samples, 1);
+
+        if (average < 48 || darkRatio > 0.82) {
+            sceneReady = false;
+            showLightingStatus('Too dark — turn on a light or move to a brighter area before capturing.', false);
+        } else if (deviation < 8) {
+            sceneReady = false;
+            showLightingStatus('No clear scene detected — uncover the camera and point it at the cat or task area.', false);
+        } else {
+            sceneReady = true;
+            showLightingStatus('Lighting and camera view look clear. You can capture now.', true);
+        }
+        updateCaptureButton();
+        return sceneReady;
+    }
+
+    function startLightingMonitor() {
+        if (lightingTimer) window.clearInterval(lightingTimer);
+        analyzeCameraFrame();
+        lightingTimer = window.setInterval(analyzeCameraFrame, 600);
+    }
+
+    function stopLightingMonitor() {
+        if (lightingTimer) window.clearInterval(lightingTimer);
+        lightingTimer = null;
+        sceneReady = false;
+    }
 
     function stop() {
+        stopLightingMonitor();
         if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
         stream = null;
         video.srcObject = null;
         video.classList.add('hidden');
-        capture.disabled = true;
+        cameraReady = false;
+        lightingStatus.classList.add('hidden');
+        updateCaptureButton();
     }
 
     function location() {
@@ -111,7 +182,9 @@
             video.srcObject = stream;
             video.classList.remove('hidden');
             await video.play();
-            capture.disabled = false;
+            cameraReady = true;
+            startLightingMonitor();
+            updateCaptureButton();
             start.classList.add('hidden');
             switchCamera.classList.remove('hidden');
             switchCamera.textContent = cameraFacing === 'environment' ? 'Switch to Front Camera' : 'Switch to Back Camera';
@@ -131,6 +204,10 @@
     capture.addEventListener('click', function () {
         if (!coords || !currentPlace || video.readyState < 2 || !video.videoWidth) {
             status.textContent = 'Camera or address is still loading. Wait a moment, then capture again.';
+            return;
+        }
+        if (!analyzeCameraFrame()) {
+            status.textContent = 'The photo cannot be captured until the camera view is bright and clear.';
             return;
         }
 
