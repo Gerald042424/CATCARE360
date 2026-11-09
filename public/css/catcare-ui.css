@@ -176,6 +176,7 @@ body[class*="catcare-"] td { border-color: #e5ece9 !important; }
 }
 
 .catcare-public #home h1 { color: #fff !important; }
+.catcare-public .landing-final-cta h2 { color: #fff !important; }
 
 .landing-care-note {
   animation: cc-note-in 520ms ease-out both;
