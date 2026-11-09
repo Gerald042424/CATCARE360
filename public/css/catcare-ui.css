@@ -217,6 +217,98 @@ body[class*="catcare-"] td { border-color: #e5ece9 !important; }
   margin-top: 0.3rem;
 }
 
+/* Public information pages */
+.public-info-page { text-wrap: pretty; }
+.public-info-page h1.text-white,
+.public-info-page h2.text-white { color: #fff !important; }
+
+.public-back-link {
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  border-radius: 999px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 0.875rem;
+  font-weight: 700;
+  gap: 0.5rem;
+  padding: 0.625rem 0.9rem;
+}
+
+.public-back-link:hover { background: rgb(255 255 255 / 0.1); transform: translateX(-2px); }
+.public-back-link-dark { border-color: var(--cc-line); color: var(--cc-ink-soft); }
+.public-back-link-dark:hover { background: var(--cc-mist); border-color: #b7d3ca; color: var(--cc-teal-dark); }
+
+.public-eyebrow {
+  color: var(--cc-teal);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.public-story-card {
+  align-self: start;
+  background: #fff;
+  border: 1px solid var(--cc-line);
+  border-radius: 1.5rem 1.5rem 1.5rem 0.35rem;
+  box-shadow: var(--cc-shadow-md);
+  padding: clamp(1.75rem, 4vw, 2.5rem);
+  position: relative;
+}
+
+.public-story-card::after {
+  background: var(--cc-leaf);
+  border-radius: 999px;
+  content: "";
+  height: 0.3rem;
+  position: absolute;
+  right: 2.5rem;
+  top: 0;
+  width: 4rem;
+}
+
+.public-faq {
+  background: #fff;
+  border: 1px solid var(--cc-line);
+  border-radius: 1rem;
+  box-shadow: var(--cc-shadow-sm);
+  overflow: hidden;
+}
+
+.public-faq summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-size: 1rem;
+  font-weight: 700;
+  gap: 1rem;
+  justify-content: space-between;
+  list-style: none;
+  padding: 1.25rem 1.35rem;
+}
+
+.public-faq summary::-webkit-details-marker { display: none; }
+.public-faq[open] { border-color: #afd0c5; box-shadow: 0 12px 30px rgb(21 38 35 / 0.07); }
+.public-faq[open] summary { color: var(--cc-teal-dark); }
+.public-faq-icon { align-items: center; background: var(--cc-mist); border-radius: 999px; color: var(--cc-teal); display: flex; flex: 0 0 auto; justify-content: center; padding: 0.45rem; transition: transform 180ms ease; }
+.public-faq[open] .public-faq-icon { transform: rotate(45deg); }
+.public-faq-answer { border-top: 1px solid #edf2ef; color: var(--cc-muted); font-size: 0.925rem; line-height: 1.75; padding: 1.1rem 1.35rem 1.35rem; }
+
+.public-contact-row {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--cc-line);
+  border-radius: 1rem;
+  display: flex;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+
+.public-contact-row:hover { border-color: #afd0c5; box-shadow: var(--cc-shadow-sm); transform: translateY(-2px); }
+.public-contact-row strong { color: var(--cc-ink); display: block; font-size: 0.95rem; }
+.public-contact-row small { color: var(--cc-muted); display: block; font-size: 0.8rem; line-height: 1.55; margin-top: 0.2rem; }
+.public-contact-icon { align-items: center; background: var(--cc-mist); border-radius: 0.75rem; color: var(--cc-teal); display: flex; flex: 0 0 auto; height: 2.75rem; justify-content: center; width: 2.75rem; }
+
 /* Existing layout polish */
 .catcare-admin aside nav a,
 .catcare-volunteer .volunteer-sidebar nav a {

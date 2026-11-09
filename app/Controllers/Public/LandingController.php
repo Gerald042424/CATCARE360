@@ -24,4 +24,19 @@ class LandingController extends BaseController
             ],
         ]);
     }
+
+    public function about(): string
+    {
+        return view('public/about', ['title' => 'About Us | CatCare 360']);
+    }
+
+    public function faq(): string
+    {
+        return view('public/faq', ['title' => 'Frequently Asked Questions | CatCare 360']);
+    }
+
+    public function contact(): string
+    {
+        return view('public/contact', ['title' => 'Contact Us | CatCare 360']);
+    }
 }

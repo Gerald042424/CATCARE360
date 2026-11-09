@@ -30,10 +30,13 @@
             <span class="public-brand-mark flex h-9 w-9 items-center justify-center rounded-xl bg-rescue-600 text-white shadow-sm"><i data-lucide="paw-print" class="h-5 w-5"></i></span>
             <span><span class="brand block text-sm font-bold tracking-tight">CatCare 360</span><span class="block text-xs font-medium text-slate-500">McKinley West Cats</span></span>
         </a>
-        <div class="hidden items-center gap-2 md:flex">
+        <div class="hidden items-center gap-1 lg:flex">
             <a href="<?= site_url('/') ?>#home" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">Home</a>
+            <a href="<?= site_url('about') ?>" class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">About Us</a>
             <a href="<?= site_url('/') ?>#rules" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">Rules & Regulations</a>
             <a href="<?= site_url('/') ?>#volunteer" class="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">Become a Volunteer</a>
+            <a href="<?= site_url('faq') ?>" class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">FAQ</a>
+            <a href="<?= site_url('contact') ?>" class="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-rescue-50 hover:text-rescue-600">Contact Us</a>
         </div>
         <div class="flex items-center gap-2">
             <?php if (session('adopter_user')): ?>
@@ -44,13 +47,16 @@
                 <button type="button" class="btn btn-ghost px-3 sm:px-4" @click="authOpen=true; authTab='signin'"><span class="hidden sm:inline">Sign In</span><i data-lucide="log-in" class="h-4 w-4 sm:hidden"></i></button>
                 <button type="button" class="btn btn-primary px-3 sm:px-4" @click="authOpen=true; authTab='signup'"><span class="hidden sm:inline">Create Account</span><i data-lucide="user-plus" class="h-4 w-4 sm:hidden"></i></button>
             <?php endif; ?>
-            <button type="button" @click="mobileMenu=!mobileMenu" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 md:hidden" aria-label="Toggle navigation"><i data-lucide="menu" class="h-5 w-5"></i></button>
+            <button type="button" @click="mobileMenu=!mobileMenu" class="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden" aria-label="Toggle navigation" :aria-expanded="mobileMenu.toString()" aria-controls="public-mobile-menu"><i data-lucide="menu" class="h-5 w-5"></i></button>
         </div>
     </div>
-    <div x-cloak x-show="mobileMenu" x-transition class="border-t border-slate-100 bg-white px-4 py-3 shadow-lg md:hidden">
+    <div id="public-mobile-menu" x-cloak x-show="mobileMenu" x-transition class="max-h-[calc(100vh-4rem)] overflow-y-auto border-t border-slate-100 bg-white px-4 py-3 shadow-lg lg:hidden">
         <a @click="mobileMenu=false" href="<?= site_url('/') ?>#home" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">Home</a>
+        <a @click="mobileMenu=false" href="<?= site_url('about') ?>" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">About Us</a>
         <a @click="mobileMenu=false" href="<?= site_url('/') ?>#rules" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">Rules &amp; Regulations</a>
         <a @click="mobileMenu=false" href="<?= site_url('/') ?>#volunteer" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">Become a Volunteer</a>
+        <a @click="mobileMenu=false" href="<?= site_url('faq') ?>" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">Frequently Asked Questions</a>
+        <a @click="mobileMenu=false" href="<?= site_url('contact') ?>" class="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-rescue-50 hover:text-rescue-600">Contact Us</a>
     </div>
 </nav>
 <?= view('components/flash_message', ['top' => '5rem']) ?>
