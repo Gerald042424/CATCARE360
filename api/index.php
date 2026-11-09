@@ -2,6 +2,17 @@
 
 declare(strict_types=1);
 
+// Vercel terminates TLS at its edge and forwards the request to PHP over an
+// internal hop. Mark the original HTTPS request as secure so CodeIgniter can
+// safely dispatch Secure session and CSRF cookies instead of rejecting them.
+if (getenv('VERCEL') !== false) {
+    $forwardedProto = strtolower(trim(explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
+    if ($forwardedProto === 'https') {
+        $_SERVER['HTTPS'] = 'on';
+        $_SERVER['SERVER_PORT'] = '443';
+    }
+}
+
 // Vercel's PHP runtime invokes files in api/. Delegate every dynamic request
 // to CodeIgniter's normal front controller while keeping the original project
 // layout (app/, public/, writable/, and vendor/) intact.
