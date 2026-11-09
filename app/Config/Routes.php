@@ -7,6 +7,8 @@ $routes->get('/', 'Public\LandingController::index');
 $routes->get('about', 'Public\LandingController::about');
 $routes->get('faq', 'Public\LandingController::faq');
 $routes->get('contact', 'Public\LandingController::contact');
+$routes->get('cats', 'Public\LandingController::cats');
+$routes->get('cats/(:num)', 'Public\LandingController::cat/$1');
 $routes->get('health/runtime', 'HealthController::runtime');
 $routes->get('cron/monitoring-reminders', 'CronController::monitoringReminders');
 $routes->get('media/(:segment)', 'MediaController::show/$1');

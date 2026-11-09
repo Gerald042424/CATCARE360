@@ -7,7 +7,7 @@
         <div class="mb-6 inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur"><span class="h-2 w-2 animate-pulse rounded-full bg-adopted-400"></span>McKinley West Cats - Open for Adoption</span></div>
         <h1 class="max-w-4xl text-5xl font-bold tracking-[-.025em] text-white md:text-7xl"><span class="block">Give a Cat a</span><span class="mt-1 block text-rescue-400 md:mt-2">Forever Home.</span></h1>
         <p class="mt-6 max-w-xl text-xl leading-8 text-slate-200">Adopt, volunteer, and help rescued cats find the safe, loving homes they deserve.</p>
-        <div class="mt-8 flex flex-wrap gap-3"><a href="#" @click.prevent="authOpen=true; authTab='signup'; signType='adopter'" class="btn btn-primary"><i data-lucide="heart" class="h-4 w-4"></i>Adopt a Cat</a><a href="#volunteer" class="btn border border-white/20 bg-white/15 text-white hover:bg-white/20">Become a Volunteer</a></div>
+        <div class="mt-8 flex flex-wrap gap-3"><a href="<?= site_url('cats') ?>" class="btn btn-primary"><i data-lucide="cat" class="h-4 w-4"></i>Meet the Cats</a><a href="#volunteer" class="btn border border-white/20 bg-white/15 text-white hover:bg-white/20">Become a Volunteer</a></div>
         <div class="landing-care-note"><strong>Care begins in the community.</strong><span>Responsible matching, documented adoption, and continued welfare support.</span></div>
         <div class="absolute bottom-6 left-1/2 -translate-x-1/2 animate-bounce text-center text-xs font-bold tracking-wider text-white/70"><i data-lucide="chevron-down" class="mx-auto h-5 w-5"></i>SCROLL</div>
     </div>
@@ -20,6 +20,24 @@
         <div><div class="text-4xl font-bold text-white"><?= $stats['compliance'] === null ? '—' : esc($stats['compliance']) . '%' ?></div><div class="text-sm font-medium text-rescue-100" style="color:#D9EEE7">Compliance Rate</div></div>
     </div>
 </section>
+<?php if (! empty($featuredCats)): ?>
+<section class="landing-cat-preview border-b border-slate-200 bg-white py-20">
+    <div class="mx-auto max-w-7xl px-4">
+        <div class="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div class="max-w-2xl"><p class="text-sm font-bold text-rescue-700">Available for adoption</p><h2 class="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">Every cat has a story. Meet a few of them.</h2><p class="mt-4 leading-7 text-slate-600">Browse first—no account needed. Create one only when you are ready to submit an adoption application.</p></div>
+            <a href="<?= site_url('cats') ?>" class="btn btn-ghost shrink-0">View All Cats<i data-lucide="arrow-right" class="h-4 w-4"></i></a>
+        </div>
+        <div class="mt-10 grid gap-6 md:grid-cols-3">
+            <?php foreach ($featuredCats as $cat): ?>
+                <a href="<?= site_url('cats/' . $cat['id']) ?>" class="public-cat-card group">
+                    <div class="relative aspect-[4/3] overflow-hidden bg-slate-100"><img src="<?= esc($cat['image_url'] ? base_url($cat['image_url']) : 'https://images.unsplash.com/photo-1574158622682-e40ad296ce3f?auto=format&fit=crop&w=900&q=80') ?>" alt="<?= esc($cat['name']) ?>" class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.035]"><span class="absolute left-4 top-4 rounded-full bg-white/95 px-3 py-1.5 text-xs font-bold text-rescue-800 shadow-sm backdrop-blur">Available</span></div>
+                    <div class="p-5"><div class="flex items-start justify-between gap-4"><div><h3 class="text-xl font-bold text-slate-900"><?= esc($cat['name']) ?></h3><p class="mt-1 text-sm text-slate-500"><?= esc($cat['breed'] ?: 'Mixed breed') ?></p></div><span class="rounded-lg bg-rescue-50 px-2.5 py-1 text-xs font-bold text-rescue-700"><?= esc($cat['age'] ?: 'Age not listed') ?></span></div><div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-4"><span class="text-sm text-slate-600"><?= esc($cat['gender'] ?: 'Gender not listed') ?></span><span class="inline-flex items-center gap-1.5 text-sm font-bold text-rescue-700">View profile<i data-lucide="arrow-up-right" class="h-4 w-4"></i></span></div></div>
+                </a>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
 <section id="rules" class="bg-slate-50 py-24">
     <div class="mx-auto max-w-7xl px-4">
         <div class="mx-auto max-w-3xl text-center"><span class="rounded-full bg-rescue-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-rescue-700">Rules & Regulations</span><h2 class="mt-4 text-4xl font-bold tracking-[-.025em] text-slate-900">Adoption is loving, but it must be responsible.</h2><p class="mt-4 text-slate-600">Every approval is rule-based, document-backed, and reviewed by staff.</p></div>
@@ -51,5 +69,5 @@
         </div>
     </div>
 </section>
-<section class="landing-final-cta relative bg-slate-900 py-20 text-center text-white"><img class="absolute inset-0 h-full w-full object-cover opacity-10" src="https://images.unsplash.com/photo-1494256997604-768d1f608cac?auto=format&fit=crop&w=1600&q=80" alt=""><div class="relative mx-auto max-w-3xl px-4"><h2 class="text-4xl font-bold tracking-[-.025em]">Ready to make room for one more life?</h2><p class="mt-4 text-slate-400">Browse available cats or support the community through volunteer work.</p><div class="mt-8 flex justify-center gap-3"><a href="#" @click.prevent="authOpen=true; authTab='signup'; signType='adopter'" class="btn btn-primary">Adopt a Cat</a><a href="#volunteer" class="btn border border-white/20 bg-white/10 text-white">Volunteer With Us</a></div></div></section>
+<section class="landing-final-cta relative bg-slate-900 py-20 text-center text-white"><img class="absolute inset-0 h-full w-full object-cover opacity-10" src="https://images.unsplash.com/photo-1494256997604-768d1f608cac?auto=format&fit=crop&w=1600&q=80" alt=""><div class="relative mx-auto max-w-3xl px-4"><h2 class="text-4xl font-bold tracking-[-.025em]">Ready to make room for one more life?</h2><p class="mt-4 text-slate-400">Browse available cats or support the community through volunteer work.</p><div class="mt-8 flex justify-center gap-3"><a href="<?= site_url('cats') ?>" class="btn btn-primary">Meet the Cats</a><a href="#volunteer" class="btn border border-white/20 bg-white/10 text-white">Volunteer With Us</a></div></div></section>
 <?= $this->endSection() ?>

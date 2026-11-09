@@ -310,6 +310,45 @@ body[class*="catcare-"] td { border-color: #e5ece9 !important; }
 .public-contact-row small { color: var(--cc-muted); display: block; font-size: 0.8rem; line-height: 1.55; margin-top: 0.2rem; }
 .public-contact-icon { align-items: center; background: var(--cc-mist); border-radius: 0.75rem; color: var(--cc-teal); display: flex; flex: 0 0 auto; height: 2.75rem; justify-content: center; width: 2.75rem; }
 
+/* Public cat browsing */
+.public-cat-card {
+  background: #fff;
+  border: 1px solid var(--cc-line);
+  border-radius: 1.25rem;
+  box-shadow: var(--cc-shadow-sm);
+  overflow: hidden;
+}
+
+.public-cat-card:hover {
+  border-color: #a9cec2;
+  box-shadow: 0 18px 42px rgb(21 38 35 / 0.11);
+  transform: translateY(-3px);
+}
+
+.public-cat-count {
+  align-items: center;
+  border-left: 1px solid var(--cc-line);
+  display: flex;
+  gap: 1rem;
+  min-width: 14rem;
+  padding: 0.75rem 0 0.75rem 1.75rem;
+}
+
+.public-cat-count strong {
+  color: var(--cc-teal);
+  font-family: "Plus Jakarta Sans", Inter, sans-serif;
+  font-size: 3.5rem;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.public-cat-count span { color: var(--cc-muted); font-size: 0.8rem; font-weight: 650; line-height: 1.5; }
+.catcare-public .public-cat-profile .bg-rescue-900 h2 { color: #fff !important; }
+
+@media (max-width: 1023px) {
+  .public-cat-count { border-left: 0; border-top: 1px solid var(--cc-line); padding: 1.25rem 0 0; }
+}
+
 /* Existing layout polish */
 .catcare-admin aside nav a,
 .catcare-volunteer .volunteer-sidebar nav a {
