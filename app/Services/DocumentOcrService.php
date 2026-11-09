@@ -102,7 +102,7 @@ class DocumentOcrService
             return $this->failed('The readable name on the ID in the selfie does not match the Full Name entered in the application.');
         }
 
-        if ($documentType === 'gov_id') return $this->passed('Readable identification text and applicant-name match found.');
+        if ($documentType === 'gov_id') return $this->passed('Preliminary document-type and applicant-name match found; final authenticity requires staff review.');
         if ($documentType === 'selfie') return $this->passed('Readable ID text and applicant-name match found in the selfie capture.');
         if ($documentType === 'address_proof') return $this->passed('Readable proof-of-address text found.');
         return $this->passed('Home photo passed image-quality and text-presence checks.');

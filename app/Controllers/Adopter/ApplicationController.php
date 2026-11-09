@@ -118,7 +118,7 @@ class ApplicationController extends BaseController
             $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']), $expectedIdType);
             if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
-        $ocrScreening = ['status' => 'Passed', 'message' => 'Valid government-issued ID type and applicant name were confirmed, proof-of-address text was readable, the live selfie passed its face challenge, and both home-area photos passed quality, location, and duplicate checks.'];
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Preliminary screening matched the selected ID type and applicant name; final document authenticity remains subject to staff review. Proof-of-address text was readable, the live selfie passed its face challenge, and both home-area photos passed quality, location, and duplicate checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();

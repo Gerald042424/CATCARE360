@@ -566,11 +566,11 @@ document.addEventListener('DOMContentLoaded', function () {
       card._idVerifiedAt = Date.now();
       card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, type_basis: 'ocr_marker', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
       captureButton.disabled = false;
-      captureButton.textContent = 'Capture verified ID';
-      card.querySelector('.capture-state').textContent = 'ID verified';
+      captureButton.textContent = 'Capture screened ID';
+      card.querySelector('.capture-state').textContent = 'Screening passed';
       card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
-      idMessage(card, idTypeLabel(detectedType) + ' verified', 'The ID signature and applicant name were read. Keep the same ID in frame and capture it within 60 seconds.', 'success');
-      note(card, 'ID scan passed. Capture the same document within 60 seconds.', 'text-emerald-700');
+      idMessage(card, 'Preliminary screening passed', idTypeLabel(detectedType) + ' markers and the applicant name matched. Final authenticity remains subject to staff review. Keep the same ID in frame and capture it within 60 seconds.', 'success');
+      note(card, 'Preliminary screening passed. Capture the same document within 60 seconds.', 'text-emerald-700');
     } catch (reason) {
       resetIdVerification(card);
       card.querySelector('.capture-state').textContent = 'Scan required';

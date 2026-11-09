@@ -151,6 +151,12 @@ class ApplicationsController extends BaseController
             }
 
             if ($status === 'Approved') {
+                if (! $this->manualIdReviewCompleted($application)) {
+                    if ((string) $this->request->getPost('manual_id_review') !== '1') {
+                        return redirect()->back()->withInput()->with('error', 'Manually review the submitted ID and confirm the applicant identity before approval.');
+                    }
+                    $this->recordManualIdReview($application);
+                }
                 $adopter = (new AdopterModel())->find($application['adopter_id']);
                 if ($adopter) {
                     (new AdopterModel())->update($application['adopter_id'], [
@@ -207,6 +213,12 @@ class ApplicationsController extends BaseController
         // Load the recipient for either decision. Previously this was only
         // loaded in the Approved branch, so rejection emails were skipped.
         $adopter = (new AdopterModel())->find($application['adopter_id']);
+        if ($status === 'Approved' && ! $this->manualIdReviewCompleted($application)) {
+            if ((string) $this->request->getPost('manual_id_review') !== '1') {
+                return redirect()->back()->withInput()->with('error', 'Manually review the submitted ID and confirm the applicant identity before approval.');
+            }
+            $this->recordManualIdReview($application);
+        }
         if ($status === 'Approved' && $cat) {
             if ($adopter) (new AdopterModel())->update($application['adopter_id'], ['name' => $application['full_name'], 'phone' => $application['phone'], 'address' => $application['address'], 'occupation' => $application['occupation'], 'housing_type' => $application['housing_type'], 'next_check_in' => date('Y-m-d', strtotime('+3 days'))]);
             $adoptionModel = new AdoptionModel();
@@ -222,6 +234,29 @@ class ApplicationsController extends BaseController
         $this->syncParentApplicationStatus($applicationId);
         if ($status !== $item['status'] && in_array($status, ['Approved', 'Rejected'], true) && ! empty($adopter['email'] ?? null)) $this->sendDecisionEmail($adopter['email'], $application['full_name'], $cat['name'] ?? 'the selected cat', $status, $decisionReason);
         return redirect()->to('/admin/applications/' . $applicationId)->with('success', 'Cat review updated.');
+    }
+
+    private function manualIdReviewCompleted(array $application): bool
+    {
+        $metadata = json_decode((string) ($application['verification_metadata'] ?? ''), true);
+        return is_array($metadata)
+            && ($metadata['manual_id_review']['status'] ?? '') === 'Staff Reviewed';
+    }
+
+    private function recordManualIdReview(array $application): void
+    {
+        $metadata = json_decode((string) ($application['verification_metadata'] ?? ''), true);
+        if (! is_array($metadata)) $metadata = [];
+        $metadata['manual_id_review'] = [
+            'status' => 'Staff Reviewed',
+            'reviewed_by_id' => (int) session('staff_id'),
+            'reviewed_by_name' => (string) (session('staff_name') ?: 'Authorized staff'),
+            'reviewed_at' => date('c'),
+            'confirmation' => 'Submitted ID manually reviewed and applicant identity confirmed during document review or interview.',
+        ];
+        (new AdoptionApplicationModel())->update((int) $application['id'], [
+            'verification_metadata' => json_encode($metadata, JSON_UNESCAPED_SLASHES),
+        ]);
     }
 
     /** Keeps the application list status consistent with the individual cat decisions. */
