@@ -83,7 +83,7 @@ class DocumentOcrService
             return $this->failed('The home photo is too unclear to verify. Capture a well-lit photo of the cat living space.');
         }
         if ($documentType === 'gov_id') {
-            $allowedIdTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
+            $allowedIdTypes = ['philhealth', 'national_id', 'drivers_license', 'passport', 'umid', 'postal_id'];
             $detectedIdType = $this->detectGovernmentIdType($text);
             if (! in_array((string) $expectedIdType, $allowedIdTypes, true)) {
                 return $this->failed('Select and scan the valid government-issued ID type again before submitting.');
@@ -120,6 +120,10 @@ class DocumentOcrService
         $normalized = strtoupper(preg_replace('/[^A-Za-z0-9<]+/', ' ', $normalized) ?? '');
         $compactLetters = preg_replace('/[^A-Z]/', '', $normalized) ?? '';
 
+        // Check UMID before PhilHealth because older UMID cards may also show
+        // participating-agency names or logos, including PhilHealth.
+        if (preg_match('/UNIFIED\s+MULTI\s*PURPOSE\s+ID|\bUMID\b/', $normalized)) return 'umid';
+        if (preg_match('/POSTAL\s+(?:IDENTITY\s+)?(?:ID|CARD)|PHILIPPINE\s+POSTAL\s+CORPORATION|\bPHLPOST\b/', $normalized)) return 'postal_id';
         if (str_contains($compactLetters, 'PHILHEAL') || preg_match('/PHILIPPINE\s+HEALTH\s+INSURANCE/', $normalized)) return 'philhealth';
         if (preg_match('/PHILIPPINE\s+IDENTIFICATION|PAMBANSANG\s+PAGKAKAKILANLAN|PHILSYS/', $normalized)) return 'national_id';
         if (preg_match('/DRIVER\s*S\s+LICENSE|LAND\s+TRANSPORTATION\s+OFFICE|\bLTO\b/', $normalized)) return 'drivers_license';

@@ -281,7 +281,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!isGovernmentId(card) || card.querySelector('.id-verification-panel')) return;
     var panel = document.createElement('div');
     panel.className = 'id-verification-panel mt-4 rounded-xl border border-slate-200 bg-white p-3';
-    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Select ID Type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select a valid ID type</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select ID Type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">Use an original government-issued photo ID that belongs to the applicant and is unexpired when applicable.</p></div>';
+    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Select ID Type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select a valid ID type</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option><option value="umid">UMID</option><option value="postal_id">Postal ID</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select ID Type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">Use an original government-issued photo ID that belongs to the applicant and is unexpired when applicable.</p></div>';
     card.querySelector('.camera-stream').insertAdjacentElement('beforebegin', panel);
     var video = card.querySelector('.camera-stream'), frame = document.createElement('div');
     frame.className = 'id-camera-frame relative mt-4 hidden overflow-hidden rounded-lg bg-black';
@@ -467,7 +467,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function detectGovernmentIdType(text) {
     var normalized = normalizeOcr(text), compactLetters = normalized.replace(/[^A-Z]/g, '');
-    var scores = { philhealth: 0, national_id: 0, drivers_license: 0, passport: 0 };
+    var scores = { philhealth: 0, national_id: 0, drivers_license: 0, passport: 0, umid: 0, postal_id: 0 };
     if (compactLetters.indexOf('PHILHEAL') !== -1) scores.philhealth += 8;
     if (/PHILIPPINE HEALTH INSURANCE|HEALTH INSURANCE CORPORATION/.test(normalized)) scores.philhealth += 6;
     if (/MEMBER DATA RECORD|MEMBER IDENTIFICATION|\bPHILHEALTH PIN\b/.test(normalized)) scores.philhealth += 5;
@@ -488,6 +488,15 @@ document.addEventListener('DOMContentLoaded', function () {
     if (/PILIPINAS|REPUBLIC OF THE PHILIPPINES|\bPHL\b/.test(normalized)) scores.passport += 2;
     if (/SURNAME|GIVEN NAMES|NATIONALITY/.test(normalized)) scores.passport += 1;
 
+    if (/UNIFIED MULTI[ -]?PURPOSE ID/.test(normalized)) scores.umid += 10;
+    if (/\bUMID\b/.test(normalized)) scores.umid += 8;
+    if (/COMMON REFERENCE NUMBER|\bCRN\b/.test(normalized)) scores.umid += 5;
+    if (/SOCIAL SECURITY SYSTEM|GOVERNMENT SERVICE INSURANCE SYSTEM/.test(normalized)) scores.umid += 2;
+
+    if (/POSTAL IDENTITY CARD|POSTAL ID CARD|\bPOSTAL ID\b/.test(normalized)) scores.postal_id += 10;
+    if (/PHILIPPINE POSTAL CORPORATION|\bPHLPOST\b/.test(normalized)) scores.postal_id += 7;
+    if (/POSTAL REFERENCE NUMBER|\bPRN\b/.test(normalized)) scores.postal_id += 3;
+
     var ranked = Object.keys(scores).sort(function (first, second) { return scores[second] - scores[first]; });
     if (scores[ranked[0]] < 4 || (scores[ranked[1]] > 0 && scores[ranked[0]] - scores[ranked[1]] < 2)) return null;
     return ranked[0];
@@ -501,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var words = normalizeOcr(text).split(/[^A-Z]+/).filter(function (part) { return part.length >= 2; });
     return [parts[0], parts[parts.length - 1]].filter(function (part) { return ocrWordMatches(part, words); }).length;
   }
-  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport' }[type] || 'Valid Government-Issued ID'; }
+  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport', umid: 'UMID', postal_id: 'Postal ID' }[type] || 'Valid Government-Issued ID'; }
   async function scanGovernmentId(card) {
     clearError();
     var select = card.querySelector('.id-type-select'), scanButton = card.querySelector('.scan-id'), captureButton = card.querySelector('.capture-photo'), video = card.querySelector('.camera-stream');

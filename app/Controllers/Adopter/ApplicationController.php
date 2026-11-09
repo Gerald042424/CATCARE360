@@ -315,7 +315,7 @@ class ApplicationController extends BaseController
         $provider = is_array($verification) ? (string) ($verification['provider'] ?? '') : '';
         $confidence = is_array($verification) ? filter_var($verification['confidence'] ?? null, FILTER_VALIDATE_FLOAT) : false;
         $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
-        $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport'];
+        $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport', 'umid', 'postal_id'];
         $validTypeEvidence = $detectedType === $selectedType && $typeBasis === 'ocr_marker';
         // Passport MRZ OCR confidence is often lower on mobile Safari because
         // of the dense "<" characters. The captured image still goes through
