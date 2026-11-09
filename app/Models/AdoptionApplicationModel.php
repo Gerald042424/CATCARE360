@@ -49,4 +49,57 @@ class AdoptionApplicationModel extends Model
         'submitted_at',
     ];
     protected $useTimestamps = false;
+
+    /**
+     * Return every cat this adopter has already included in an application.
+     *
+     * Older applications store the first cat on adoption_applications.cat_id,
+     * while current multi-cat applications also use adoption_application_cats.
+     * Reading both keeps the eligibility rule correct for all existing data.
+     *
+     * @return list<int>
+     */
+    public function appliedCatIdsForAdopter(int $adopterId): array
+    {
+        if ($adopterId <= 0) {
+            return [];
+        }
+
+        $applications = $this
+            ->select('id, cat_id')
+            ->where('adopter_id', $adopterId)
+            ->findAll();
+
+        $applicationIds = [];
+        $catIds = [];
+        foreach ($applications as $application) {
+            $applicationIds[] = (int) $application['id'];
+            if ((int) ($application['cat_id'] ?? 0) > 0) {
+                $catIds[] = (int) $application['cat_id'];
+            }
+        }
+
+        if ($applicationIds !== []) {
+            $links = (new ApplicationCatModel())
+                ->select('cat_id')
+                ->whereIn('application_id', $applicationIds)
+                ->findAll();
+            foreach ($links as $link) {
+                if ((int) ($link['cat_id'] ?? 0) > 0) {
+                    $catIds[] = (int) $link['cat_id'];
+                }
+            }
+        }
+
+        $catIds = array_values(array_unique($catIds));
+        sort($catIds);
+
+        return $catIds;
+    }
+
+    public function adopterHasAppliedForCat(int $adopterId, int $catId): bool
+    {
+        return $catId > 0
+            && in_array($catId, $this->appliedCatIdsForAdopter($adopterId), true);
+    }
 }

@@ -241,10 +241,13 @@ class PortalController extends BaseController
         }
 
         $adopter = (new AdopterModel())->find($user['adopter_id']);
-        $availableCats = (new AnimalModel())
-            ->where('status', 'Available')
-            ->orderBy('name', 'ASC')
-            ->findAll();
+        $appliedCatIds = (new AdoptionApplicationModel())
+            ->appliedCatIdsForAdopter((int) $user['adopter_id']);
+        $availableCatModel = (new AnimalModel())->where('status', 'Available');
+        if ($appliedCatIds !== []) {
+            $availableCatModel->whereNotIn('id', $appliedCatIds);
+        }
+        $availableCats = $availableCatModel->orderBy('name', 'ASC')->findAll();
 
         $adopterName = isset($adopter['name']) ? $adopter['name'] : trim((isset($adopter['first_name']) ? $adopter['first_name'] : '') . ' ' . (isset($adopter['last_name']) ? $adopter['last_name'] : ''));
 
@@ -261,6 +264,10 @@ class PortalController extends BaseController
 
     public function catProfile(int $catId)
     {
+        $adopterId = (int) session('adopter_user.adopter_id');
+        if ((new AdoptionApplicationModel())->adopterHasAppliedForCat($adopterId, $catId)) {
+            return redirect()->to('/adopter/application')->with('error', 'You already have an application for this cat.');
+        }
         $cat = (new AnimalModel())->where('id', $catId)->where('status', 'Available')->first();
         if (! $cat) return redirect()->to('/adopter/home')->with('error', 'This cat is no longer available for adoption.');
         return view('adopter/cat_profile', [

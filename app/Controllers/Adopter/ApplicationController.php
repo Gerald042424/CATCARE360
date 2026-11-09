@@ -18,8 +18,14 @@ class ApplicationController extends BaseController
 
     public function index(int $catId = 0)
     {
+        $adopterId = (int) session('adopter_user.adopter_id');
+        $applicationModel = new AdoptionApplicationModel();
+        $appliedCatIds = $applicationModel->appliedCatIdsForAdopter($adopterId);
         $cat = null;
         if ($catId > 0) {
+            if (in_array($catId, $appliedCatIds, true)) {
+                return redirect()->to('/adopter/application')->with('error', 'You already have an application for this cat.');
+            }
             $cat = (new AnimalModel())->where('id', $catId)->where('status', 'Available')->first();
             if (! $cat) {
                 return redirect()->to('/adopter/home')->with('error', 'That cat is no longer available for adoption.');
@@ -31,12 +37,17 @@ class ApplicationController extends BaseController
         // restore an outdated version of this page from its cache.
         $this->response->setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
         $this->response->setHeader('Pragma', 'no-cache');
+        $availableCatModel = (new AnimalModel())->where('status', 'Available');
+        if ($appliedCatIds !== []) {
+            $availableCatModel->whereNotIn('id', $appliedCatIds);
+        }
+
         return view('adopter/application_form_live', [
             'title' => 'Adoption Application',
             'cat' => $cat,
             'catId' => $catId,
             'adopter' => $adopter,
-            'availableCats' => (new AnimalModel())->where('status', 'Available')->orderBy('name', 'ASC')->findAll(),
+            'availableCats' => $availableCatModel->orderBy('name', 'ASC')->findAll(),
             'assessmentGroups' => (new AdoptionAssessmentService())->groups(),
             'errors' => session('errors') ?? [],
         ]);
@@ -62,6 +73,10 @@ class ApplicationController extends BaseController
         $post = $this->request->getPost();
         $catIds = array_values(array_unique(array_filter(array_map('intval', (array) ($post['cat_ids'] ?? [])))));
         $catId = $catIds[0] ?? 0;
+        $alreadyAppliedCatIds = (new AdoptionApplicationModel())->appliedCatIdsForAdopter($adopterId);
+        if (array_intersect($catIds, $alreadyAppliedCatIds) !== []) {
+            return redirect()->to('/adopter/application')->with('error', 'You already have an application for one or more selected cats.');
+        }
         $cats = $catIds ? (new AnimalModel())->whereIn('id', $catIds)->where('status', 'Available')->findAll() : [];
         $cat = $cats[0] ?? null;
         if (! $catIds && ! trim((string) ($post['cat_description'] ?? ''))) {
