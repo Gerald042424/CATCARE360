@@ -51,7 +51,7 @@
                     </div>
                     <span class="hidden text-sm font-medium text-slate-700 sm:inline"><?= esc($displayName) ?></span>
                 </button>
-                <a href="<?= site_url('adopter/logout') ?>" class="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-red-600 transition-colors ml-2"><i data-lucide="log-out" class="w-4 h-4"></i><span class="hidden sm:inline">Logout</span></a>
+                <form method="post" action="<?= site_url('adopter/logout') ?>" class="ml-2"><?= csrf_field() ?><button class="flex items-center gap-1.5 text-sm font-medium text-slate-500 transition-colors hover:text-red-600"><i data-lucide="log-out" class="h-4 w-4"></i><span class="hidden sm:inline">Logout</span></button></form>
                 <?php else: ?>
                 <?php $displayName = 'Guest'; $initial = 'G'; ?>
                 <a href="<?= site_url('/') ?>" class="text-sm font-medium text-slate-500 hover:text-slate-900">Home</a>

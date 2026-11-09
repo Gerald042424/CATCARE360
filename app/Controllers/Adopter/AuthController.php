@@ -107,7 +107,7 @@ class AuthController extends BaseController
 
     public function logout()
     {
-        $inactive = $this->request->getGet('reason') === 'inactive';
+        $inactive = $this->request->getPost('reason') === 'inactive';
         session()->remove('adopter_user');
         session()->destroy();
 

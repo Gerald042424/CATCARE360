@@ -12,18 +12,19 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
         <h2 id="session-timeout-title" class="text-xl font-bold text-slate-900">Your session is about to expire</h2>
         <p class="mt-2 text-sm leading-6 text-slate-600">For your account safety, you will be signed out in <strong id="session-timeout-countdown">2:00</strong> because of inactivity.</p>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <a href="<?= esc($logoutUrl, 'attr') ?>?reason=inactive" class="rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">Sign out now</a>
+            <button form="session-timeout-logout-form" class="rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">Sign out now</button>
             <button id="session-timeout-continue" type="button" class="rounded-lg bg-rescue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rescue-700">Stay signed in</button>
         </div>
     </div>
 </div>
+<form id="session-timeout-logout-form" method="post" action="<?= esc($logoutUrl, 'attr') ?>" class="hidden"><?= csrf_field() ?><input type="hidden" name="reason" value="inactive"></form>
 <script>
 (() => {
     const idleMs = <?= json_encode($sessionTimeoutIdleSeconds * 1000) ?>;
     const warningMs = <?= json_encode($sessionTimeoutWarningSeconds * 1000) ?>;
     const absoluteExpiresAt = <?= json_encode(($sessionTimeoutStartedAt + $sessionTimeoutAbsoluteSeconds) * 1000) ?>;
     const keepAliveUrl = <?= json_encode($keepAliveUrl) ?>;
-    const logoutUrl = <?= json_encode($logoutUrl . '?reason=inactive') ?>;
+    const logoutForm = document.getElementById('session-timeout-logout-form');
     const dialog = document.getElementById('session-timeout-dialog');
     const countdown = document.getElementById('session-timeout-countdown');
     const continueButton = document.getElementById('session-timeout-continue');
@@ -60,7 +61,7 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
 
         // replace() prevents returning to an expired authenticated page and the
         // guard above prevents repeated redirects while logout is still loading.
-        window.location.replace(logoutUrl);
+        logoutForm.submit();
     };
 
     async function keepAlive(force = false) {

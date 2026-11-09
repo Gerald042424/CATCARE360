@@ -7,6 +7,17 @@ use DateTimeInterface;
 
 class Cookie extends BaseConfig
 {
+    public function __construct()
+    {
+        parent::__construct();
+
+        // Local XAMPP commonly runs over plain HTTP. Hosted sessions and CSRF
+        // cookies must only travel over HTTPS, which Vercel always provides.
+        if (getenv('VERCEL') !== false || getenv('APP_RUNTIME') === 'vercel') {
+            $this->secure = true;
+        }
+    }
+
     /**
      * --------------------------------------------------------------------------
      * Cookie Prefix

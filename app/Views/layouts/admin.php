@@ -73,10 +73,7 @@
         </nav>
 
         <div class="flex flex-col gap-3 border-t border-slate-100 p-4">
-            <a href="<?= site_url('admin/logout') ?>" class="flex w-full items-center justify-center gap-2 rounded-lg border border-red-100 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50">
-                <i data-lucide="log-out" class="h-4 w-4"></i>
-                Log Out
-            </a>
+            <form method="post" action="<?= site_url('admin/logout') ?>"><?= csrf_field() ?><button class="flex w-full items-center justify-center gap-2 rounded-lg border border-red-100 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50"><i data-lucide="log-out" class="h-4 w-4"></i>Log Out</button></form>
             <div class="flex items-center justify-center gap-2 py-2 text-sm font-medium text-slate-500">
                 <span class="h-2 w-2 rounded-full bg-adopted-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]"></span>
                 System Online

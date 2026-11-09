@@ -39,7 +39,7 @@
             <?php if (session('adopter_user')): ?>
                 <?php $adopterUser = session('adopter_user'); ?>
                 <a href="<?= site_url('adopter/home') ?>" class="hidden text-sm font-semibold text-slate-600 sm:inline"><?= esc($adopterUser['name'] ?? 'Adopter') ?></a>
-                <a href="<?= site_url('auth/logout') ?>" class="btn btn-ghost">Log Out</a>
+                <form method="post" action="<?= site_url('auth/logout') ?>"><?= csrf_field() ?><button class="btn btn-ghost">Log Out</button></form>
             <?php else: ?>
                 <button type="button" class="btn btn-ghost px-3 sm:px-4" @click="authOpen=true; authTab='signin'"><span class="hidden sm:inline">Sign In</span><i data-lucide="log-in" class="h-4 w-4 sm:hidden"></i></button>
                 <button type="button" class="btn btn-primary px-3 sm:px-4" @click="authOpen=true; authTab='signup'"><span class="hidden sm:inline">Create Account</span><i data-lucide="user-plus" class="h-4 w-4 sm:hidden"></i></button>
@@ -172,6 +172,7 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
         login: {email: initialLoginEmail || '', password: ''}, loginErrors: initialLoginError ? {password: initialLoginError} : {},
         recoveryOpen: false, recoveryStep: 'email', recoveryError: '', recoveryErrors: {}, showResetPassword: false, reset: {email: '', code: ['', '', '', '', '', ''], password: '', confirm_password: ''},
         form: {first_name: '', last_name: '', email: '', password: '', confirm_password: ''},
+        secureBody(body) { const name = <?= json_encode(csrf_token()) ?>; if (!body.has(name)) body.append(name, <?= json_encode(csrf_hash()) ?>); return body; },
         openTerms() { this.termsOpen = true; this.termsScrolled = this.termsAccepted; this.termsChecked = this.termsAccepted; document.body.classList.add('terms-page-lock'); this.$nextTick(() => { const panel = this.$refs.termsPanel; if (panel && !this.termsAccepted) panel.scrollTop = 0; }); },
         closeTerms() { this.termsOpen = false; document.body.classList.remove('terms-page-lock'); },
         acceptTerms() { if (!this.termsScrolled || !this.termsChecked) return; this.termsAccepted = true; this.errors.terms = ''; this.closeTerms(); this.authOpen = true; this.authTab = 'signup'; this.registrationStep = 'details'; },
@@ -220,7 +221,7 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
         async sendResetCode() {
             this.loading = true; this.recoveryError = ''; this.recoveryErrors = {}; const body = new FormData(); body.append('email', this.reset.email);
             try {
-                const response = await fetch('<?= site_url('auth/forgot-password/send-code') ?>', {method: 'POST', body, headers: {'X-Requested-With': 'XMLHttpRequest'}});
+                const response = await fetch('<?= site_url('auth/forgot-password/send-code') ?>', {method: 'POST', body: this.secureBody(body), headers: {'X-Requested-With': 'XMLHttpRequest'}});
                 const responseText = await response.text();
                 let data = {};
                 try { data = responseText ? JSON.parse(responseText) : {}; } catch (parseError) { data = {}; }
@@ -236,7 +237,7 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
         },
         async verifyResetCode() {
             this.loading = true; this.recoveryError = ''; this.recoveryErrors = {}; const body = new FormData(); body.append('code', this.reset.code.join(''));
-            try { const response = await fetch('<?= site_url('auth/forgot-password/verify-code') ?>', {method: 'POST', body, headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.recoveryErrors = data.errors || {}; this.recoveryError = this.recoveryErrors.form || ''; return; } this.recoveryStep = 'password'; this.$nextTick(() => lucide.createIcons()); }
+            try { const response = await fetch('<?= site_url('auth/forgot-password/verify-code') ?>', {method: 'POST', body: this.secureBody(body), headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.recoveryErrors = data.errors || {}; this.recoveryError = this.recoveryErrors.form || ''; return; } this.recoveryStep = 'password'; this.$nextTick(() => lucide.createIcons()); }
             catch (error) { this.recoveryError = 'Unable to contact the server. Please try again.'; } finally { this.loading = false; }
         },
         validateResetPasswordField(field) {
@@ -256,7 +257,7 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
         },
         async completePasswordReset() {
             this.recoveryError = ''; if (!this.validatePasswordReset()) return; this.loading = true; const body = new FormData(); body.append('code', this.reset.code.join('')); body.append('password', this.reset.password); body.append('confirm_password', this.reset.confirm_password);
-            try { const response = await fetch('<?= site_url('auth/forgot-password/reset-password') ?>', {method: 'POST', body, headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.recoveryErrors = data.errors || {}; this.recoveryError = this.recoveryErrors.form || ''; return; } this.recoveryStep = 'success'; this.$nextTick(() => lucide.createIcons()); }
+            try { const response = await fetch('<?= site_url('auth/forgot-password/reset-password') ?>', {method: 'POST', body: this.secureBody(body), headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.recoveryErrors = data.errors || {}; this.recoveryError = this.recoveryErrors.form || ''; return; } this.recoveryStep = 'success'; this.$nextTick(() => lucide.createIcons()); }
             catch (error) { this.recoveryError = 'Unable to contact the server. Please try again.'; } finally { this.loading = false; }
         },
         moveResetFocus(event,index) { const value = event.target.value.replace(/\D/g,'').slice(-1); this.reset.code[index] = value; if (value && index < 5) document.getElementById('reset-code-'+(index+1)).focus(); },
@@ -265,14 +266,14 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
         async sendCode() {
             this.formError = ''; if (!this.validateRegistration()) return; this.loading = true;
             const body = new FormData(); Object.entries(this.form).forEach(([key, value]) => body.append(key, value)); body.append('terms', this.termsAccepted ? '1' : '');
-            try { const response = await fetch('<?= site_url('auth/adopter-register/send-code') ?>', {method: 'POST', body, headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.errors = data.errors || {}; this.formError = this.errors.form || ''; return; } this.code = ['', '', '', '', '', '']; this.registrationStep = 'verify'; this.$nextTick(() => document.getElementById('verification-code-0').focus()); }
+            try { const response = await fetch('<?= site_url('auth/adopter-register/send-code') ?>', {method: 'POST', body: this.secureBody(body), headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.errors = data.errors || {}; this.formError = this.errors.form || ''; return; } this.code = ['', '', '', '', '', '']; this.registrationStep = 'verify'; this.$nextTick(() => document.getElementById('verification-code-0').focus()); }
             catch (error) { this.formError = 'Unable to contact the server. Please try again.'; }
             finally { this.loading = false; }
         },
         async verifyCode() {
             this.loading = true; this.errors = {}; this.formError = '';
             const body = new FormData(); body.append('code', this.code.join(''));
-            try { const response = await fetch('<?= site_url('auth/adopter-register/verify-code') ?>', {method: 'POST', body, headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.errors = data.errors || {}; this.formError = this.errors.form || ''; return; } window.location.assign(data.redirect); }
+            try { const response = await fetch('<?= site_url('auth/adopter-register/verify-code') ?>', {method: 'POST', body: this.secureBody(body), headers: {'X-Requested-With': 'XMLHttpRequest'}}); const data = await response.json(); if (!response.ok) { this.errors = data.errors || {}; this.formError = this.errors.form || ''; return; } window.location.assign(data.redirect); }
             catch (error) { this.formError = 'Unable to contact the server. Please try again.'; }
             finally { this.loading = false; }
         },

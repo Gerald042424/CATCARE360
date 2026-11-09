@@ -22,11 +22,11 @@ $routes->post('/auth/adopter-register', 'Public\AuthController::register');
 $routes->post('/auth/adopter-register/send-code', 'Public\AuthController::sendRegistrationCode');
 $routes->post('/auth/adopter-register/verify-code', 'Public\AuthController::verifyRegistrationCode');
 $routes->post('/auth/volunteer-login', 'Public\AuthController::volunteerLogin');
-$routes->get('/auth/logout', 'Public\AuthController::logout');
+$routes->post('/auth/logout', 'Public\AuthController::logout');
 
 $routes->get('adopter/register', 'Adopter\AuthController::registerForm');
 $routes->post('adopter/register', 'Public\AuthController::register');
-$routes->get('adopter/logout', 'Adopter\AuthController::logout');
+$routes->post('adopter/logout', 'Adopter\AuthController::logout');
 
 $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCollection $routes): void {
     $routes->get('session/keep-alive', 'SessionController::keepAlive');
@@ -48,7 +48,7 @@ $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCol
 
 $routes->get('admin/login', 'Admin\AuthController::loginForm');
 $routes->post('admin/login', 'Public\AuthController::login');
-$routes->get('admin/logout', 'Admin\AuthController::logout');
+$routes->post('admin/logout', 'Admin\AuthController::logout');
 $routes->addRedirect('admin', 'admin/dashboard');
 
 $routes->group('admin', ['filter' => 'staffAuth'], static function (RouteCollection $routes): void {
@@ -97,7 +97,7 @@ $routes->get('volunteer/login', 'Volunteer\AuthController::loginPage');
 $routes->post('volunteer/login', 'Public\AuthController::login');
 $routes->get('volunteer/apply', 'Volunteer\ApplicationController::form');
 $routes->post('volunteer/apply', 'Volunteer\ApplicationController::submit');
-$routes->get('/volunteer/logout', 'Volunteer\AuthController::logout');
+$routes->post('/volunteer/logout', 'Volunteer\AuthController::logout');
 $routes->group('volunteer', ['filter' => 'volunteerAuth'], static function (RouteCollection $routes): void {
     $routes->get('session/keep-alive', 'SessionController::keepAlive');
     $routes->get('location/reverse', 'Adopter\LocationController::reverse');
