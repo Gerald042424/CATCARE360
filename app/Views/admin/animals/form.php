@@ -4,7 +4,7 @@
 $a = $animal ?? [];
 $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinate', 'return' => 'Return'];
 ?>
-<form method="post" enctype="multipart/form-data" class="card max-w-4xl">
+<form id="animal-form" method="post" enctype="multipart/form-data" class="card max-w-4xl">
     <?= csrf_field() ?>
     <div class="mb-6 flex items-center justify-between"><div><h1 class="text-3xl font-bold tracking-[-.025em]"><?= esc($title) ?></h1><p class="text-slate-500">Add the same cat details adopters will see.</p></div><a href="<?= site_url('admin/animals') ?>" class="btn btn-ghost">Back</a></div>
     <?php if (session('error')): ?><div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"><?= esc(session('error')) ?></div><?php endif; ?>
@@ -21,13 +21,135 @@ $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinat
         <div><label class="label">Status</label><select class="field" name="status"><?php foreach (['Available','Adopted','Medical','Foster'] as $value): ?><option value="<?= $value ?>" <?= old('status', $a['status'] ?? 'Available') === $value ? 'selected' : '' ?>><?= $value ?></option><?php endforeach; ?></select></div>
         <div><label class="label">Health</label><select class="field" name="health"><?php foreach (['Healthy','Recovering','Under Treatment','Critical'] as $value): ?><option value="<?= $value ?>" <?= old('health', $a['health'] ?? 'Healthy') === $value ? 'selected' : '' ?>><?= $value ?></option><?php endforeach; ?></select></div>
         <div><label class="label">Intake Date</label><input type="date" class="field" name="intake_date" value="<?= esc(old('intake_date', $a['intake_date'] ?? '')) ?>"></div>
-        <div><label class="label">Cat Photo</label><input class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-rescue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-rescue-700" type="file" name="image" accept="image/jpeg,image/png,image/webp" <?= empty($a['image_url']) ? 'required' : '' ?>><p class="mt-1 text-xs text-slate-500">JPG, PNG, or WebP · maximum 5 MB.</p></div>
-        <div><label class="label">Backup / Gallery Photos</label><input class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-violet-700" type="file" name="gallery_photos[]" accept="image/jpeg,image/png,image/webp" multiple><p class="mt-1 text-xs text-slate-500">Optional extra photos adopters can view · JPG, PNG, WebP · 5 MB each.</p></div>
+        <div><label class="label">Cat Photo</label><input id="cat-main-photo" class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-rescue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-rescue-700" type="file" name="image" accept="image/jpeg,image/png,image/webp" <?= empty($a['image_url']) ? 'required' : '' ?>><p class="mt-1 text-xs text-slate-500">JPG, PNG, or WebP · automatically optimized before upload.</p></div>
+        <div><label class="label">Backup / Gallery Photos</label><input id="cat-gallery-photos" class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-violet-700" type="file" name="gallery_photos[]" accept="image/jpeg,image/png,image/webp" multiple><p class="mt-1 text-xs text-slate-500">Optional · up to 3 photos · automatically optimized before upload.</p></div>
     </div>
     <?php if (! empty($a['image_url'])): ?><div class="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><img src="<?= esc(base_url($a['image_url'])) ?>" class="h-16 w-16 rounded-lg object-cover" alt="Current cat photo"><p class="text-sm font-medium text-slate-600">Current photo. Upload a new image only to replace it.</p></div><?php endif; ?>
     <?php if (! empty($galleryPhotos)): ?><div class="mt-4"><p class="mb-2 text-sm font-semibold text-slate-700">Saved backup photos</p><div class="flex flex-wrap gap-3"><?php foreach ($galleryPhotos as $photo): ?><img src="<?= esc(base_url($photo['photo_url'])) ?>" class="h-20 w-20 rounded-lg border border-slate-200 object-cover" alt="Backup cat photo"><?php endforeach; ?></div></div><?php endif; ?>
     <div class="mt-4 grid gap-4 md:grid-cols-2"><div><label class="label">Behavior Notes <span class="normal-case font-normal text-slate-400">(shown to adopters)</span></label><textarea class="field min-h-32" name="behavior_notes" required><?= esc(old('behavior_notes', $a['behavior_notes'] ?? '')) ?></textarea></div><div><label class="label">Medical Notes</label><textarea class="field min-h-32" name="medical_notes"><?= esc(old('medical_notes', $a['medical_notes'] ?? '')) ?></textarea></div></div>
     <?php if (! empty($a['id'])): ?><section class="mt-8 border-t border-slate-100 pt-6"><h2 class="text-lg font-bold">Animal Journey Timeline</h2><p class="mt-1 text-sm text-slate-500">Record treatment, rehabilitation, adoption, and follow-up milestones.</p><div class="mt-4 grid gap-4 md:grid-cols-2"><div><label class="label">Event Type</label><select class="field" name="event_type"><?php foreach (['Medical Treatment','Rehabilitation','Care Update','Adoption','Post-Adoption Monitoring','Other'] as $type): ?><option><?= esc($type) ?></option><?php endforeach; ?></select></div><div><label class="label">Event Date</label><input class="field" type="date" name="event_date" value="<?= date('Y-m-d') ?>"></div><div class="md:col-span-2"><label class="label">Event Title</label><input class="field" name="event_title" placeholder="e.g. Deworming and vaccination completed"></div><div class="md:col-span-2"><label class="label">Details</label><textarea class="field min-h-24" name="event_description" placeholder="Treatment, rehabilitation progress, or follow-up details"></textarea></div></div><?php if (! empty($journeyEvents)): ?><ol class="mt-6 space-y-3 border-l-2 border-rescue-100 pl-5"><?php foreach ($journeyEvents as $event): ?><li class="relative"><span class="absolute -left-[29px] top-1 h-3 w-3 rounded-full bg-rescue-600"></span><p class="text-xs font-bold uppercase text-rescue-600"><?= esc($event['event_type']) ?> · <?= esc($event['event_date']) ?></p><p class="font-semibold text-slate-900"><?= esc($event['title']) ?></p><?php if ($event['description']): ?><p class="mt-1 text-sm text-slate-600"><?= esc($event['description']) ?></p><?php endif; ?></li><?php endforeach; ?></ol><?php else: ?><p class="mt-5 text-sm text-slate-500">No journey milestones recorded yet.</p><?php endif; ?></section><?php endif; ?>
-    <button class="btn btn-primary mt-6">Save Cat</button>
+    <p id="animal-upload-status" class="mt-5 hidden rounded-xl border px-4 py-3 text-sm font-medium" role="status" aria-live="polite"></p>
+    <button id="save-cat-button" class="btn btn-primary mt-6">Save Cat</button>
 </form>
+<script>
+(() => {
+    const form = document.getElementById('animal-form');
+    const mainInput = document.getElementById('cat-main-photo');
+    const galleryInput = document.getElementById('cat-gallery-photos');
+    const submitButton = document.getElementById('save-cat-button');
+    const status = document.getElementById('animal-upload-status');
+    if (!form || !mainInput || !galleryInput || !submitButton || !status) return;
+
+    let processing = Promise.resolve();
+    const showStatus = (message, type = 'info') => {
+        status.textContent = message;
+        status.className = 'mt-5 rounded-xl border px-4 py-3 text-sm font-medium ' + (type === 'error'
+            ? 'border-red-200 bg-red-50 text-red-700'
+            : type === 'success'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-blue-200 bg-blue-50 text-blue-700');
+    };
+
+    const setBusy = (busy) => {
+        submitButton.disabled = busy;
+        submitButton.classList.toggle('opacity-60', busy);
+        submitButton.classList.toggle('cursor-wait', busy);
+    };
+
+    const loadImage = async (file) => {
+        if ('createImageBitmap' in window) {
+            return createImageBitmap(file, { imageOrientation: 'from-image' });
+        }
+        return new Promise((resolve, reject) => {
+            const image = new Image();
+            const url = URL.createObjectURL(file);
+            image.onload = () => { URL.revokeObjectURL(url); resolve(image); };
+            image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('The selected image could not be read.')); };
+            image.src = url;
+        });
+    };
+
+    const canvasBlob = (canvas, quality) => new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('The image could not be optimized.')), 'image/jpeg', quality);
+    });
+
+    const optimizeImage = async (file, targetBytes) => {
+        if (!file.type.startsWith('image/')) throw new Error('Choose JPG, PNG, or WebP images only.');
+        const image = await loadImage(file);
+        let scale = Math.min(1, 1600 / Math.max(image.width, image.height));
+        let width = Math.max(1, Math.round(image.width * scale));
+        let height = Math.max(1, Math.round(image.height * scale));
+        let bestBlob = null;
+
+        for (const maxQuality of [0.84, 0.74, 0.64, 0.54]) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d', { alpha: false });
+            if (!context) throw new Error('Your browser could not prepare this image. Please try another browser.');
+            context.fillStyle = '#ffffff';
+            context.fillRect(0, 0, width, height);
+            context.drawImage(image, 0, 0, width, height);
+            bestBlob = await canvasBlob(canvas, maxQuality);
+            if (bestBlob.size <= targetBytes) break;
+            width = Math.max(1, Math.round(width * 0.84));
+            height = Math.max(1, Math.round(height * 0.84));
+        }
+        if (typeof image.close === 'function') image.close();
+        if (!bestBlob || bestBlob.size > 1_200_000) throw new Error('This photo is still too large. Please choose a different image.');
+
+        const baseName = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '') || 'cat-photo';
+        return new File([bestBlob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+    };
+
+    const replaceFiles = (input, files) => {
+        const transfer = new DataTransfer();
+        files.forEach((file) => transfer.items.add(file));
+        input.files = transfer.files;
+    };
+
+    const optimizeSelection = async (input, maxFiles, targetBytes) => {
+        const selected = Array.from(input.files || []);
+        if (!selected.length) return;
+        if (selected.length > maxFiles) {
+            input.value = '';
+            throw new Error(`You can upload up to ${maxFiles} ${maxFiles === 1 ? 'photo' : 'gallery photos'} at a time.`);
+        }
+        const optimized = [];
+        for (const file of selected) optimized.push(await optimizeImage(file, targetBytes));
+        replaceFiles(input, optimized);
+    };
+
+    const queueOptimization = (input, maxFiles, targetBytes) => {
+        processing = (async () => {
+            setBusy(true);
+            showStatus('Optimizing photo for secure upload…');
+            try {
+                await optimizeSelection(input, maxFiles, targetBytes);
+                showStatus('Photo ready. You can now save the cat record.', 'success');
+            } catch (error) {
+                input.value = '';
+                showStatus(error instanceof Error ? error.message : 'The photo could not be prepared.', 'error');
+            } finally {
+                setBusy(false);
+            }
+        })();
+    };
+
+    mainInput.addEventListener('change', () => queueOptimization(mainInput, 1, 850_000));
+    galleryInput.addEventListener('change', () => queueOptimization(galleryInput, 3, 550_000));
+    form.addEventListener('submit', (event) => {
+        if (submitButton.disabled) {
+            event.preventDefault();
+            return;
+        }
+        const files = [...Array.from(mainInput.files || []), ...Array.from(galleryInput.files || [])];
+        const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+        if (totalBytes > 3_200_000) {
+            event.preventDefault();
+            showStatus('The selected photos are still too large together. Remove one gallery photo and try again.', 'error');
+        }
+    });
+})();
+</script>
 <?= $this->endSection() ?>
