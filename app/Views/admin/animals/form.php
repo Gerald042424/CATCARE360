@@ -21,8 +21,8 @@ $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinat
         <div><label class="label">Status</label><select class="field" name="status"><?php foreach (['Available','Adopted','Medical','Foster'] as $value): ?><option value="<?= $value ?>" <?= old('status', $a['status'] ?? 'Available') === $value ? 'selected' : '' ?>><?= $value ?></option><?php endforeach; ?></select></div>
         <div><label class="label">Health</label><select class="field" name="health"><?php foreach (['Healthy','Recovering','Under Treatment','Critical'] as $value): ?><option value="<?= $value ?>" <?= old('health', $a['health'] ?? 'Healthy') === $value ? 'selected' : '' ?>><?= $value ?></option><?php endforeach; ?></select></div>
         <div><label class="label">Intake Date</label><input type="date" class="field" name="intake_date" value="<?= esc(old('intake_date', $a['intake_date'] ?? '')) ?>"></div>
-        <div><label class="label">Cat Photo</label><input id="cat-main-photo" class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-rescue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-rescue-700" type="file" name="image" accept="image/jpeg,image/png,image/webp" <?= empty($a['image_url']) ? 'required' : '' ?>><p class="mt-1 text-xs text-slate-500">JPG, PNG, or WebP · automatically optimized before upload.</p></div>
-        <div><label class="label">Backup / Gallery Photos</label><input id="cat-gallery-photos" class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-violet-700" type="file" name="gallery_photos[]" accept="image/jpeg,image/png,image/webp" multiple><p class="mt-1 text-xs text-slate-500">Optional · up to 3 photos · automatically optimized before upload.</p></div>
+        <div><label class="label">Cat Photo</label><input id="cat-main-photo" class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-rescue-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-rescue-700" type="file" name="image" accept="image/jpeg,image/png,image/webp" <?= empty($a['image_url']) ? 'required' : '' ?>><p class="mt-1 text-xs text-slate-500">JPG, PNG, or WebP · automatically optimized before upload.</p><div id="cat-main-preview" class="mt-3 hidden"></div></div>
+        <div><label class="label">Backup / Gallery Photos</label><input id="cat-gallery-photos" class="field cursor-pointer file:mr-3 file:rounded-lg file:border-0 file:bg-violet-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-violet-700" type="file" name="gallery_photos[]" accept="image/jpeg,image/png,image/webp" multiple><p class="mt-1 text-xs text-slate-500">Optional · up to 3 photos · automatically optimized before upload.</p><div id="cat-gallery-preview" class="mt-3 grid hidden grid-cols-2 gap-3 sm:grid-cols-3"></div></div>
     </div>
     <?php if (! empty($a['image_url'])): ?><div class="mt-4 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><img src="<?= esc(base_url($a['image_url'])) ?>" class="h-16 w-16 rounded-lg object-cover" alt="Current cat photo"><p class="text-sm font-medium text-slate-600">Current photo. Upload a new image only to replace it.</p></div><?php endif; ?>
     <?php if (! empty($galleryPhotos)): ?><div class="mt-4"><p class="mb-2 text-sm font-semibold text-slate-700">Saved backup photos</p><div class="flex flex-wrap gap-3"><?php foreach ($galleryPhotos as $photo): ?><img src="<?= esc(base_url($photo['photo_url'])) ?>" class="h-20 w-20 rounded-lg border border-slate-200 object-cover" alt="Backup cat photo"><?php endforeach; ?></div></div><?php endif; ?>
@@ -36,9 +36,11 @@ $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinat
     const form = document.getElementById('animal-form');
     const mainInput = document.getElementById('cat-main-photo');
     const galleryInput = document.getElementById('cat-gallery-photos');
+    const mainPreview = document.getElementById('cat-main-preview');
+    const galleryPreview = document.getElementById('cat-gallery-preview');
     const submitButton = document.getElementById('save-cat-button');
     const status = document.getElementById('animal-upload-status');
-    if (!form || !mainInput || !galleryInput || !submitButton || !status) return;
+    if (!form || !mainInput || !galleryInput || !mainPreview || !galleryPreview || !submitButton || !status) return;
 
     let processing = Promise.resolve();
     const showStatus = (message, type = 'info') => {
@@ -108,6 +110,51 @@ $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinat
         input.files = transfer.files;
     };
 
+    const clearPreview = (container) => {
+        container.querySelectorAll('img[data-preview-url]').forEach((image) => URL.revokeObjectURL(image.dataset.previewUrl));
+        container.replaceChildren();
+        container.classList.add('hidden');
+    };
+
+    const previewCard = (file, index, input, container, label) => {
+        const card = document.createElement('div');
+        card.className = 'overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm';
+        const previewUrl = URL.createObjectURL(file);
+        const image = document.createElement('img');
+        image.src = previewUrl;
+        image.alt = label;
+        image.dataset.previewUrl = previewUrl;
+        image.className = 'h-28 w-full object-cover';
+
+        const footer = document.createElement('div');
+        footer.className = 'flex items-center justify-between gap-2 p-2';
+        const name = document.createElement('span');
+        name.className = 'min-w-0 truncate text-xs font-medium text-slate-600';
+        name.textContent = file.name;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'shrink-0 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-bold text-red-700 transition hover:bg-red-100';
+        remove.textContent = 'Remove';
+        remove.setAttribute('aria-label', `Remove ${file.name}`);
+        remove.addEventListener('click', () => {
+            const remaining = Array.from(input.files || []).filter((_, fileIndex) => fileIndex !== index);
+            replaceFiles(input, remaining);
+            renderPreviews(input, container, label);
+            showStatus(remaining.length ? 'Selected photos updated and ready to save.' : 'Selected photo removed.', 'info');
+        });
+        footer.append(name, remove);
+        card.append(image, footer);
+        return card;
+    };
+
+    const renderPreviews = (input, container, label) => {
+        clearPreview(container);
+        const files = Array.from(input.files || []);
+        if (!files.length) return;
+        files.forEach((file, index) => container.appendChild(previewCard(file, index, input, container, label)));
+        container.classList.remove('hidden');
+    };
+
     const optimizeSelection = async (input, maxFiles, targetBytes) => {
         const selected = Array.from(input.files || []);
         if (!selected.length) return;
@@ -118,6 +165,7 @@ $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinat
         const optimized = [];
         for (const file of selected) optimized.push(await optimizeImage(file, targetBytes));
         replaceFiles(input, optimized);
+        renderPreviews(input, input === mainInput ? mainPreview : galleryPreview, input === mainInput ? 'Selected cat photo' : 'Selected gallery photo');
     };
 
     const queueOptimization = (input, maxFiles, targetBytes) => {
@@ -129,6 +177,7 @@ $cnvrSteps = ['catch' => 'Catch', 'neuter' => 'Neuter', 'vaccinate' => 'Vaccinat
                 showStatus('Photo ready. You can now save the cat record.', 'success');
             } catch (error) {
                 input.value = '';
+                clearPreview(input === mainInput ? mainPreview : galleryPreview);
                 showStatus(error instanceof Error ? error.message : 'The photo could not be prepared.', 'error');
             } finally {
                 setBusy(false);
