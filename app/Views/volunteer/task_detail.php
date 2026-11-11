@@ -12,6 +12,12 @@ $checklists = [
 $careChecklist = $checklists[$task['category']] ?? ['task_steps_completed' => 'Task-specific steps completed', 'safety_checked' => 'Safety checked', 'concerns_reported' => 'Concerns reported to staff'];
 $savedChecklist = json_decode((string) (($report ?? null)['checklist'] ?? ($draft['checklist'] ?? '{}')), true) ?: [];
 $isCompleted = ! empty($report) && $task['status'] === 'Completed';
+// Reports submitted before checklist persistence was added have no stored
+// checklist payload. Their completed status is the only surviving record of
+// the submitted care steps, so show those legacy steps as completed.
+if ($isCompleted && $savedChecklist === []) {
+    $savedChecklist = array_fill_keys(array_keys($careChecklist), '1');
+}
 $reportPhotoUrl = ! empty($report['photo_path'])
     ? (str_starts_with($report['photo_path'], 'media/') ? base_url($report['photo_path']) : base_url('uploads/task_reports/' . $report['photo_path']))
     : null;
