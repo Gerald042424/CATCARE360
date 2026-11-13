@@ -63,7 +63,7 @@ class ApplicationController extends BaseController
         $rules = [
             'full_name' => 'required|max_length[150]',
             'address' => 'required|max_length[255]',
-            'phone' => 'required|max_length[30]',
+            'phone' => 'required|regex_match[/^(?:09\d{9}|\+639\d{9})$/]',
             'occupation' => 'required|max_length[100]',
         ];
         foreach ((new AdoptionAssessmentService())->groups() as $key => $_group) {

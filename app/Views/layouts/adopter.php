@@ -24,8 +24,8 @@
 </head>
 <body class="catcare-adopter min-h-screen">
 
-<?php $profileSetupRequired = (bool) session('adopter_profile_setup_required'); ?>
-<div x-data="{ showProfile: <?= $profileSetupRequired ? 'true' : 'false' ?>, mobileMenu: false, profileRequired: <?= $profileSetupRequired ? 'true' : 'false' ?> }" @keydown.escape.window="if (!profileRequired) showProfile = false; mobileMenu = false">
+<?php $profileSetupRequired = (bool) session('adopter_profile_setup_required'); $profileModalOpen = $profileSetupRequired || (bool) session('profile_modal_open'); $profileEditing = $profileSetupRequired || (bool) session('profile_editing'); ?>
+<div x-data="{ showProfile: <?= $profileModalOpen ? 'true' : 'false' ?>, mobileMenu: false, profileRequired: <?= $profileSetupRequired ? 'true' : 'false' ?>, editingProfile: <?= $profileEditing ? 'true' : 'false' ?> }" @keydown.escape.window="if (!profileRequired && !editingProfile) showProfile = false; mobileMenu = false">
     <header class="adopter-header sticky top-0 z-50 bg-white border-b border-slate-200 h-16">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-full">
             <a href="<?= site_url('adopter/home') ?>" class="flex items-center gap-3">
@@ -45,7 +45,7 @@
             <div class="flex items-center gap-2 sm:gap-4">
                 <?php if (session('adopter_user')): ?>
                 <?php $adopterUser = session('adopter_user') ?? []; $displayName = isset($adopterUser['name']) ? $adopterUser['name'] : trim((isset($adopterUser['first_name']) ? $adopterUser['first_name'] : '') . ' ' . (isset($adopterUser['last_name']) ? $adopterUser['last_name'] : '')); $displayName = $displayName ?: 'Adopter'; $initial = strtoupper(substr($displayName,0,1)); ?>
-                <button @click="showProfile = true" class="flex items-center gap-2 hover:bg-slate-50 px-2 py-1 rounded-full transition-colors">
+                <button @click="showProfile = true; editingProfile = profileRequired" class="flex items-center gap-2 hover:bg-slate-50 px-2 py-1 rounded-full transition-colors">
                     <div class="w-8 h-8 rounded-full overflow-hidden border border-slate-200 shrink-0 bg-rescue-600 text-white flex items-center justify-center text-xs font-bold">
                         <?= esc($initial) ?>
                     </div>
@@ -86,7 +86,7 @@
         <div class="relative w-full max-w-2xl bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             <div class="p-6 border-b border-slate-100 flex items-center justify-between">
                 <div><h2 class="text-xl font-semibold text-slate-900">My Adopter Profile</h2><?php if ($profileSetupRequired): ?><p class="mt-1 text-sm text-rescue-700">Complete your phone number and address to continue.</p><?php endif; ?></div>
-                <button x-show="!profileRequired" @click="showProfile = false" class="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full"><i data-lucide="x" class="w-5 h-5"></i></button>
+                <button x-show="!profileRequired && !editingProfile" @click="showProfile = false" class="p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 rounded-full" aria-label="Close profile"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div class="p-6 overflow-y-auto">
                 <div class="flex flex-col md:flex-row gap-8">
@@ -104,13 +104,30 @@
                         </div>
 
                     <div class="md:w-2/3 space-y-6">
-                        <form method="post" action="<?= site_url('adopter/profile') ?>">
-                            <?= csrf_field() ?><h4 class="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-2 mb-3">Contact Information</h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="md:col-span-2"><label class="text-xs text-slate-500 mb-1 flex items-center gap-1.5 font-medium"><i data-lucide="mail" class="w-4 h-4"></i>Email</label><p class="text-sm font-medium text-slate-900"><?= esc($profileAdopter['email'] ?? $adopterUser['email'] ?? '') ?></p></div>
-                                <div><label class="text-xs text-slate-500 mb-1 flex items-center gap-1.5 font-medium"><i data-lucide="phone" class="w-4 h-4"></i>Phone</label><input required name="phone" value="<?= esc($profileAdopter['phone'] ?? '') ?>" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none"></div>
-                                <div class="md:col-span-2"><label class="text-xs text-slate-500 mb-1 flex items-center gap-1.5 font-medium"><i data-lucide="map-pin" class="w-4 h-4"></i>Complete Address</label><textarea required name="address" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none" placeholder="House/unit, street, barangay, city, province"><?= esc($profileAdopter['address'] ?? '') ?></textarea><p class="mt-1 text-xs text-slate-500">This address is printed on new live monitoring captures.</p></div>
-                            </div><div class="mt-4 flex justify-end"><button class="rounded-lg bg-rescue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rescue-700">Save contact details</button></div>
+                        <section x-show="!editingProfile" aria-label="Saved contact information">
+                            <div class="mb-4 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                                <h4 class="text-sm font-semibold text-slate-900">Contact Information</h4>
+                                <button type="button" @click="editingProfile = true" class="inline-flex items-center gap-1.5 rounded-lg border border-rescue-200 bg-rescue-50 px-3 py-2 text-xs font-semibold text-rescue-700 transition hover:bg-rescue-100"><i data-lucide="pencil" class="h-3.5 w-3.5"></i>Edit Profile</button>
+                            </div>
+                            <dl class="space-y-3">
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><dt class="flex items-center gap-2 text-xs font-medium text-slate-500"><i data-lucide="mail" class="h-4 w-4"></i>Email address</dt><dd class="mt-1 break-all text-sm font-semibold text-slate-900"><?= esc($profileAdopter['email'] ?? $adopterUser['email'] ?? '') ?></dd></div>
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><dt class="flex items-center gap-2 text-xs font-medium text-slate-500"><i data-lucide="phone" class="h-4 w-4"></i>Mobile number</dt><dd class="mt-1 text-sm font-semibold text-slate-900"><?= esc(($profileAdopter['phone'] ?? '') ?: 'Not provided') ?></dd></div>
+                                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3"><dt class="flex items-center gap-2 text-xs font-medium text-slate-500"><i data-lucide="map-pin" class="h-4 w-4"></i>Complete address</dt><dd class="mt-1 whitespace-pre-line text-sm font-semibold leading-6 text-slate-900"><?= esc(($profileAdopter['address'] ?? '') ?: 'Not provided') ?></dd></div>
+                            </dl>
+                        </section>
+
+                        <form x-cloak x-show="editingProfile" x-ref="profileForm" method="post" action="<?= site_url('adopter/profile') ?>">
+                            <?= csrf_field() ?>
+                            <div class="mb-4 border-b border-slate-100 pb-3"><h4 class="text-sm font-semibold text-slate-900"><?= $profileSetupRequired ? 'Complete Contact Information' : 'Edit Contact Information' ?></h4><p class="mt-1 text-xs leading-5 text-slate-500">Use a reachable Philippine mobile number so the community team can contact you about your application.</p></div>
+                            <div class="grid grid-cols-1 gap-4">
+                                <div><label class="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-500"><i data-lucide="mail" class="h-4 w-4"></i>Email</label><p class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-600"><?= esc($profileAdopter['email'] ?? $adopterUser['email'] ?? '') ?></p><p class="mt-1 text-xs text-slate-400">Your verified email cannot be changed here.</p></div>
+                                <div><label for="adopter-profile-phone" class="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600"><i data-lucide="phone" class="h-4 w-4"></i>Mobile Number</label><input id="adopter-profile-phone" required type="tel" inputmode="tel" autocomplete="tel" maxlength="13" pattern="(?:09\d{9}|\+639\d{9})" title="Use 09XXXXXXXXX or +639XXXXXXXXX" name="phone" value="<?= esc(old('phone', $profileAdopter['phone'] ?? '')) ?>" @input="$el.value = $el.value.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '')" placeholder="09XXXXXXXXX" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none focus:ring-2 focus:ring-rescue-100"><p class="mt-1 text-xs text-slate-500">Numbers only. Use 09XXXXXXXXX or +639XXXXXXXXX.</p></div>
+                                <div><label for="adopter-profile-address" class="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600"><i data-lucide="map-pin" class="h-4 w-4"></i>Complete Address</label><textarea id="adopter-profile-address" required minlength="10" maxlength="500" name="address" rows="3" class="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none focus:ring-2 focus:ring-rescue-100" placeholder="House/unit, street, barangay, city, province"><?= esc(old('address', $profileAdopter['address'] ?? '')) ?></textarea><p class="mt-1 text-xs text-slate-500">This is your saved contact address. Live captures use the device’s current GPS location.</p></div>
+                            </div>
+                            <div class="mt-5 flex flex-wrap justify-end gap-2">
+                                <button x-show="!profileRequired" type="button" @click="$refs.profileForm.reset(); editingProfile = false" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                                <button class="inline-flex items-center gap-2 rounded-lg bg-rescue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rescue-700"><i data-lucide="save" class="h-4 w-4"></i>Save Changes</button>
+                            </div>
                         </form>
 
                         <div class="p-4 bg-adopted-50 border border-adopted-100 rounded-lg">
@@ -119,7 +136,7 @@
                     </div>
                 </div>
             </div>
-            <div x-show="!profileRequired" class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button @click="showProfile = false" class="px-5 py-2.5 bg-rescue-600 text-white rounded-lg text-sm font-medium hover:bg-rescue-700 transition-colors shadow-sm">Done</button></div>
+            <div x-show="!profileRequired && !editingProfile" class="p-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button @click="showProfile = false" class="px-5 py-2.5 bg-rescue-600 text-white rounded-lg text-sm font-medium hover:bg-rescue-700 transition-colors shadow-sm">Done</button></div>
         </div>
     </div>
     <?php endif; ?>

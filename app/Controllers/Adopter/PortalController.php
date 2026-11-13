@@ -596,15 +596,33 @@ class PortalController extends BaseController
     {
         $user = session('adopter_user');
         if (! $user) return redirect()->to('/')->with('error', 'Please sign in to continue.');
-        $phone = trim((string) $this->request->getPost('phone'));
+        $phone = preg_replace('/[\s\-().]+/', '', trim((string) $this->request->getPost('phone'))) ?? '';
         $address = trim((string) $this->request->getPost('address'));
-        if ($phone === '' || $address === '') return redirect()->back()->with('error', 'Phone number and complete address are required.');
-        (new AdopterModel())->update($user['adopter_id'], ['phone' => $phone, 'address' => $address]);
+        if (! preg_match('/^(?:09\d{9}|\+639\d{9})$/', $phone)) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Enter a valid Philippine mobile number using 09XXXXXXXXX or +639XXXXXXXXX.')
+                ->with('profile_modal_open', true)
+                ->with('profile_editing', true);
+        }
+        if (mb_strlen($address) < 10 || mb_strlen($address) > 500) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Enter a complete address between 10 and 500 characters.')
+                ->with('profile_modal_open', true)
+                ->with('profile_editing', true);
+        }
+        if (! (new AdopterModel())->update($user['adopter_id'], ['phone' => $phone, 'address' => $address])) {
+            return redirect()->back()->withInput()
+                ->with('error', 'Your profile could not be updated. Please try again.')
+                ->with('profile_modal_open', true)
+                ->with('profile_editing', true);
+        }
         $user['phone'] = $phone;
         $user['address'] = $address;
         session()->set('adopter_user', $user);
         session()->remove('adopter_profile_setup_required');
-        return redirect()->back()->with('success', 'Profile contact details updated.');
+        return redirect()->back()
+            ->with('success', 'Profile contact details updated successfully.')
+            ->with('profile_modal_open', true);
     }
 
     public function applicationProgress(int $applicationId, int $applicationCatId = null)
