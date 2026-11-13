@@ -20,6 +20,13 @@ foreach ($docs as $key => $_document) {
         default => 'Access Area',
     };
 }
+$draftValues = is_array($draft['values'] ?? null) ? $draft['values'] : [];
+$draftStep = max(0, min((int) ($draft['current_step'] ?? 0), count($stepLabels) - 1));
+$draftCatIds = array_values(array_unique(array_map('intval', (array) ($draftValues['cat_ids'] ?? []))));
+if ($catId > 0 && ! in_array($catId, $draftCatIds, true)) $draftCatIds[] = $catId;
+$fieldValue = static function (string $name, $fallback = '') use ($draftValues) {
+    return old($name, array_key_exists($name, $draftValues) ? $draftValues[$name] : $fallback);
+};
 ?>
 
 <div class="mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12">
@@ -32,15 +39,16 @@ foreach ($docs as $key => $_document) {
     <?php if (! empty($errors)): ?><div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4"><p class="mb-2 text-sm font-semibold text-red-700">Please review the following:</p><ul class="list-inside list-disc space-y-1 text-sm text-red-600"><?php foreach ($errors as $validationError): ?><li><?= esc($validationError) ?></li><?php endforeach ?></ul></div><?php endif ?>
     <?php if (session('error')): ?><div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700"><?= esc(session('error')) ?></div><?php endif ?>
 
-    <form id="adoptionApplication" method="post" action="<?= site_url('adopter/apply') ?>" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" enctype="multipart/form-data" class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm" x-data="applicationWizard(<?= esc(json_encode($stepLabels), 'attr') ?>)">
+    <form id="adoptionApplication" method="post" action="<?= site_url('adopter/apply') ?>" data-draft-url="<?= esc(site_url('adopter/apply/draft')) ?>" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" enctype="multipart/form-data" class="overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm" x-data="applicationWizard(<?= esc(json_encode($stepLabels), 'attr') ?>, <?= $draftStep ?>)">
         <?= csrf_field() ?>
         <input type="hidden" name="cat_id" value="<?= (int) $catId ?>">
         <input id="verificationMetadata" type="hidden" name="verification_metadata">
+        <input id="draftCurrentStep" type="hidden" name="current_step" value="<?= $draftStep ?>">
 
         <div class="sticky top-16 z-30 rounded-t-2xl border-b border-slate-200 bg-white/95 px-4 py-4 shadow-sm backdrop-blur sm:px-6">
             <div class="flex items-end justify-between gap-4">
-                <div><p class="text-sm font-semibold text-slate-900" x-text="'Step ' + (step + 1) + ' of ' + total"></p><p class="mt-0.5 text-xs text-slate-500" x-text="progressText()"></p></div>
-                <p class="max-w-[50%] text-right text-sm font-semibold text-rescue-700" x-text="labels[step]"></p>
+                <div><p class="text-sm font-semibold text-slate-900" x-text="'Step ' + (step + 1) + ' of ' + total"></p><p class="mt-0.5 text-xs text-slate-500" x-text="progressText()"></p><p id="draftSaveStatus" class="mt-1 text-[11px] font-medium <?= ! empty($draft) ? 'text-adopted-700' : 'text-slate-400' ?>" aria-live="polite"><?= ! empty($draft) ? 'Draft restored · Autosave is on' : 'Autosave is on' ?></p></div>
+                <p class="max-w-[45%] text-right text-sm font-semibold text-rescue-700" x-text="labels[step]"></p>
             </div>
             <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div class="h-full rounded-full bg-rescue-600 transition-[width] duration-300 motion-reduce:transition-none" :style="'width:' + progressPercent() + '%'"></div></div>
             <div class="wizard-step-scroll mt-4 overflow-x-auto pb-1">
@@ -62,10 +70,10 @@ foreach ($docs as $key => $_document) {
             <section data-wizard-panel="0" x-show="step === 0" x-transition.opacity.duration.150ms>
                 <div class="mb-6 flex items-start gap-3 border-b border-slate-100 pb-4"><span class="rounded-lg bg-rescue-50 p-2 text-rescue-700"><i data-lucide="user-circle" class="h-5 w-5"></i></span><div><h2 class="text-xl font-semibold text-slate-900">Personal Information</h2><p class="mt-1 text-sm text-slate-500">Confirm your contact information and the cat you want to adopt.</p></div></div>
                 <div class="space-y-5">
-                    <div><label class="mb-2 block text-sm font-medium">Full Name *</label><input required name="full_name" value="<?= esc(old('full_name', $adopter['name'] ?? '')) ?>" class="<?= $input ?>"></div>
-                    <div><label class="mb-2 block text-sm font-medium">Address *</label><input required name="address" value="<?= esc(old('address', $adopter['address'] ?? '')) ?>" class="<?= $input ?>"></div>
-                    <div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-2 block text-sm font-medium">Phone Number *</label><input required type="tel" inputmode="tel" autocomplete="tel" maxlength="13" pattern="(?:09\d{9}|\+639\d{9})" title="Use 09XXXXXXXXX or +639XXXXXXXXX" name="phone" value="<?= esc(old('phone', $adopter['phone'] ?? '')) ?>" @input="$el.value = $el.value.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '')" placeholder="09XXXXXXXXX" class="<?= $input ?>"><p class="mt-1 text-xs text-slate-500">Numbers only. Use 09XXXXXXXXX or +639XXXXXXXXX.</p></div><div><label class="mb-2 block text-sm font-medium">Occupation *</label><input required name="occupation" value="<?= esc(old('occupation', $adopter['occupation'] ?? '')) ?>" class="<?= $input ?>"></div></div>
-                    <div><label class="mb-2 block text-sm font-medium">Specific Cat *</label><?php if ($cat): ?><div class="rounded-xl border border-rescue-100 bg-rescue-50 p-3 font-semibold text-rescue-900"><?= esc($cat['name']) ?> <a class="ml-3 text-sm text-rescue-600" href="<?= site_url('adopter/apply') ?>">Change</a></div><?php else: ?><input required name="cat_description" value="<?= esc(old('cat_description')) ?>" placeholder="Cat name, color, or location" class="<?= $input ?>"><?php endif ?></div>
+                    <div><label class="mb-2 block text-sm font-medium">Full Name *</label><input required name="full_name" value="<?= esc($fieldValue('full_name', $adopter['name'] ?? '')) ?>" class="<?= $input ?>"></div>
+                    <div><label class="mb-2 block text-sm font-medium">Address *</label><input required name="address" value="<?= esc($fieldValue('address', $adopter['address'] ?? '')) ?>" class="<?= $input ?>"></div>
+                    <div class="grid gap-4 sm:grid-cols-2"><div><label class="mb-2 block text-sm font-medium">Phone Number *</label><input required type="tel" inputmode="tel" autocomplete="tel" maxlength="13" pattern="(?:09\d{9}|\+639\d{9})" title="Use 09XXXXXXXXX or +639XXXXXXXXX" name="phone" value="<?= esc($fieldValue('phone', $adopter['phone'] ?? '')) ?>" @input="$el.value = $el.value.replace(/[^\d+]/g, '').replace(/(?!^)\+/g, '')" placeholder="09XXXXXXXXX" class="<?= $input ?>"><p class="mt-1 text-xs text-slate-500">Numbers only. Use 09XXXXXXXXX or +639XXXXXXXXX.</p></div><div><label class="mb-2 block text-sm font-medium">Occupation *</label><input required name="occupation" value="<?= esc($fieldValue('occupation', $adopter['occupation'] ?? '')) ?>" class="<?= $input ?>"></div></div>
+                    <div><label class="mb-2 block text-sm font-medium">Specific Cat *</label><?php if ($cat): ?><div class="rounded-xl border border-rescue-100 bg-rescue-50 p-3 font-semibold text-rescue-900"><?= esc($cat['name']) ?> <a class="ml-3 text-sm text-rescue-600" href="<?= site_url('adopter/apply') ?>">Change</a></div><?php else: ?><input required name="cat_description" value="<?= esc($fieldValue('cat_description')) ?>" placeholder="Cat name, color, or location" class="<?= $input ?>"><?php endif ?></div>
                 </div>
             </section>
 
@@ -76,8 +84,8 @@ foreach ($docs as $key => $_document) {
                     <div class="mb-6 flex items-start gap-3 border-b border-slate-100 pb-4"><span class="rounded-lg bg-rescue-50 p-2 text-rescue-700"><i data-lucide="heart-handshake" class="h-5 w-5"></i></span><div><p class="text-xs font-semibold text-rescue-700">Assessment question <?= $assessmentStep ?> of <?= count($assessmentGroups) ?></p><h2 class="mt-1 text-xl font-semibold text-slate-900"><?= esc($group['title']) ?></h2><p class="mt-1 text-sm text-slate-500">Answer the main question and its four related questions before continuing.</p></div></div>
                     <fieldset>
                         <legend class="sr-only"><?= esc($group['title']) ?></legend>
-                        <div class="rounded-xl border border-rescue-100 bg-rescue-50/60 p-4"><label for="assessment_<?= esc($groupKey) ?>_main" class="block text-sm font-semibold text-rescue-900">Main question</label><p class="mt-2 text-sm leading-6 text-slate-700"><?= esc($group['question']) ?></p><textarea id="assessment_<?= esc($groupKey) ?>_main" required maxlength="3000" name="assessment_<?= esc($groupKey) ?>_main" rows="4" class="<?= $input ?> mt-3 resize-y" placeholder="Your main answer…"><?= esc(old('assessment_' . $groupKey . '_main')) ?></textarea></div>
-                        <div class="mt-5 space-y-5"><?php foreach (($group['subquestions'] ?? []) as $index => $subquestion): ?><div><label for="assessment_<?= esc($groupKey) ?>_sub_<?= $index + 1 ?>" class="block text-sm font-medium text-slate-800"><span class="mr-1 text-rescue-700"><?= $index + 1 ?>.</span><?= esc($subquestion) ?></label><textarea id="assessment_<?= esc($groupKey) ?>_sub_<?= $index + 1 ?>" required maxlength="2000" name="assessment_<?= esc($groupKey) ?>_sub_<?= $index + 1 ?>" rows="3" class="<?= $input ?> mt-2 resize-y" placeholder="Your answer…"><?= esc(old('assessment_' . $groupKey . '_sub_' . ($index + 1))) ?></textarea></div><?php endforeach ?></div>
+                        <div class="rounded-xl border border-rescue-100 bg-rescue-50/60 p-4"><label for="assessment_<?= esc($groupKey) ?>_main" class="block text-sm font-semibold text-rescue-900">Main question</label><p class="mt-2 text-sm leading-6 text-slate-700"><?= esc($group['question']) ?></p><textarea id="assessment_<?= esc($groupKey) ?>_main" required maxlength="3000" name="assessment_<?= esc($groupKey) ?>_main" rows="4" class="<?= $input ?> mt-3 resize-y" placeholder="Your main answer…"><?= esc($fieldValue('assessment_' . $groupKey . '_main')) ?></textarea></div>
+                        <div class="mt-5 space-y-5"><?php foreach (($group['subquestions'] ?? []) as $index => $subquestion): ?><div><label for="assessment_<?= esc($groupKey) ?>_sub_<?= $index + 1 ?>" class="block text-sm font-medium text-slate-800"><span class="mr-1 text-rescue-700"><?= $index + 1 ?>.</span><?= esc($subquestion) ?></label><textarea id="assessment_<?= esc($groupKey) ?>_sub_<?= $index + 1 ?>" required maxlength="2000" name="assessment_<?= esc($groupKey) ?>_sub_<?= $index + 1 ?>" rows="3" class="<?= $input ?> mt-2 resize-y" placeholder="Your answer…"><?= esc($fieldValue('assessment_' . $groupKey . '_sub_' . ($index + 1))) ?></textarea></div><?php endforeach ?></div>
                     </fieldset>
                 </section>
             <?php endforeach ?>
@@ -108,9 +116,9 @@ foreach ($docs as $key => $_document) {
 <style>.wizard-step-scroll{scrollbar-width:thin;scrollbar-color:#B8DED2 transparent}.wizard-step-scroll::-webkit-scrollbar{height:4px}.wizard-step-scroll::-webkit-scrollbar-thumb{background:#B8DED2;border-radius:999px}</style>
 
 <script>
-function applicationWizard(labels) {
+function applicationWizard(labels, initialStep) {
     return {
-        step: 0, labels: labels, total: labels.length, completed: labels.map(function () { return false; }),
+        step: Math.max(0, Math.min(Number(initialStep) || 0, labels.length - 1)), labels: labels, total: labels.length, completed: labels.map(function (_label, index) { return index < initialStep; }),
         progressPercent: function () { return Math.round((this.completed.filter(Boolean).length / this.total) * 100); },
         progressText: function () { var percent = this.progressPercent(); return percent === 0 ? 'Start with the details below.' : (percent === 100 ? 'Application sections complete.' : "You're " + percent + '% complete.'); },
         currentPanel: function () { return this.$root.querySelector('[data-wizard-panel="' + this.step + '"]'); },
@@ -122,8 +130,9 @@ function applicationWizard(labels) {
             if (captureCard && captureCard.querySelector('.capture-file').files.length !== 1) { var captureError = document.getElementById('captureError'); captureError.textContent = 'Capture and review this required photo before continuing.'; captureError.classList.remove('hidden'); captureCard.scrollIntoView({ behavior: 'smooth', block: 'center' }); return false; }
             var errorBox = document.getElementById('captureError'); if (errorBox) errorBox.classList.add('hidden'); return true;
         },
-        next: function () { if (!this.validateCurrent()) return; this.completed[this.step] = true; this.completed = this.completed.slice(); if (this.step < this.total - 1) this.step += 1; this.focusStep(); },
-        previous: function () { if (this.step > 0) this.step -= 1; this.focusStep(); },
+        syncDraftStep: function () { var input = document.getElementById('draftCurrentStep'); if (input) input.value = this.step; this.$root.dispatchEvent(new CustomEvent('application-draft-change')); },
+        next: function () { if (!this.validateCurrent()) return; this.completed[this.step] = true; this.completed = this.completed.slice(); if (this.step < this.total - 1) this.step += 1; this.syncDraftStep(); this.focusStep(); },
+        previous: function () { if (this.step > 0) this.step -= 1; this.syncDraftStep(); this.focusStep(); },
         focusStep: function () { var form = this.$root, current = this.step; this.$nextTick(function () { form.scrollIntoView({ behavior: 'smooth', block: 'start' }); var marker = form.querySelector('[data-step-index="' + current + '"]'); if (marker) marker.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); if (window.lucide) window.lucide.createIcons(); }); }
     };
 }
@@ -131,24 +140,90 @@ function applicationWizard(labels) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    var form = document.getElementById('adoptionApplication');
+    var status = document.getElementById('draftSaveStatus');
+    if (!form || !status || !form.dataset.draftUrl) return;
+    var timer = null, requestActive = false, queued = false, disabled = false;
+
+    function setStatus(message, tone) {
+        status.textContent = message;
+        status.className = 'mt-1 text-[11px] font-medium ' + (tone === 'error' ? 'text-red-600' : (tone === 'saving' ? 'text-amber-700' : 'text-adopted-700'));
+    }
+    function draftBody() {
+        var body = new URLSearchParams();
+        new FormData(form).forEach(function (value, key) {
+            if (value instanceof File || key === 'verification_metadata') return;
+            body.append(key, value);
+        });
+        return body;
+    }
+    function saveDraft(keepalive) {
+        if (disabled) return;
+        if (requestActive) { queued = true; return; }
+        requestActive = true; queued = false; setStatus('Saving draft…', 'saving');
+        fetch(form.dataset.draftUrl, {
+            method: 'POST', credentials: 'same-origin', keepalive: Boolean(keepalive),
+            headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+            body: draftBody().toString()
+        }).then(function (response) {
+            if (!response.ok) throw new Error(response.status === 401 ? 'Your session expired. Sign in again to save.' : 'Draft could not be saved.');
+            return response.json();
+        }).then(function () {
+            var time = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(new Date());
+            setStatus('Draft saved at ' + time, 'saved');
+        }).catch(function (error) {
+            setStatus(error.message || 'Draft not saved. Check your connection.', 'error');
+        }).finally(function () {
+            requestActive = false;
+            if (queued && !disabled) saveDraft(false);
+        });
+    }
+    function scheduleSave() {
+        if (disabled) return;
+        window.clearTimeout(timer); setStatus('Saving soon…', 'saving');
+        timer = window.setTimeout(function () { saveDraft(false); }, 900);
+    }
+
+    form.addEventListener('input', function (event) {
+        if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) scheduleSave();
+    });
+    form.addEventListener('change', function (event) {
+        if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) scheduleSave();
+    });
+    form.addEventListener('application-draft-change', function () {
+        window.clearTimeout(timer); saveDraft(false);
+    });
+    form.addEventListener('application-final-submit', function () { disabled = true; window.clearTimeout(timer); });
+    window.addEventListener('online', scheduleSave);
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden' && !disabled) { window.clearTimeout(timer); saveDraft(true); }
+    });
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
     var cats = <?= json_encode(array_map(static fn (array $item): array => ['id' => (int) $item['id'], 'name' => $item['name'], 'breed' => $item['breed'], 'age' => $item['age'], 'image' => $item['image_url'] ? base_url($item['image_url']) : 'https://images.unsplash.com/photo-1574158622682-e40ad296ce3f?auto=format&fit=crop&w=160&q=80'], $availableCats), JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-    var initial = <?= (int) $catId ?>;
+    var form = document.getElementById('adoptionApplication');
     var label = Array.from(document.querySelectorAll('label')).find(function (item) { return item.textContent.trim().indexOf('Specific Cat') === 0; });
-    if (!label) return;
+    if (!form || !label) return;
     var holder = label.parentElement;
-    var selected = initial ? [initial] : [];
+    var selected = <?= json_encode($draftCatIds) ?>;
+    var draftDescription = <?= json_encode((string) $fieldValue('cat_description'), JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     function esc(value) { var node = document.createElement('span'); node.textContent = value || ''; return node.innerHTML; }
     function render() {
+        var currentDescription = holder.querySelector('[name="cat_description"]');
+        if (currentDescription) draftDescription = currentDescription.value;
         var chosen = cats.filter(function (cat) { return selected.indexOf(cat.id) !== -1; });
         holder.innerHTML = '<div class="mb-2 flex items-center justify-between"><label class="block text-sm font-medium">Specific Cat <span class="text-red-500">*</span></label><button type="button" id="addAnotherCat" class="text-sm font-semibold text-rescue-600">Add another cat</button></div><p class="mb-3 text-xs text-slate-500">Choose one or more available cats for this application.</p><div id="selectedCats" class="space-y-2"></div><div id="catChooser" class="mt-3 hidden rounded-xl border border-slate-200 bg-slate-50 p-3"><div class="grid gap-2 sm:grid-cols-2"></div></div>';
         var selectedBox = document.getElementById('selectedCats');
         chosen.forEach(function (cat) { selectedBox.insertAdjacentHTML('beforeend', '<div class="flex items-center gap-3 rounded-xl border border-rescue-100 bg-rescue-50 p-3"><input type="hidden" name="cat_ids[]" value="' + cat.id + '"><img src="' + esc(cat.image) + '" class="h-12 w-12 rounded-lg border border-rescue-200 object-cover" alt="' + esc(cat.name) + '"><div class="min-w-0"><p class="font-semibold text-rescue-950">' + esc(cat.name) + '</p><p class="text-xs text-rescue-700">' + esc(cat.breed) + ' · ' + esc(cat.age) + '</p></div><button type="button" data-remove="' + cat.id + '" class="ml-auto rounded-lg p-2 text-red-600 hover:bg-red-100">Remove</button></div>'); });
-        if (!chosen.length) selectedBox.innerHTML = '<input required name="cat_description" placeholder="Choose a cat below, or enter its name/color/location" class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm">';
+        if (!chosen.length) selectedBox.innerHTML = '<input required name="cat_description" value="' + esc(draftDescription) + '" placeholder="Choose a cat below, or enter its name/color/location" class="w-full rounded-lg border border-slate-200 px-4 py-2.5 text-sm">';
         var grid = document.querySelector('#catChooser .grid');
         cats.forEach(function (cat) { var active = selected.indexOf(cat.id) !== -1; grid.insertAdjacentHTML('beforeend', '<button type="button" data-pick="' + cat.id + '" class="flex items-center gap-3 rounded-lg border bg-white p-2 text-left ' + (active ? 'border-rescue-500' : 'border-slate-200') + '"><img src="' + esc(cat.image) + '" class="h-10 w-10 rounded object-cover"><span><b class="block text-sm">' + esc(cat.name) + '</b><small class="text-slate-500">' + esc(cat.breed) + '</small></span></button>'); });
         document.getElementById('addAnotherCat').onclick = function () { document.getElementById('catChooser').classList.toggle('hidden'); };
-        holder.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { selected = selected.filter(function (id) { return id !== Number(button.dataset.remove); }); render(); }; });
-        holder.querySelectorAll('[data-pick]').forEach(function (button) { button.onclick = function () { var id = Number(button.dataset.pick); if (selected.indexOf(id) === -1) selected.push(id); render(); document.getElementById('catChooser').classList.remove('hidden'); }; });
+        holder.querySelectorAll('[data-remove]').forEach(function (button) { button.onclick = function () { selected = selected.filter(function (id) { return id !== Number(button.dataset.remove); }); render(); form.dispatchEvent(new CustomEvent('application-draft-change')); }; });
+        holder.querySelectorAll('[data-pick]').forEach(function (button) { button.onclick = function () { var id = Number(button.dataset.pick); if (selected.indexOf(id) === -1) selected.push(id); render(); document.getElementById('catChooser').classList.remove('hidden'); form.dispatchEvent(new CustomEvent('application-draft-change')); }; });
     }
     render();
 });
@@ -167,6 +242,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var cards = form.querySelectorAll('.verification-capture');
         var valid = cards.length === 5 && Array.prototype.every.call(cards, function (card) { return card.querySelector('.capture-file').files.length === 1; }) && document.getElementById('verificationMetadata').value;
         if (!valid) { var error = document.getElementById('captureError'); error.textContent = 'Capture all five live verification photos before submitting.'; error.classList.remove('hidden'); document.getElementById('liveVerification').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+        form.dispatchEvent(new CustomEvent('application-final-submit'));
         button.disabled = true; button.querySelector('span').textContent = 'Submitting application…'; HTMLFormElement.prototype.submit.call(form);
     }, true);
 });

@@ -5,6 +5,7 @@ namespace App\Controllers\Adopter;
 use App\Controllers\BaseController;
 use App\Models\AdopterModel;
 use App\Models\AdoptionApplicationModel;
+use App\Models\AdoptionApplicationDraftModel;
 use App\Models\AnimalModel;
 use App\Models\ApplicationCatModel;
 use App\Services\DocumentOcrService;
@@ -42,6 +43,40 @@ class ApplicationController extends BaseController
             $availableCatModel->whereNotIn('id', $appliedCatIds);
         }
 
+        $draft = null;
+        try {
+            $draftRow = (new AdoptionApplicationDraftModel())->findForAdopter($adopterId);
+            if ($draftRow) {
+                $draftValues = json_decode((string) $draftRow['payload'], true);
+                if (is_array($draftValues)) {
+                    $availableIds = array_map('intval', array_column($availableCatModel->findAll(), 'id'));
+                    $savedCatIds = array_values(array_intersect(
+                        array_values(array_unique(array_map('intval', (array) ($draftValues['cat_ids'] ?? [])))),
+                        $availableIds,
+                    ));
+                    if ($catId > 0 && ! in_array($catId, $savedCatIds, true)) {
+                        $savedCatIds[] = $catId;
+                    }
+                    $draftValues['cat_ids'] = $savedCatIds;
+                    $firstPhotoStep = 1 + count((new AdoptionAssessmentService())->groups());
+                    $draft = [
+                        'values' => $draftValues,
+                        // Unsubmitted live photos intentionally do not persist.
+                        'current_step' => min((int) $draftRow['current_step'], $firstPhotoStep),
+                        'updated_at' => $draftRow['updated_at'] ?? null,
+                    ];
+                }
+            }
+        } catch (\Throwable $exception) {
+            log_message('error', 'Application draft could not be loaded: {message}', ['message' => $exception->getMessage()]);
+        }
+
+        // Rebuild after reading the available IDs above.
+        $availableCatModel = (new AnimalModel())->where('status', 'Available');
+        if ($appliedCatIds !== []) {
+            $availableCatModel->whereNotIn('id', $appliedCatIds);
+        }
+
         return view('adopter/application_form_live', [
             'title' => 'Adoption Application',
             'cat' => $cat,
@@ -49,8 +84,54 @@ class ApplicationController extends BaseController
             'adopter' => $adopter,
             'availableCats' => $availableCatModel->orderBy('name', 'ASC')->findAll(),
             'assessmentGroups' => (new AdoptionAssessmentService())->groups(),
+            'draft' => $draft,
             'errors' => session('errors') ?? [],
         ]);
+    }
+
+    public function saveDraft()
+    {
+        $adopterId = (int) session('adopter_user.adopter_id');
+        if ($adopterId <= 0) {
+            return $this->response->setStatusCode(401)->setJSON(['message' => 'Sign in again to save your draft.']);
+        }
+
+        $groups = (new AdoptionAssessmentService())->groups();
+        $post = $this->request->getPost();
+        $payload = [
+            'full_name' => $this->draftText($post['full_name'] ?? '', 150),
+            'address' => $this->draftText($post['address'] ?? '', 255),
+            'phone' => $this->draftText($post['phone'] ?? '', 13),
+            'occupation' => $this->draftText($post['occupation'] ?? '', 100),
+            'cat_description' => $this->draftText($post['cat_description'] ?? '', 255),
+        ];
+        foreach ($groups as $key => $group) {
+            $payload['assessment_' . $key . '_main'] = $this->draftText($post['assessment_' . $key . '_main'] ?? '', 3000);
+            foreach ($group['subquestions'] ?? [] as $index => $_subquestion) {
+                $field = 'assessment_' . $key . '_sub_' . ($index + 1);
+                $payload[$field] = $this->draftText($post[$field] ?? '', 2000);
+            }
+        }
+
+        $catIds = array_values(array_unique(array_filter(array_map('intval', (array) ($post['cat_ids'] ?? [])))));
+        $appliedCatIds = (new AdoptionApplicationModel())->appliedCatIdsForAdopter($adopterId);
+        if ($catIds !== []) {
+            $availableRows = (new AnimalModel())->select('id')->whereIn('id', $catIds)->where('status', 'Available')->findAll();
+            $availableIds = array_map('intval', array_column($availableRows, 'id'));
+            $catIds = array_values(array_diff(array_intersect($catIds, $availableIds), $appliedCatIds));
+        }
+        $payload['cat_ids'] = $catIds;
+
+        $lastStep = count($groups) + count(self::DOCUMENT_FIELDS);
+        $currentStep = max(0, min((int) ($post['current_step'] ?? 0), $lastStep));
+        try {
+            (new AdoptionApplicationDraftModel())->saveForAdopter($adopterId, $payload, $currentStep);
+        } catch (\Throwable $exception) {
+            log_message('error', 'Application draft could not be saved: {message}', ['message' => $exception->getMessage()]);
+            return $this->response->setStatusCode(500)->setJSON(['message' => 'Draft could not be saved. Check your connection and try again.']);
+        }
+
+        return $this->response->setJSON(['message' => 'Draft saved', 'saved_at' => date(DATE_ATOM)]);
     }
 
     public function submit()
@@ -221,6 +302,11 @@ class ApplicationController extends BaseController
 
         session()->setFlashdata('app_submitted', true);
         session()->setFlashdata('app_code', $applicationCode);
+        try {
+            (new AdoptionApplicationDraftModel())->deleteForAdopter($adopterId);
+        } catch (\Throwable $exception) {
+            log_message('warning', 'Submitted application draft cleanup failed: {message}', ['message' => $exception->getMessage()]);
+        }
         return redirect()->to('/adopter/apply/success');
     }
 
@@ -250,6 +336,11 @@ class ApplicationController extends BaseController
             $code = 'APP-' . strtoupper(bin2hex(random_bytes(3)));
         } while ((new AdoptionApplicationModel())->where('application_id', $code)->first());
         return $code;
+    }
+
+    private function draftText($value, int $maximumLength): string
+    {
+        return mb_substr(trim((string) $value), 0, $maximumLength);
     }
 
     private function validateLiveCapture($file, string $field, $metadata): ?string

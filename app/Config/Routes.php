@@ -41,6 +41,7 @@ $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCol
     $routes->get('apply', 'Adopter\ApplicationController::index');
     $routes->get('apply/success', 'Adopter\ApplicationController::success');
     $routes->get('apply/(:num)', 'Adopter\ApplicationController::index/$1');
+    $routes->post('apply/draft', 'Adopter\ApplicationController::saveDraft');
     $routes->post('apply', 'Adopter\ApplicationController::submit');
     $routes->get('portal', 'Adopter\PortalController::index');
     $routes->get('portal/(:num)', 'Adopter\PortalController::index/$1');
