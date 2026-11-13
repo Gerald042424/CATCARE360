@@ -324,6 +324,10 @@ document.addEventListener('DOMContentLoaded', function () {
     video.classList.remove('mt-4', 'rounded-lg');
     video.classList.add('h-full', 'w-full');
     frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-[8%] rounded-xl border-2 border-dashed border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.22)]"><span class="absolute -top-7 left-0 rounded bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">Complete ID inside guide · portrait or landscape</span></div><div class="id-countdown-overlay pointer-events-none absolute inset-0 hidden items-center justify-center bg-slate-950/55 text-center text-white"><div><strong class="id-countdown-number block text-7xl font-black leading-none">3</strong><span class="mt-3 block px-5 text-sm font-semibold">ID verified. Hold it steady for automatic capture.</span></div></div>');
+    var extractedPanel = document.createElement('section');
+    extractedPanel.className = 'id-extracted-panel mt-4 hidden rounded-xl border border-rescue-200 bg-rescue-50/70 p-4';
+    extractedPanel.innerHTML = '<div class="flex items-start gap-3"><span class="rounded-lg bg-white p-2 text-rescue-700 shadow-sm"><i data-lucide="scan-text" class="h-5 w-5"></i></span><div><h3 class="text-sm font-semibold text-slate-900">Extracted ID Information</h3><p class="mt-1 text-xs leading-5 text-slate-600">Text recognized locally from the verified camera frame.</p></div></div><dl class="id-extracted-fields mt-4 grid gap-3 sm:grid-cols-2"></dl><details class="mt-4 rounded-lg border border-rescue-200 bg-white"><summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-rescue-800">View recognized text</summary><pre class="id-recognized-text max-h-40 overflow-auto whitespace-pre-wrap border-t border-rescue-100 px-3 py-2 text-[11px] leading-5 text-slate-600"></pre></details><p class="mt-3 text-[11px] leading-5 text-slate-500">Preliminary OCR only. Extracted text does not certify that the ID is genuine and remains subject to staff review.</p>';
+    card.querySelector('.capture-preview-wrap').insertAdjacentElement('afterend', extractedPanel);
     var scanButton = document.createElement('button');
     scanButton.type = 'button';
     scanButton.className = 'scan-id hidden rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50';
@@ -353,6 +357,69 @@ document.addEventListener('DOMContentLoaded', function () {
     box.querySelector('.id-scan-title').textContent = title;
     box.querySelector('.id-scan-detail').textContent = detail;
   }
+  function cleanRecognizedLines(text) {
+    var seen = {};
+    return String(text || '').split(/\r?\n/).map(function (line) {
+      return line.replace(/[^A-Za-z0-9<>,.\/:'()\-\s]/g, ' ').replace(/\s+/g, ' ').trim();
+    }).filter(function (line) {
+      if (line.length < 2 || seen[line]) return false;
+      seen[line] = true;
+      return true;
+    }).slice(0, 14);
+  }
+  function labeledIdValue(lines, labels, pattern) {
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!labels.test(lines[index])) continue;
+      var sameLine = lines[index].match(pattern);
+      if (sameLine) return sameLine[0];
+      var nextLine = lines[index + 1] && lines[index + 1].match(pattern);
+      if (nextLine) return nextLine[0];
+    }
+    return null;
+  }
+  function extractIdInformation(text, detectedType, confidence, nameMatchCount) {
+    var lines = cleanRecognizedLines(text), joined = lines.join(' ').toUpperCase();
+    var fullNameInput = form.querySelector('[name="full_name"]'), applicantName = fullNameInput ? fullNameInput.value.trim() : '';
+    var numberPatterns = {
+      philhealth: /\b\d{2}[-\s]?\d{9}[-\s]?\d\b/,
+      national_id: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/,
+      drivers_license: /\b[A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6}\b/,
+      passport: /\b[A-Z]\d{7}\b/,
+      umid: /\b\d{4}[-\s]?\d{7}[-\s]?\d\b/,
+      postal_id: /\b(?:PRN\s*)?[A-Z0-9]{4}[-\s][A-Z0-9-]{5,12}\b/
+    };
+    var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
+    var datePattern = /\b(?:\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*\s+\d{1,2},?\s+\d{4})\b/i;
+    var sexMatch = joined.match(/\b(?:SEX|GENDER)\s*[:\-]?\s*(MALE|FEMALE|M|F)\b/);
+    return {
+      lines: lines,
+      fields: [
+        ['Detected ID type', idTypeLabel(detectedType)],
+        ['Applicant name', applicantName + (nameMatchCount === 2 ? ' — first and last name matched' : ' — partial OCR match')],
+        ['Document number', numberMatch ? numberMatch[0].replace(/\s+/g, '-') : 'Not confidently read'],
+        ['OCR text status', 'Readable for preliminary screening'],
+        ['Birth date', labeledIdValue(lines, /BIRTH|BIRTHDATE|DATE OF BIRTH|DOB/i, datePattern)],
+        ['Expiry date', labeledIdValue(lines, /EXPIR|VALID UNTIL|VALIDITY/i, datePattern)],
+        ['Sex', sexMatch ? sexMatch[1] : null]
+      ].filter(function (field) { return field[1]; })
+    };
+  }
+  function showIdExtraction(card, extraction) {
+    var panel = card.querySelector('.id-extracted-panel'), fields = panel && panel.querySelector('.id-extracted-fields');
+    if (!panel || !fields) return;
+    fields.innerHTML = '';
+    extraction.fields.forEach(function (field) {
+      var item = document.createElement('div');
+      item.className = 'rounded-lg border border-rescue-100 bg-white px-3 py-2.5';
+      var term = document.createElement('dt'), value = document.createElement('dd');
+      term.className = 'text-[11px] font-medium text-slate-500'; term.textContent = field[0];
+      value.className = 'mt-1 break-words text-sm font-semibold text-slate-900'; value.textContent = field[1];
+      item.appendChild(term); item.appendChild(value); fields.appendChild(item);
+    });
+    panel.querySelector('.id-recognized-text').textContent = extraction.lines.length ? extraction.lines.join('\n') : 'No additional text was confidently recognized.';
+    panel.classList.remove('hidden');
+    if (window.lucide) window.lucide.createIcons();
+  }
   function resetIdVerification(card) {
     if (!isGovernmentId(card)) return;
     if (card._idCountdownTimer) window.clearTimeout(card._idCountdownTimer);
@@ -367,6 +434,9 @@ document.addEventListener('DOMContentLoaded', function () {
     card._idVerified = false;
     card._idVerifiedAt = 0;
     card._idVerification = null;
+    card._idExtraction = null;
+    var extractedPanel = card.querySelector('.id-extracted-panel');
+    if (extractedPanel) extractedPanel.classList.add('hidden');
     card.querySelector('.capture-photo').disabled = true;
     card.querySelector('.capture-photo').textContent = 'Automatic capture after scan';
     var scan = card.querySelector('.scan-id'), select = card.querySelector('.id-type-select');
@@ -648,6 +718,8 @@ document.addEventListener('DOMContentLoaded', function () {
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
       card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, type_basis: 'ocr_marker', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
+      card._idExtraction = extractIdInformation(text, detectedType, confidence, nameMatchCount);
+      showIdExtraction(card, card._idExtraction);
       captureButton.disabled = true;
       captureButton.textContent = 'Automatic capture in 3…';
       card.querySelector('.capture-state').textContent = 'Screening passed';
