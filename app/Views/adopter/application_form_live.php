@@ -3,7 +3,7 @@
 <?php
 $input = 'w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-rescue-500 focus:outline-none focus:ring-2 focus:ring-rescue-500/20';
 $docs = [
-    'selfie' => ['Live Selfie Verification', 'Use the front camera and complete the blink or head-turn challenge before capturing.', 'scan-face'],
+    'selfie' => ['Live Selfie Verification', 'Keep your face inside the on-screen guide. The camera captures automatically after the blink or head-turn challenge.', 'scan-face'],
     'gov_id' => ['Valid Government-Issued ID', 'Scan an original ID that belongs to the applicant and is unexpired when an expiry date applies.', 'credit-card'],
     'address_proof' => ['Proof of Address', 'Capture a current utility bill, lease, or bank statement with readable text.', 'file-text'],
     'home_photos' => ['Indoor Living Area', 'Capture a wide, well-lit view of the actual indoor area where the cat will live.', 'house'],

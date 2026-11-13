@@ -29,7 +29,16 @@ document.addEventListener('DOMContentLoaded', function () {
   var tesseractWorkerPromise = null;
   function error(message) { errorBox.textContent = message; errorBox.classList.remove('hidden'); }
   function clearError() { errorBox.textContent = ''; errorBox.classList.add('hidden'); }
-  function note(card, message, color) { var el = card.querySelector('.location-status'); el.textContent = message; el.className = 'location-status mt-3 text-xs font-medium ' + color; }
+  function note(card, message, color) {
+    var el = card.querySelector('.location-status');
+    if (isSelfie(card) && card._stream && !captures.selfie) {
+      el.textContent = '';
+      el.className = 'location-status hidden';
+      return;
+    }
+    el.textContent = message;
+    el.className = 'location-status mt-3 text-xs font-medium ' + color;
+  }
   function isSelfie(card) { return card.dataset.key === 'selfie'; }
   function isGovernmentId(card) { return card.dataset.key === 'gov_id'; }
   function isAddressProof(card) { return card.dataset.key === 'address_proof'; }
@@ -42,25 +51,26 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function ensureFacePanel(card) {
     if (!isSelfie(card) || card.querySelector('.face-liveness-panel')) return;
-    var panel = document.createElement('div');
-    panel.className = 'face-liveness-panel mt-3 hidden rounded-xl border border-blue-200 bg-blue-50 p-3';
-    panel.innerHTML = '<div class="flex items-center gap-2"><span class="face-liveness-dot h-2.5 w-2.5 rounded-full bg-blue-500"></span><strong class="face-liveness-title text-sm text-blue-900">Face verification</strong></div><p class="face-liveness-message mt-1 text-xs leading-5 text-blue-800">Keep your face centered in the camera.</p>';
-    card.querySelector('.camera-stream').insertAdjacentElement('afterend', panel);
+    var video = card.querySelector('.camera-stream'), frame = document.createElement('div');
+    frame.className = 'selfie-camera-frame relative mt-4 hidden overflow-hidden rounded-xl bg-slate-950';
+    video.parentNode.insertBefore(frame, video);
+    frame.appendChild(video);
+    video.classList.remove('rounded-lg');
+    video.classList.add('block', 'w-full');
+    frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-0 overflow-hidden"><div class="face-guide absolute left-1/2 top-[47%] h-[66%] w-[58%] max-w-[21rem] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-[3px] border-white/90 shadow-[0_0_0_999px_rgba(2,6,23,.30)] transition-colors duration-200"></div><div class="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/20 bg-slate-950/75 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm">Keep your full face inside the oval</div><div class="face-liveness-panel absolute inset-x-3 bottom-3 hidden rounded-xl border border-white/25 bg-slate-950/80 p-3 text-white shadow-lg backdrop-blur-sm"><div class="flex items-center gap-2"><span class="face-liveness-dot h-2.5 w-2.5 rounded-full bg-sky-400"></span><strong class="face-liveness-title text-sm text-white">Face verification</strong></div><p class="face-liveness-message mt-1 text-xs leading-5 text-slate-100">Keep your face centered in the camera.</p></div><div class="selfie-capture-flash absolute inset-0 hidden bg-white/80"></div></div>');
   }
   function faceMessage(card, title, message, tone) {
     var panel = card.querySelector('.face-liveness-panel');
     if (!panel) return;
-    var colors = tone === 'success'
-      ? ['border-emerald-200', 'bg-emerald-50', 'bg-emerald-500', 'text-emerald-900', 'text-emerald-800']
-      : tone === 'warning'
-        ? ['border-amber-200', 'bg-amber-50', 'bg-amber-500', 'text-amber-900', 'text-amber-800']
-        : ['border-blue-200', 'bg-blue-50', 'bg-blue-500', 'text-blue-900', 'text-blue-800'];
-    panel.className = 'face-liveness-panel mt-3 rounded-xl border p-3 ' + colors[0] + ' ' + colors[1];
-    panel.querySelector('.face-liveness-dot').className = 'face-liveness-dot h-2.5 w-2.5 rounded-full ' + colors[2];
-    panel.querySelector('.face-liveness-title').className = 'face-liveness-title text-sm ' + colors[3];
-    panel.querySelector('.face-liveness-message').className = 'face-liveness-message mt-1 text-xs leading-5 ' + colors[4];
+    var success = tone === 'success', warning = tone === 'warning';
+    panel.className = 'face-liveness-panel absolute inset-x-3 bottom-3 rounded-xl border p-3 text-white shadow-lg backdrop-blur-sm ' + (success ? 'border-emerald-300/70 bg-emerald-950/85' : (warning ? 'border-amber-300/70 bg-amber-950/85' : 'border-sky-300/60 bg-slate-950/85'));
+    panel.querySelector('.face-liveness-dot').className = 'face-liveness-dot h-2.5 w-2.5 rounded-full ' + (success ? 'bg-emerald-400' : (warning ? 'bg-amber-400' : 'bg-sky-400'));
+    panel.querySelector('.face-liveness-title').className = 'face-liveness-title text-sm text-white';
+    panel.querySelector('.face-liveness-message').className = 'face-liveness-message mt-1 text-xs leading-5 text-slate-100';
     panel.querySelector('.face-liveness-title').textContent = title;
     panel.querySelector('.face-liveness-message').textContent = message;
+    var guide = card.querySelector('.face-guide');
+    if (guide) guide.className = 'face-guide absolute left-1/2 top-[47%] h-[66%] w-[58%] max-w-[21rem] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-[3px] shadow-[0_0_0_999px_rgba(2,6,23,.30)] transition-colors duration-200 ' + (success ? 'border-emerald-400' : (warning ? 'border-amber-300' : 'border-white/90'));
   }
   async function getFaceLandmarker() {
     if (faceLandmarkerPromise) return faceLandmarkerPromise;
@@ -117,13 +127,16 @@ document.addEventListener('DOMContentLoaded', function () {
     card._faceChallengeStartedAt = 0;
     card._faceBaselineNose = 0;
     card._faceEyesWereOpen = false;
+    card._faceBlinkDetected = false;
+    card._faceTurnDetected = false;
     card._faceLastDetectedAt = 0;
     card._livenessVerified = false;
     card._livenessVerifiedAt = 0;
     card._livenessChallenge = null;
+    card._faceAutoCapturePending = false;
     var button = card.querySelector('.capture-photo');
     button.disabled = true;
-    button.textContent = isSelfie(card) ? 'Complete face check first' : 'Capture photo';
+    button.textContent = isSelfie(card) ? 'Automatic capture after face check' : 'Capture photo';
     var panel = card.querySelector('.face-liveness-panel');
     if (panel) panel.classList.add('hidden');
   }
@@ -140,6 +153,10 @@ document.addEventListener('DOMContentLoaded', function () {
     video.srcObject = null;
     setCameraOrientation(video, 'environment');
     video.classList.add('hidden');
+    if (isSelfie(card)) {
+      var selfieFrame = card.querySelector('.selfie-camera-frame');
+      if (selfieFrame) selfieFrame.classList.add('hidden');
+    }
     if (isGovernmentId(card)) {
       var frame = card.querySelector('.id-camera-frame'), scan = card.querySelector('.scan-id');
       if (frame) frame.classList.add('hidden');
@@ -149,21 +166,28 @@ document.addEventListener('DOMContentLoaded', function () {
     if (active === card) active = null;
   }
   function passFaceChallenge(card) {
+    if (card._faceAutoCapturePending) return;
     card._livenessVerified = true;
     card._livenessVerifiedAt = Date.now();
     card._livenessChallenge = card._faceChallenge;
     card._faceChallenge = null;
-    card.querySelector('.capture-photo').disabled = false;
-    card.querySelector('.capture-photo').textContent = 'Capture verified selfie';
+    card._faceAutoCapturePending = true;
+    card.querySelector('.capture-photo').disabled = true;
+    card.querySelector('.capture-photo').textContent = 'Capturing verified selfie…';
     card.querySelector('.capture-state').textContent = 'Face verified';
     card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
-    faceMessage(card, 'Face verified', 'Challenge completed. Keep your face visible and capture within 30 seconds.', 'success');
+    faceMessage(card, 'Challenge complete', 'Stay still. Taking your verified selfie now…', 'success');
+    var video = card.querySelector('.camera-stream'), verifiedFrame = frameCanvas(video, 1280), flash = card.querySelector('.selfie-capture-flash');
+    if (flash) { flash.classList.remove('hidden'); window.setTimeout(function () { flash.classList.add('hidden'); }, 180); }
+    capture(card, { sourceCanvas: verifiedFrame, automaticSelfieCapture: true });
   }
   function chooseFaceChallenge(card, geometry, result) {
     card._faceChallenge = Math.random() < 0.5 ? 'blink' : 'turn';
     card._faceChallengeStartedAt = Date.now();
     card._faceBaselineNose = geometry.noseOffset;
     card._faceEyesWereOpen = blendScore(result, 'eyeBlinkLeft') < 0.25 && blendScore(result, 'eyeBlinkRight') < 0.25;
+    card._faceBlinkDetected = false;
+    card._faceTurnDetected = false;
     if (card._faceChallenge === 'blink') faceMessage(card, 'Liveness challenge', 'Blink both eyes once while keeping your face centered.', 'warning');
     else faceMessage(card, 'Liveness challenge', 'Turn your head slightly to either side, then face the camera again.', 'warning');
   }
@@ -210,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function () {
           card.querySelector('.capture-photo').textContent = 'Complete face check first';
           faceMessage(card, 'Verification expired', 'Hold still to receive a new liveness challenge.', 'warning');
         } else {
-          card.querySelector('.capture-photo').disabled = false;
+          card.querySelector('.capture-photo').disabled = card._faceAutoCapturePending;
         }
         return nextFrame();
       }
@@ -229,9 +253,16 @@ document.addEventListener('DOMContentLoaded', function () {
       if (card._faceChallenge === 'blink') {
         var leftBlink = blendScore(result, 'eyeBlinkLeft'), rightBlink = blendScore(result, 'eyeBlinkRight');
         if (leftBlink < 0.25 && rightBlink < 0.25) card._faceEyesWereOpen = true;
-        if (card._faceEyesWereOpen && leftBlink > 0.45 && rightBlink > 0.45) passFaceChallenge(card);
-      } else if (Math.abs(geometry.noseOffset - card._faceBaselineNose) > 0.075) {
-        passFaceChallenge(card);
+        if (!card._faceBlinkDetected && card._faceEyesWereOpen && leftBlink > 0.45 && rightBlink > 0.45) {
+          card._faceBlinkDetected = true;
+          faceMessage(card, 'Blink detected', 'Open your eyes and look at the camera for the automatic snapshot.', 'info');
+        } else if (card._faceBlinkDetected && leftBlink < 0.25 && rightBlink < 0.25) passFaceChallenge(card);
+      } else {
+        var turnDistance = Math.abs(geometry.noseOffset - card._faceBaselineNose);
+        if (!card._faceTurnDetected && turnDistance > 0.075) {
+          card._faceTurnDetected = true;
+          faceMessage(card, 'Head turn detected', 'Face the camera again for the automatic snapshot.', 'info');
+        } else if (card._faceTurnDetected && turnDistance < 0.035) passFaceChallenge(card);
       }
       nextFrame();
     }
@@ -680,13 +711,13 @@ document.addEventListener('DOMContentLoaded', function () {
       setCameraOrientation(video, card._facing);
       video.srcObject = stream;
       video.classList.remove('hidden');
+      if (isSelfie(card)) card.querySelector('.selfie-camera-frame').classList.remove('hidden');
       if (isGovernmentId(card)) card.querySelector('.id-camera-frame').classList.remove('hidden');
       await video.play();
       await ready(video);
       card.querySelector('.start-camera').classList.add('hidden');
       if (isSelfie(card)) {
         card.querySelector('.switch-camera').classList.add('hidden');
-        note(card, 'Front camera ready. Complete the face challenge before capturing.', 'text-blue-700');
         await startFaceVerification(card);
       } else if (isGovernmentId(card)) {
         card.querySelector('.capture-photo').disabled = true;
@@ -746,7 +777,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     var button = card.querySelector('.capture-photo'), canvas = card.querySelector('.capture-canvas');
     button.disabled = true;
-    var liveness = isSelfie(card) ? { verified: true, challenge: card._livenessChallenge, verified_at: new Date(card._livenessVerifiedAt).toISOString(), provider: 'mediapipe_face_landmarker', version: '1.2.0' } : null;
+    var liveness = isSelfie(card) ? { verified: true, challenge: card._livenessChallenge, verified_at: new Date(card._livenessVerifiedAt).toISOString(), provider: 'mediapipe_face_landmarker', version: '1.2.0', capture_mode: options.automaticSelfieCapture ? 'automatic_challenge_frame' : 'manual' } : null;
     var idVerification = isGovernmentId(card) ? Object.assign({}, card._idVerification) : null;
     var captureSource = options.sourceCanvas || video;
     var sourceWidth = captureSource.width || captureSource.videoWidth, sourceHeight = captureSource.height || captureSource.videoHeight;
@@ -774,6 +805,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         if (homeSceneVerification) captureMetadata.home_scene = homeSceneVerification;
         captures[key] = captureMetadata;
+        if (isSelfie(card)) card._faceAutoCapturePending = false;
         meta.value = JSON.stringify(captures);
         var preview = card.querySelector('.capture-preview');
         preview.src = canvas.toDataURL('image/jpeg', .82);
@@ -790,6 +822,12 @@ document.addEventListener('DOMContentLoaded', function () {
       }, 'image/jpeg', .82);
     } catch (reason) {
       button.disabled = false;
+      if (isSelfie(card) && options.automaticSelfieCapture) {
+        card._faceAutoCapturePending = false;
+        resetFaceVerification(card);
+        stop(card);
+        card.querySelector('.start-camera').classList.remove('hidden');
+      }
       if (isGovernmentId(card) && options.automaticIdCapture) {
         card._idVerifiedFrame = null;
         resetIdVerification(card);
@@ -807,7 +845,7 @@ document.addEventListener('DOMContentLoaded', function () {
     card._facing = isSelfie(card) ? 'user' : 'environment';
     ensureFacePanel(card);
     ensureIdPanel(card);
-    if (isSelfie(card)) card.querySelector('.capture-photo').textContent = 'Complete face check first';
+    if (isSelfie(card)) card.querySelector('.capture-photo').textContent = 'Automatic capture after face check';
     if (isGovernmentId(card)) card.querySelector('.capture-photo').textContent = 'Automatic capture after scan';
     card.querySelector('.start-camera').onclick = function () { open(card); };
     card.querySelector('.switch-camera').onclick = function () {
