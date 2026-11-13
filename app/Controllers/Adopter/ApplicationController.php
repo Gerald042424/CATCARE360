@@ -45,7 +45,7 @@ class ApplicationController extends BaseController
 
         $draft = null;
         try {
-            $draftRow = (new AdoptionApplicationDraftModel())->findForAdopter($adopterId);
+            $draftRow = (new AdoptionApplicationDraftModel())->findForAdopter($adopterId, $catId);
             if ($draftRow) {
                 $draftValues = json_decode((string) $draftRow['payload'], true);
                 if (is_array($draftValues)) {
@@ -98,6 +98,7 @@ class ApplicationController extends BaseController
 
         $groups = (new AdoptionAssessmentService())->groups();
         $post = $this->request->getPost();
+        $contextCatId = max(0, (int) ($post['cat_id'] ?? 0));
         $payload = [
             'full_name' => $this->draftText($post['full_name'] ?? '', 150),
             'address' => $this->draftText($post['address'] ?? '', 255),
@@ -125,7 +126,7 @@ class ApplicationController extends BaseController
         $lastStep = count($groups) + count(self::DOCUMENT_FIELDS);
         $currentStep = max(0, min((int) ($post['current_step'] ?? 0), $lastStep));
         try {
-            (new AdoptionApplicationDraftModel())->saveForAdopter($adopterId, $payload, $currentStep);
+            (new AdoptionApplicationDraftModel())->saveForAdopter($adopterId, $contextCatId, $payload, $currentStep);
         } catch (\Throwable $exception) {
             log_message('error', 'Application draft could not be saved: {message}', ['message' => $exception->getMessage()]);
             return $this->response->setStatusCode(500)->setJSON(['message' => 'Draft could not be saved. Check your connection and try again.']);
@@ -303,7 +304,7 @@ class ApplicationController extends BaseController
         session()->setFlashdata('app_submitted', true);
         session()->setFlashdata('app_code', $applicationCode);
         try {
-            (new AdoptionApplicationDraftModel())->deleteForAdopter($adopterId);
+            (new AdoptionApplicationDraftModel())->deleteForAdopter($adopterId, max(0, (int) ($post['cat_id'] ?? 0)));
         } catch (\Throwable $exception) {
             log_message('warning', 'Submitted application draft cleanup failed: {message}', ['message' => $exception->getMessage()]);
         }
