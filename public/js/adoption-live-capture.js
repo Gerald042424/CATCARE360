@@ -383,26 +383,32 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/S/g, '5').replace(/G/g, '6').replace(/B/g, '8')
       .replace(/[^0-9]/g, '');
   }
-  function philHealthNumber(lines) {
-    var candidates = [];
+  function philHealthNumber(lines, applicantName) {
+    var nameParts = normalizeOcr(applicantName).split(/[^A-Z]+/).filter(function (part) { return part.length >= 3; });
+    var nameLines = [];
     lines.forEach(function (line, index) {
-      var nearNumberLabel = /PHILHEALTH|IDENTIFICATION|PIN|NUMBER|NO\.?/i.test(line);
-      if (nearNumberLabel) {
-        candidates.push(line);
-        if (lines[index + 1]) candidates.push(lines[index + 1]);
-      }
+      var normalizedLine = normalizeOcr(line);
+      if (nameParts.some(function (part) { return normalizedLine.indexOf(part) !== -1; })) nameLines.push(index);
     });
-    candidates = candidates.concat(lines);
-    for (var index = 0; index < candidates.length; index += 1) {
-      var chunks = candidates[index].match(/[0-9OQIL|ZSBG][0-9OQIL|ZSBG\s.\-]{9,22}[0-9OQIL|ZSBG]/g) || [];
-      for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
-        var digits = normalizeOcrDigits(chunks[chunkIndex]);
-        if (digits.length === 12) return digits.slice(0, 2) + '-' + digits.slice(2, 11) + '-' + digits.slice(11);
-      }
-    }
-    return null;
+    var candidates = [];
+    lines.forEach(function (line, lineIndex) {
+      var chunks = line.match(/[0-9OQIL|ZSBG][0-9OQIL|ZSBG\s.\-]{9,22}[0-9OQIL|ZSBG]/g) || [];
+      chunks.forEach(function (chunk) {
+        var digits = normalizeOcrDigits(chunk), actualDigits = (chunk.match(/[0-9]/g) || []).length;
+        if (digits.length !== 12 || actualDigits < 11) return;
+        var score = actualDigits * 2;
+        if (/\b(?:PIN|PHILHEALTH\s*(?:ID|NUMBER|NO)|IDENTIFICATION\s*(?:NUMBER|NO)|ID\s*(?:NUMBER|NO))\b/i.test(line)) score += 20;
+        if (nameLines.some(function (nameLine) { return lineIndex >= nameLine - 2 && lineIndex <= nameLine; })) score += 12;
+        if (/^\s*\d{2}[-\s]?\d{9}[-\s]?\d\s*$/.test(chunk)) score += 10;
+        candidates.push({ digits: digits, score: score });
+      });
+    });
+    candidates.sort(function (first, second) { return second.score - first.score; });
+    if (!candidates.length) return null;
+    var best = candidates[0].digits;
+    return best.slice(0, 2) + '-' + best.slice(2, 11) + '-' + best.slice(11);
   }
-  function extractedAddress(lines) {
+  function extractedAddress(lines, applicantName) {
     for (var index = 0; index < lines.length; index += 1) {
       if (!/\b(?:ADDRESS|TIRAHAN)\b/i.test(lines[index])) continue;
       var address = lines[index].replace(/^.*?\b(?:ADDRESS|TIRAHAN)\b\s*[:\-]?\s*/i, '').trim();
@@ -411,6 +417,15 @@ document.addEventListener('DOMContentLoaded', function () {
         address += (address ? ', ' : '') + lines[index + offset];
       }
       if (address.length >= 5) return address;
+    }
+    var nameParts = normalizeOcr(applicantName).split(/[^A-Z]+/).filter(function (part) { return part.length >= 3; });
+    for (var fallbackIndex = 0; fallbackIndex < lines.length; fallbackIndex += 1) {
+      var candidate = lines[fallbackIndex], normalizedCandidate = normalizeOcr(candidate);
+      if (nameParts.some(function (part) { return normalizedCandidate.indexOf(part) !== -1; })) continue;
+      if (/PHILHEALTH|MEMBER|IDENTIFICATION|SIGNATURE|BIRTH|SEX|VALID|EXPIR|REPUBLIC OF (?:THE )?PHILIPPINES/i.test(candidate)) continue;
+      var hasAddressCue = /\b(?:BRGY|BARANGAY|ST|STREET|AVE|AVENUE|ROAD|RD|CITY|MANILA|QUEZON|DISTRICT|PROVINCE|PHILIPPINES)\b/i.test(candidate);
+      var startsWithHouseNumber = /^\s*\d{1,5}[A-Z]?\s+[A-Z]/i.test(candidate);
+      if ((hasAddressCue || startsWithHouseNumber) && candidate.replace(/[^A-Za-z]/g, '').length >= 5) return candidate;
     }
     return null;
   }
@@ -426,9 +441,14 @@ document.addEventListener('DOMContentLoaded', function () {
       postal_id: /\b(?:PRN\s*)?[A-Z0-9]{4}[-\s][A-Z0-9-]{5,12}\b/
     };
     var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
-    var documentNumber = detectedType === 'philhealth' ? philHealthNumber(lines) : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
+    var documentNumber = detectedType === 'philhealth' ? philHealthNumber(lines, applicantName) : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
     var datePattern = /\b(?:\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*\s+\d{1,2},?\s+\d{4})\b/i;
     var sexMatch = joined.match(/\b(?:SEX|GENDER)\s*[:\-]?\s*(MALE|FEMALE|M|F)\b/);
+    var birthDate = labeledIdValue(lines, /BIRTH|BIRTHDATE|DATE OF BIRTH|DOB/i, datePattern);
+    if (!birthDate && detectedType === 'philhealth') {
+      var possibleDates = lines.map(function (line) { var match = line.match(datePattern); return match ? match[0] : null; }).filter(Boolean);
+      if (possibleDates.length === 1) birthDate = possibleDates[0];
+    }
     return {
       lines: lines,
       fields: [
@@ -436,11 +456,11 @@ document.addEventListener('DOMContentLoaded', function () {
         ['Applicant name', applicantName + (nameMatchCount === 2 ? ' — first and last name matched' : ' — partial OCR match')],
         ['Document number', documentNumber || 'Not confidently read'],
         ['OCR text status', 'Readable for preliminary screening'],
-        ['Birth date', labeledIdValue(lines, /BIRTH|BIRTHDATE|DATE OF BIRTH|DOB/i, datePattern)],
-        ['Address', extractedAddress(lines)],
-        ['Expiry date', labeledIdValue(lines, /EXPIR|VALID UNTIL|VALIDITY/i, datePattern)],
-        ['Sex', sexMatch ? sexMatch[1] : null]
-      ].filter(function (field) { return field[1]; })
+        ['Birth date', birthDate || 'Not confidently read'],
+        ['Address', extractedAddress(lines, applicantName) || 'Not confidently read'],
+        ['Expiry date', labeledIdValue(lines, /EXPIR|VALID UNTIL|VALIDITY/i, datePattern) || 'Not confidently read'],
+        ['Sex', sexMatch ? sexMatch[1] : 'Not confidently read']
+      ]
     };
   }
   function showIdExtraction(card, extraction) {
@@ -452,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function () {
       item.className = 'rounded-lg border border-rescue-100 bg-white px-3 py-2.5';
       var term = document.createElement('dt'), value = document.createElement('dd');
       term.className = 'text-[11px] font-medium text-slate-500'; term.textContent = field[0];
-      value.className = 'mt-1 break-words text-sm font-semibold text-slate-900'; value.textContent = field[1];
+      value.className = 'mt-1 break-words text-sm font-semibold ' + (field[1] === 'Not confidently read' ? 'text-amber-700' : 'text-slate-900'); value.textContent = field[1];
       item.appendChild(term); item.appendChild(value); fields.appendChild(item);
     });
     panel.querySelector('.id-recognized-text').textContent = extraction.lines.length ? extraction.lines.join('\n') : 'No additional text was confidently recognized.';
