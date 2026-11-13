@@ -442,11 +442,17 @@ document.addEventListener('DOMContentLoaded', function () {
     };
     var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
     var documentNumber = detectedType === 'philhealth' ? philHealthNumber(lines, applicantName) : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
-    var datePattern = /\b(?:\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*\s+\d{1,2},?\s+\d{4})\b/i;
-    var sexMatch = joined.match(/\b(?:SEX|GENDER)\s*[:\-]?\s*(MALE|FEMALE|M|F)\b/);
+    var monthName = '(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)';
+    var datePattern = new RegExp('\\b(?:\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}|\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}|' + monthName + '\\s+\\d{1,2},?\\s+\\d{4}|\\d{1,2}\\s+' + monthName + ',?\\s+\\d{4})\\b', 'i');
+    var sexValue = labeledIdValue(lines, /\b(?:SEX|GENDER)\b/i, /\b(?:MALE|FEMALE|M|F)\b/i);
+    if (!sexValue) {
+      var standaloneSexValues = lines.filter(function (line) { return /^\s*(?:MALE|FEMALE|M|F)\s*$/i.test(line); });
+      sexValue = standaloneSexValues.length === 1 ? standaloneSexValues[0].trim() : null;
+    }
+    if (sexValue) sexValue = /^F(?:EMALE)?$/i.test(sexValue) ? 'Female' : 'Male';
     var birthDate = labeledIdValue(lines, /BIRTH|BIRTHDATE|DATE OF BIRTH|DOB/i, datePattern);
     if (!birthDate && detectedType === 'philhealth') {
-      var possibleDates = lines.map(function (line) { var match = line.match(datePattern); return match ? match[0] : null; }).filter(Boolean);
+      var possibleDates = lines.map(function (line) { var match = line.match(datePattern); return match ? match[0] : null; }).filter(Boolean).filter(function (date, index, dates) { return dates.indexOf(date) === index; });
       if (possibleDates.length === 1) birthDate = possibleDates[0];
     }
     return {
@@ -459,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ['Birth date', birthDate || 'Not confidently read'],
         ['Address', extractedAddress(lines, applicantName) || 'Not confidently read'],
         ['Expiry date', labeledIdValue(lines, /EXPIR|VALID UNTIL|VALIDITY/i, datePattern) || 'Not confidently read'],
-        ['Sex', sexMatch ? sexMatch[1] : 'Not confidently read']
+        ['Sex', sexValue || 'Not confidently read']
       ]
     };
   }
@@ -594,6 +600,24 @@ document.addEventListener('DOMContentLoaded', function () {
     for (var offset = 0; offset < pixels.length; offset += 4) {
       var gray = pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
       var value = gray < 175 ? 0 : 255;
+      pixels[offset] = value; pixels[offset + 1] = value; pixels[offset + 2] = value;
+    }
+    context.putImageData(image, 0, 0); return target;
+  }
+  function detailEnhancedCanvas(source) {
+    var target = document.createElement('canvas'); target.width = source.width; target.height = source.height;
+    var context = target.getContext('2d', { willReadFrequently: true }); context.drawImage(source, 0, 0);
+    var image = context.getImageData(0, 0, target.width, target.height), pixels = image.data;
+    var minimum = 255, maximum = 0;
+    for (var sampleOffset = 0; sampleOffset < pixels.length; sampleOffset += 16) {
+      var sampleGray = pixels[sampleOffset] * 0.299 + pixels[sampleOffset + 1] * 0.587 + pixels[sampleOffset + 2] * 0.114;
+      minimum = Math.min(minimum, sampleGray); maximum = Math.max(maximum, sampleGray);
+    }
+    var range = Math.max(45, maximum - minimum);
+    for (var offset = 0; offset < pixels.length; offset += 4) {
+      var gray = pixels[offset] * 0.299 + pixels[offset + 1] * 0.587 + pixels[offset + 2] * 0.114;
+      var normalized = Math.max(0, Math.min(255, ((gray - minimum) / range) * 255));
+      var value = Math.max(0, Math.min(255, (normalized - 128) * 1.22 + 128));
       pixels[offset] = value; pixels[offset + 1] = value; pixels[offset + 2] = value;
     }
     context.putImageData(image, 0, 0); return target;
@@ -777,6 +801,19 @@ document.addEventListener('DOMContentLoaded', function () {
       if (nameMatchCount < 1) throw new Error(scanningPassport ? 'The passport was detected, but the applicant name was not readable. Move closer and keep SURNAME and GIVEN NAMES clear.' : 'The scanner could not read any matching name from the ID. Move closer and keep the name area clear.');
       var readableTokens = normalizeOcr(text).split(/[^A-Z0-9]+/).filter(function (part) { return part.length >= 2; }).length;
       if (readableTokens < 4 || confidence < minimumOcrConfidence) throw new Error(scanningPassport ? 'The passport markers were found, but too little text was readable. Keep the biodata page flat and the two MRZ lines fully inside the guide.' : 'Not enough readable ID text was found. Move closer, avoid glare, and scan again.');
+      // Screening can pass as soon as the ID type and name are readable. Run
+      // one additional contrast-balanced pass so smaller fields are extracted
+      // even when the screening pass did not need its fallback OCR attempts.
+      idMessage(card, 'Extracting ID information', 'Improving the reading of the document number, birth date, address, and sex.', 'info');
+      try {
+        var detailResult = await worker.recognize(detailEnhancedCanvas(ocrCanvas));
+        var detailText = detailResult && detailResult.data ? detailResult.data.text : '';
+        var detailConfidence = detailResult && detailResult.data ? Number(detailResult.data.confidence || 0) : 0;
+        text += '\n' + detailText; confidence = Math.max(confidence, detailConfidence);
+      } catch (detailError) {
+        // Field extraction is supplementary; retain the already validated
+        // screening result if this optional detail pass cannot complete.
+      }
       card._idVerified = true;
       card._idVerifiedAt = Date.now();
       card._idVerification = { verified: true, selected_type: select.value, detected_type: detectedType, type_basis: 'ocr_marker', name_match: true, name_match_level: nameMatchCount === 2 ? 'first_and_last' : 'partial', confidence: Math.round(confidence), verified_at: new Date(card._idVerifiedAt).toISOString(), provider: 'tesseract_js', version: '6.0.1', document_detected: true };
