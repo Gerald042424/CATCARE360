@@ -365,7 +365,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (line.length < 2 || seen[line]) return false;
       seen[line] = true;
       return true;
-    }).slice(0, 14);
+    }).slice(0, 80);
   }
   function labeledIdValue(lines, labels, pattern) {
     for (var index = 0; index < lines.length; index += 1) {
@@ -562,7 +562,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function cropCanvas(source, rect) {
     var padding = Math.round(Math.min(rect.width, rect.height) * 0.025), x = Math.max(0, rect.x - padding), y = Math.max(0, rect.y - padding), width = Math.min(source.width - x, rect.width + padding * 2), height = Math.min(source.height - y, rect.height + padding * 2);
-    var target = document.createElement('canvas'), scale = Math.max(1, Math.min(2, 1200 / Math.max(width, height)));
+    var target = document.createElement('canvas'), scale = Math.max(1, Math.min(2.5, 2200 / Math.max(width, height)));
     target.width = Math.round(width * scale); target.height = Math.round(height * scale);
     target.getContext('2d').drawImage(source, x, y, width, height, 0, 0, target.width, target.height);
     return target;
@@ -716,7 +716,10 @@ document.addEventListener('DOMContentLoaded', function () {
     card.querySelector('.capture-state').textContent = 'Scanning ID';
     idMessage(card, 'Checking document', 'Checking the ID framing, lighting, and clarity on this device.', 'info');
     try {
-      var source = frameCanvas(video), analysis = analyzeIdFrame(source), scanningPassport = select.value === 'passport';
+      // Preserve enough native camera detail for small printed fields such as
+      // PhilHealth numbers, birth dates, and addresses. The previous 1280 px
+      // cap was sufficient for ID-type screening but could blur field text.
+      var source = frameCanvas(video, 2560), analysis = analyzeIdFrame(source), scanningPassport = select.value === 'passport';
       var minimumBrightness = scanningPassport ? 45 : 55, maximumBrightness = scanningPassport ? 235 : 225;
       var maximumGlare = scanningPassport ? 0.35 : 0.25, minimumSharpness = scanningPassport ? 4.5 : 7, minimumContrast = scanningPassport ? 12 : 18;
       if (analysis.brightness < minimumBrightness) throw new Error('The ID is too dark. Move to a brighter area and scan again.');
