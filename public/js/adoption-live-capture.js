@@ -326,7 +326,7 @@ document.addEventListener('DOMContentLoaded', function () {
     frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-[8%] rounded-xl border-2 border-dashed border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.22)]"><span class="absolute -top-7 left-0 rounded bg-black/70 px-2 py-1 text-[11px] font-semibold text-white">Complete ID inside guide · portrait or landscape</span></div><div class="id-countdown-overlay pointer-events-none absolute inset-0 hidden items-center justify-center bg-slate-950/55 text-center text-white"><div><strong class="id-countdown-number block text-7xl font-black leading-none">3</strong><span class="mt-3 block px-5 text-sm font-semibold">ID verified. Hold it steady for automatic capture.</span></div></div>');
     var extractedPanel = document.createElement('section');
     extractedPanel.className = 'id-extracted-panel mt-4 hidden rounded-xl border border-rescue-200 bg-rescue-50/70 p-4';
-    extractedPanel.innerHTML = '<div class="flex items-start gap-3"><span class="rounded-lg bg-white p-2 text-rescue-700 shadow-sm"><i data-lucide="scan-text" class="h-5 w-5"></i></span><div><h3 class="text-sm font-semibold text-slate-900">Extracted ID Information</h3><p class="mt-1 text-xs leading-5 text-slate-600">Text recognized locally from the verified camera frame.</p></div></div><dl class="id-extracted-fields mt-4 grid gap-3 sm:grid-cols-2"></dl><details class="mt-4 rounded-lg border border-rescue-200 bg-white"><summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-rescue-800">View recognized text</summary><pre class="id-recognized-text max-h-40 overflow-auto whitespace-pre-wrap border-t border-rescue-100 px-3 py-2 text-[11px] leading-5 text-slate-600"></pre></details><p class="mt-3 text-[11px] leading-5 text-slate-500">Preliminary OCR only. Extracted text does not certify that the ID is genuine and remains subject to staff review.</p>';
+    extractedPanel.innerHTML = '<div class="flex items-start gap-3"><span class="rounded-lg bg-white p-2 text-rescue-700 shadow-sm"><i data-lucide="scan-text" class="h-5 w-5"></i></span><div><h3 class="text-sm font-semibold text-slate-900">Extracted ID Information</h3><p class="mt-1 text-xs leading-5 text-slate-600">Text recognized locally from the verified camera frame.</p></div></div><dl class="id-extracted-fields mt-4 grid gap-3 sm:grid-cols-2"></dl><details class="mt-4 rounded-lg border border-rescue-200 bg-white"><summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-rescue-800">Show OCR reading for verification</summary><div class="border-t border-rescue-100 px-3 py-2"><p class="mb-2 text-[11px] leading-5 text-slate-500">This shows the text seen by the scanner and helps explain fields it could not read. It is not saved with the application.</p><pre class="id-recognized-text max-h-40 overflow-auto whitespace-pre-wrap text-[11px] leading-5 text-slate-600"></pre></div></details><p class="mt-3 text-[11px] leading-5 text-slate-500">Preliminary OCR only. Extracted text does not certify that the ID is genuine and remains subject to staff review.</p>';
     card.querySelector('.capture-preview-wrap').insertAdjacentElement('afterend', extractedPanel);
     var scanButton = document.createElement('button');
     scanButton.type = 'button';
@@ -377,6 +377,43 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     return null;
   }
+  function normalizeOcrDigits(value) {
+    return String(value || '').toUpperCase()
+      .replace(/[OQ]/g, '0').replace(/[IL|]/g, '1').replace(/Z/g, '2')
+      .replace(/S/g, '5').replace(/G/g, '6').replace(/B/g, '8')
+      .replace(/[^0-9]/g, '');
+  }
+  function philHealthNumber(lines) {
+    var candidates = [];
+    lines.forEach(function (line, index) {
+      var nearNumberLabel = /PHILHEALTH|IDENTIFICATION|PIN|NUMBER|NO\.?/i.test(line);
+      if (nearNumberLabel) {
+        candidates.push(line);
+        if (lines[index + 1]) candidates.push(lines[index + 1]);
+      }
+    });
+    candidates = candidates.concat(lines);
+    for (var index = 0; index < candidates.length; index += 1) {
+      var chunks = candidates[index].match(/[0-9OQIL|ZSBG][0-9OQIL|ZSBG\s.\-]{9,22}[0-9OQIL|ZSBG]/g) || [];
+      for (var chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+        var digits = normalizeOcrDigits(chunks[chunkIndex]);
+        if (digits.length === 12) return digits.slice(0, 2) + '-' + digits.slice(2, 11) + '-' + digits.slice(11);
+      }
+    }
+    return null;
+  }
+  function extractedAddress(lines) {
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!/\b(?:ADDRESS|TIRAHAN)\b/i.test(lines[index])) continue;
+      var address = lines[index].replace(/^.*?\b(?:ADDRESS|TIRAHAN)\b\s*[:\-]?\s*/i, '').trim();
+      for (var offset = 1; offset <= 2 && lines[index + offset]; offset += 1) {
+        if (/\b(?:BIRTH|BIRTHDATE|DATE OF BIRTH|DOB|SEX|GENDER|EXPIR|VALID|SIGNATURE|PHILHEALTH|MEMBER)\b/i.test(lines[index + offset])) break;
+        address += (address ? ', ' : '') + lines[index + offset];
+      }
+      if (address.length >= 5) return address;
+    }
+    return null;
+  }
   function extractIdInformation(text, detectedType, confidence, nameMatchCount) {
     var lines = cleanRecognizedLines(text), joined = lines.join(' ').toUpperCase();
     var fullNameInput = form.querySelector('[name="full_name"]'), applicantName = fullNameInput ? fullNameInput.value.trim() : '';
@@ -389,6 +426,7 @@ document.addEventListener('DOMContentLoaded', function () {
       postal_id: /\b(?:PRN\s*)?[A-Z0-9]{4}[-\s][A-Z0-9-]{5,12}\b/
     };
     var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
+    var documentNumber = detectedType === 'philhealth' ? philHealthNumber(lines) : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
     var datePattern = /\b(?:\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|\d{4}[\/\-.]\d{1,2}[\/\-.]\d{1,2}|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|SEPT|OCT|NOV|DEC)[A-Z]*\s+\d{1,2},?\s+\d{4})\b/i;
     var sexMatch = joined.match(/\b(?:SEX|GENDER)\s*[:\-]?\s*(MALE|FEMALE|M|F)\b/);
     return {
@@ -396,9 +434,10 @@ document.addEventListener('DOMContentLoaded', function () {
       fields: [
         ['Detected ID type', idTypeLabel(detectedType)],
         ['Applicant name', applicantName + (nameMatchCount === 2 ? ' — first and last name matched' : ' — partial OCR match')],
-        ['Document number', numberMatch ? numberMatch[0].replace(/\s+/g, '-') : 'Not confidently read'],
+        ['Document number', documentNumber || 'Not confidently read'],
         ['OCR text status', 'Readable for preliminary screening'],
         ['Birth date', labeledIdValue(lines, /BIRTH|BIRTHDATE|DATE OF BIRTH|DOB/i, datePattern)],
+        ['Address', extractedAddress(lines)],
         ['Expiry date', labeledIdValue(lines, /EXPIR|VALID UNTIL|VALIDITY/i, datePattern)],
         ['Sex', sexMatch ? sexMatch[1] : null]
       ].filter(function (field) { return field[1]; })
