@@ -87,7 +87,8 @@ class MediaController extends BaseController
         foreach ($applications as $application) {
             $metadata = json_decode((string) ($application['verification_metadata'] ?? ''), true);
             if (is_array($metadata)
-                && ($metadata['home_access']['stored_path'] ?? null) === $storedReference) {
+                && (($metadata['home_access']['stored_path'] ?? null) === $storedReference
+                    || ($metadata['gov_id']['digital_evidence']['stored_path'] ?? null) === $storedReference)) {
                 return true;
             }
         }

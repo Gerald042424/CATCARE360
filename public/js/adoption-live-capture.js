@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!isGovernmentId(card) || card.querySelector('.id-verification-panel')) return;
     var panel = document.createElement('div');
     panel.className = 'id-verification-panel mt-4 rounded-xl border border-slate-200 bg-white p-3';
-    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Select ID Type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select a valid ID type</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option><option value="umid">UMID</option><option value="postal_id">Postal ID</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select ID Type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">Use an original government-issued photo ID that belongs to the applicant and is unexpired when applicable.</p></div>';
+    panel.innerHTML = '<label class="block text-sm font-semibold text-slate-800">Select ID Type <span class="text-red-500">*</span></label><select class="id-type-select mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900"><option value="">Select a valid ID type</option><option value="philhealth">PhilHealth ID</option><option value="national_id">Philippine National ID</option><option value="drivers_license">Philippine Driver’s License</option><option value="passport">Philippine Passport</option><option value="prc_id">PRC ID</option></select><div class="id-scan-message mt-3 rounded-lg border border-blue-200 bg-blue-50 p-3"><strong class="id-scan-title block text-sm text-blue-900">Select ID Type</strong><p class="id-scan-detail mt-1 text-xs leading-5 text-blue-800">Use an original government-issued photo ID that belongs to the applicant and is unexpired when applicable.</p></div>';
     card.querySelector('.camera-stream').insertAdjacentElement('beforebegin', panel);
     var video = card.querySelector('.camera-stream'), frame = document.createElement('div');
     frame.className = 'id-camera-frame relative mt-4 hidden overflow-hidden rounded-lg bg-black';
@@ -328,6 +328,10 @@ document.addEventListener('DOMContentLoaded', function () {
     extractedPanel.className = 'id-extracted-panel mt-4 hidden rounded-xl border border-rescue-200 bg-rescue-50/70 p-4';
     extractedPanel.innerHTML = '<div class="flex items-start gap-3"><span class="rounded-lg bg-white p-2 text-rescue-700 shadow-sm"><i data-lucide="scan-text" class="h-5 w-5"></i></span><div><h3 class="text-sm font-semibold text-slate-900">Extracted ID Information</h3><p class="mt-1 text-xs leading-5 text-slate-600">Text recognized locally from the verified camera frame.</p></div></div><dl class="id-extracted-fields mt-4 grid gap-3 sm:grid-cols-2"></dl><details class="mt-4 rounded-lg border border-rescue-200 bg-white"><summary class="cursor-pointer px-3 py-2 text-xs font-semibold text-rescue-800">Show OCR reading for verification</summary><div class="border-t border-rescue-100 px-3 py-2"><p class="mb-2 text-[11px] leading-5 text-slate-500">This shows the text seen by the scanner and helps explain fields it could not read. It is not saved with the application.</p><pre class="id-recognized-text max-h-40 overflow-auto whitespace-pre-wrap text-[11px] leading-5 text-slate-600"></pre></div></details><p class="mt-3 text-[11px] leading-5 text-slate-500">Preliminary OCR only. Extracted text does not certify that the ID is genuine and remains subject to staff review.</p>';
     card.querySelector('.capture-preview-wrap').insertAdjacentElement('afterend', extractedPanel);
+    var evidencePanel = document.createElement('section');
+    evidencePanel.className = 'digital-evidence-panel mt-4 hidden rounded-xl border border-slate-200 bg-white p-4';
+    evidencePanel.innerHTML = '<div class="flex items-start gap-3"><span class="rounded-lg bg-rescue-50 p-2 text-rescue-700"><i data-lucide="badge-check" class="h-5 w-5"></i></span><div><h3 class="text-sm font-semibold text-slate-900">Official Digital ID Evidence</h3><p class="digital-evidence-instruction mt-1 text-xs leading-5 text-slate-600"></p></div></div><label class="digital-evidence-upload mt-4 block cursor-pointer rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center transition hover:border-rescue-400 hover:bg-rescue-50"><input class="digital-evidence-file sr-only" type="file" name="verification_documents[digital_id_evidence]" accept="image/jpeg,image/png,image/webp"><span class="text-sm font-semibold text-slate-800">Choose government-app screenshot</span><span class="mt-1 block text-xs text-slate-500">JPG, PNG, or WebP · complete and uncropped</span></label><div class="digital-evidence-preview-wrap mt-4 hidden overflow-hidden rounded-xl border border-slate-200 bg-slate-50"><img class="digital-evidence-preview max-h-80 w-full object-contain" alt="Government application screenshot preview"></div><div class="digital-evidence-status mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">Scan and capture the physical ID first.</div><button type="button" class="remove-digital-evidence mt-3 hidden text-xs font-semibold text-red-600 hover:text-red-700">Remove screenshot</button><p class="mt-3 text-[11px] leading-5 text-slate-500">This supporting screenshot is compared with the live-scanned ID. It does not replace final staff review or represent direct government-database access.</p>';
+    extractedPanel.insertAdjacentElement('afterend', evidencePanel);
     var scanButton = document.createElement('button');
     scanButton.type = 'button';
     scanButton.className = 'scan-id hidden rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50';
@@ -335,12 +339,15 @@ document.addEventListener('DOMContentLoaded', function () {
     card.querySelector('.capture-photo').insertAdjacentElement('beforebegin', scanButton);
     panel.querySelector('.id-type-select').addEventListener('change', function () {
       resetIdVerification(card);
+      configureDigitalEvidence(card, false);
       if (card._stream) {
         scanButton.classList.remove('hidden');
         scanButton.disabled = !this.value;
         note(card, this.value ? 'Place the complete ID inside the guide, then tap Scan ID.' : 'Select a valid ID type before scanning.', this.value ? 'text-blue-700' : 'text-amber-700');
       }
     });
+    evidencePanel.querySelector('.digital-evidence-file').addEventListener('change', function () { verifyDigitalEvidence(card, this); });
+    evidencePanel.querySelector('.remove-digital-evidence').addEventListener('click', function () { resetDigitalEvidence(card, true); });
     scanButton.addEventListener('click', function () { scanGovernmentId(card); });
   }
   function idMessage(card, title, detail, tone) {
@@ -356,6 +363,131 @@ document.addEventListener('DOMContentLoaded', function () {
     box.querySelector('.id-scan-detail').className = 'id-scan-detail mt-1 text-xs leading-5 ' + colors[3];
     box.querySelector('.id-scan-title').textContent = title;
     box.querySelector('.id-scan-detail').textContent = detail;
+  }
+  function digitalEvidenceRequired(type) { return ['philhealth', 'national_id', 'drivers_license', 'prc_id'].indexOf(type) !== -1; }
+  function digitalEvidenceInstruction(type) {
+    return {
+      philhealth: 'Upload the complete PhilHealth digital ID screenshot from eGovPH.',
+      national_id: 'Upload the complete Digital National ID screenshot from eGovPH.',
+      drivers_license: 'Upload the complete electronic driver’s license screenshot from eGovPH or the official LTO/LTMS portal.',
+      prc_id: 'Upload the complete PRC e-PIC or PRC/LERIS verification screenshot.',
+      passport: 'Passport has no supported digital screenshot source in this workflow. Staff will verify it manually.'
+    }[type] || 'Select and scan an ID first.';
+  }
+  function configureDigitalEvidence(card, showPanel) {
+    var panel = card.querySelector('.digital-evidence-panel'), select = card.querySelector('.id-type-select');
+    if (!panel || !select) return;
+    var type = select.value, required = digitalEvidenceRequired(type), input = panel.querySelector('.digital-evidence-file');
+    panel.querySelector('.digital-evidence-instruction').textContent = digitalEvidenceInstruction(type);
+    panel.querySelector('.digital-evidence-upload').classList.toggle('hidden', !required);
+    input.required = required;
+    input.disabled = !required || !card._idVerified;
+    if (!required && type === 'passport') {
+      var status = panel.querySelector('.digital-evidence-status');
+      status.className = 'digital-evidence-status mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800';
+      status.textContent = 'Digital screenshot matching is not available for Passport. Final manual staff verification is required.';
+    }
+    panel.classList.toggle('hidden', !showPanel || !type);
+    if (window.lucide) window.lucide.createIcons();
+  }
+  function resetDigitalEvidence(card, keepPanel) {
+    var panel = card.querySelector('.digital-evidence-panel');
+    if (!panel) return;
+    var input = panel.querySelector('.digital-evidence-file');
+    input.value = '';
+    card._digitalEvidence = null;
+    panel.querySelector('.digital-evidence-preview').removeAttribute('src');
+    panel.querySelector('.digital-evidence-preview-wrap').classList.add('hidden');
+    panel.querySelector('.remove-digital-evidence').classList.add('hidden');
+    var status = panel.querySelector('.digital-evidence-status');
+    status.className = 'digital-evidence-status mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600';
+    status.textContent = card._idVerified ? 'Choose a complete, uncropped screenshot to verify it.' : 'Scan and capture the physical ID first.';
+    if (captures.gov_id) delete captures.gov_id.digital_evidence;
+    meta.value = JSON.stringify(captures);
+    configureDigitalEvidence(card, Boolean(keepPanel));
+  }
+  function evidenceStatus(card, message, tone) {
+    var status = card.querySelector('.digital-evidence-status');
+    if (!status) return;
+    var style = tone === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : (tone === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-200 bg-blue-50 text-blue-800');
+    status.className = 'digital-evidence-status mt-3 rounded-lg border p-3 text-xs leading-5 ' + style;
+    status.textContent = message;
+  }
+  function uploadedImageCanvas(file, maximumSide) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file), image = new Image();
+      image.onload = function () {
+        URL.revokeObjectURL(url);
+        var longest = Math.max(image.naturalWidth, image.naturalHeight), scale = Math.min(1, (maximumSide || 2400) / longest);
+        var canvas = document.createElement('canvas'); canvas.width = Math.round(image.naturalWidth * scale); canvas.height = Math.round(image.naturalHeight * scale);
+        canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); resolve(canvas);
+      };
+      image.onerror = function () { URL.revokeObjectURL(url); reject(new Error('The selected screenshot could not be opened.')); };
+      image.src = url;
+    });
+  }
+  function canvasJpegBlob(canvas) { return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/jpeg', 0.9); }); }
+  function extractionField(extraction, label) {
+    var field = extraction && extraction.fields ? extraction.fields.find(function (item) { return item[0] === label; }) : null;
+    return field && field[1] !== 'Not confidently read' ? String(field[1]) : '';
+  }
+  function compactIdentityValue(value) { return normalizeOcr(value).replace(/[^A-Z0-9]/g, ''); }
+  function canonicalEvidenceDate(value) {
+    var normalized = String(value || '').trim(), match;
+    if ((match = normalized.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/))) return match[1] + '-' + match[2].padStart(2, '0') + '-' + match[3].padStart(2, '0');
+    if ((match = normalized.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/))) return match[3] + '-' + match[1].padStart(2, '0') + '-' + match[2].padStart(2, '0');
+    var timestamp = Date.parse(normalized);
+    return Number.isNaN(timestamp) ? '' : new Date(timestamp).toISOString().slice(0, 10);
+  }
+  function detectDigitalEvidenceSource(type, text) {
+    var normalized = normalizeOcr(text), compact = normalized.replace(/[^A-Z]/g, '');
+    var hasEgov = /\bE\s*GOV\s*PH\b|\bEGOVPH\b|EGOV SUPER APP|DIGITAL ID/.test(normalized) || compact.indexOf('EGOVPH') !== -1;
+    var hasLto = /LAND TRANSPORTATION OFFICE|\bLTO\b|\bLTMS\b|LAND TRANSPORTATION MANAGEMENT SYSTEM/.test(normalized);
+    var hasPrc = /PROFESSIONAL REGULATION COMMISSION|PROFESSIONAL IDENTIFICATION CARD|\bE PIC\b|\bEPIC\b|\bLERIS\b|ONLINE VERIFICATION/.test(normalized);
+    if (type === 'prc_id') return hasPrc ? 'prc_e_pic_or_leris' : null;
+    if (type === 'drivers_license') return hasEgov ? 'egovph' : (hasLto ? 'lto_ltms' : null);
+    return hasEgov ? 'egovph' : null;
+  }
+  async function verifyDigitalEvidence(card, input) {
+    var file = input.files && input.files[0], type = card.querySelector('.id-type-select').value;
+    if (!file || !digitalEvidenceRequired(type)) return;
+    if (!card._idVerified || !card._idExtraction) { resetDigitalEvidence(card, true); return evidenceStatus(card, 'Scan and capture the physical ID before uploading its digital evidence.', 'error'); }
+    input.disabled = true; evidenceStatus(card, 'Reading the government-app screenshot and comparing its identity information…', 'info');
+    try {
+      if (!/^image\/(?:jpeg|png|webp)$/i.test(file.type) || file.size > 8 * 1024 * 1024) throw new Error('Choose a JPG, PNG, or WebP screenshot no larger than 8 MB.');
+      var canvas = await uploadedImageCanvas(file, 2600), worker = await getTesseractWorker();
+      var basicResult = await worker.recognize(canvas), detailResult = await recognizeIdDetails(worker, canvas);
+      var text = ((basicResult && basicResult.data ? basicResult.data.text : '') + '\n' + (detailResult && detailResult.data ? detailResult.data.text : '')).trim();
+      var source = detectDigitalEvidenceSource(type, text), detectedType = detectGovernmentIdType(text), nameMatches = applicantNameMatchCount(text);
+      if (!source) throw new Error('Expected official eGovPH, LTO/LTMS, or PRC source markers were not found. Upload the complete, uncropped official screen.');
+      if (detectedType !== type) throw new Error('The digital screenshot shows ' + idTypeLabel(detectedType) + ', not the scanned ' + idTypeLabel(type) + '.');
+      if (nameMatches < 2) throw new Error('The first and last name in the screenshot do not match the application.');
+      var screenshotExtraction = extractIdInformation(text, type, Number(detailResult && detailResult.data ? detailResult.data.confidence || 0 : 0), nameMatches);
+      var physicalNumber = compactIdentityValue(extractionField(card._idExtraction, 'Document number'));
+      var screenshotNumber = compactIdentityValue(extractionField(screenshotExtraction, 'Document number'));
+      var numberMatched = Boolean(physicalNumber && screenshotNumber && physicalNumber === screenshotNumber);
+      if (physicalNumber && screenshotNumber && !numberMatched) throw new Error('The document number does not match the live-scanned ID. The uploaded screenshot was removed.');
+      var physicalBirthDate = canonicalEvidenceDate(extractionField(card._idExtraction, 'Birth date'));
+      var screenshotBirthDate = canonicalEvidenceDate(extractionField(screenshotExtraction, 'Birth date'));
+      var birthDateMatched = Boolean(physicalBirthDate && screenshotBirthDate && physicalBirthDate === screenshotBirthDate);
+      if (!numberMatched && !birthDateMatched) throw new Error('No matching document number or birth date could be confirmed. Upload a clearer, uncropped screenshot.');
+      var blob = await canvasJpegBlob(canvas);
+      if (!blob || blob.size < 8192) throw new Error('The screenshot could not be prepared. Choose it again.');
+      var transfer = new DataTransfer(); transfer.items.add(new File([blob], 'digital-id-evidence-' + Date.now() + '.jpg', { type: 'image/jpeg' })); input.files = transfer.files;
+      card._digitalEvidence = { verified: true, selected_type: type, detected_type: detectedType, source: source, name_match: true, number_match: numberMatched, birth_date_match: birthDateMatched, match_basis: numberMatched ? 'name_and_document_number' : 'name_and_birth_date', verified_at: new Date().toISOString(), provider: 'tesseract_js' };
+      captures.gov_id.digital_evidence = card._digitalEvidence; meta.value = JSON.stringify(captures);
+      card.querySelector('.digital-evidence-preview').src = canvas.toDataURL('image/jpeg', 0.82);
+      card.querySelector('.digital-evidence-preview-wrap').classList.remove('hidden');
+      card.querySelector('.remove-digital-evidence').classList.remove('hidden');
+      evidenceStatus(card, 'Official-source markers and matching identity information found. Final authenticity remains subject to staff review.', 'success');
+    } catch (reason) {
+      input.value = ''; card._digitalEvidence = null;
+      if (captures.gov_id) delete captures.gov_id.digital_evidence;
+      meta.value = JSON.stringify(captures);
+      card.querySelector('.digital-evidence-preview-wrap').classList.add('hidden');
+      card.querySelector('.remove-digital-evidence').classList.add('hidden');
+      evidenceStatus(card, reason.message || 'The screenshot did not pass matching and was removed.', 'error');
+    } finally { input.disabled = false; }
   }
   function cleanRecognizedLines(text, preserveDuplicates) {
     var seen = {};
@@ -469,6 +601,16 @@ document.addEventListener('DOMContentLoaded', function () {
     if (!candidates.length || (candidates[1] && candidates[0].score === candidates[1].score)) return null;
     return candidates[0].value;
   }
+  function prcRegistrationNumber(lines) {
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!lineHasOcrLabel(lines[index], ['REGISTRATION', 'LICENSE'])) continue;
+      var sameLine = lines[index].match(/\b\d{5,8}\b/);
+      if (sameLine) return sameLine[0];
+      var nextLine = lines[index + 1] && lines[index + 1].match(/\b\d{5,8}\b/);
+      if (nextLine) return nextLine[0];
+    }
+    return null;
+  }
   function hasAddressBoundary(line) {
     return lineHasOcrLabel(line, ['LICENSE', 'LICENCE', 'EXPIRATION', 'EXPIRY', 'AGENCY', 'BIRTH', 'SEX', 'GENDER', 'NATIONALITY', 'BLOOD', 'WEIGHT', 'HEIGHT', 'RESTRICTIONS', 'CONDITIONS', 'SIGNATURE']);
   }
@@ -509,14 +651,15 @@ document.addEventListener('DOMContentLoaded', function () {
       national_id: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/,
       drivers_license: /\b[A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6}\b/,
       passport: /\b[A-Z]\d{7}\b/,
-      umid: /\b\d{4}[-\s]?\d{7}[-\s]?\d\b/,
-      postal_id: /\b(?:PRN\s*)?[A-Z0-9]{4}[-\s][A-Z0-9-]{5,12}\b/
+      prc_id: /\b\d{5,8}\b/
     };
     var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
     var documentNumber = detectedType === 'philhealth'
       ? philHealthNumber(lines, applicantName)
       : detectedType === 'drivers_license'
         ? driversLicenseNumber(lines)
+        : detectedType === 'prc_id'
+          ? prcRegistrationNumber(lines)
         : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
     var monthName = '(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)';
     var datePattern = new RegExp('\\b(?:\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}|\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}|' + monthName + '\\s+\\d{1,2},?\\s+\\d{4}|\\d{1,2}\\s+' + monthName + ',?\\s+\\d{4})\\b', 'i');
@@ -584,6 +727,7 @@ document.addEventListener('DOMContentLoaded', function () {
     card._idVerifiedAt = 0;
     card._idVerification = null;
     card._idExtraction = null;
+    resetDigitalEvidence(card, false);
     var extractedPanel = card.querySelector('.id-extracted-panel');
     if (extractedPanel) extractedPanel.classList.add('hidden');
     card.querySelector('.capture-photo').disabled = true;
@@ -787,14 +931,14 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function detectGovernmentIdType(text) {
     var normalized = normalizeOcr(text), compactLetters = normalized.replace(/[^A-Z]/g, '');
-    var scores = { philhealth: 0, national_id: 0, drivers_license: 0, passport: 0, umid: 0, postal_id: 0 };
+    var scores = { philhealth: 0, national_id: 0, drivers_license: 0, passport: 0, prc_id: 0 };
     if (compactLetters.indexOf('PHILHEAL') !== -1) scores.philhealth += 8;
     if (/PHILIPPINE HEALTH INSURANCE|HEALTH INSURANCE CORPORATION/.test(normalized)) scores.philhealth += 6;
     if (/MEMBER DATA RECORD|MEMBER IDENTIFICATION|\bPHILHEALTH PIN\b/.test(normalized)) scores.philhealth += 5;
     if (/\b\d{2}\s+\d{9}\s+\d\b/.test(normalized)) scores.philhealth += 4;
     if (/\bMEMBER\b|\bPIN\b/.test(normalized)) scores.philhealth += 1;
 
-    if (/PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS/.test(normalized)) scores.national_id += 8;
+    if (/PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS|\bNATIONAL ID\b/.test(normalized)) scores.national_id += 8;
     if (/PHILIPPINE IDENTIFICATION SYSTEM|PHILSYS CARD NUMBER|\bPCN\b|\bPSN\b/.test(normalized)) scores.national_id += 5;
     if (/\b\d{4}\s+\d{4}\s+\d{4}\s+\d{4}\b/.test(normalized)) scores.national_id += 4;
 
@@ -808,14 +952,9 @@ document.addEventListener('DOMContentLoaded', function () {
     if (/PILIPINAS|REPUBLIC OF THE PHILIPPINES|\bPHL\b/.test(normalized)) scores.passport += 2;
     if (/SURNAME|GIVEN NAMES|NATIONALITY/.test(normalized)) scores.passport += 1;
 
-    if (/UNIFIED MULTI[ -]?PURPOSE ID/.test(normalized)) scores.umid += 10;
-    if (/\bUMID\b/.test(normalized)) scores.umid += 8;
-    if (/COMMON REFERENCE NUMBER|\bCRN\b/.test(normalized)) scores.umid += 5;
-    if (/SOCIAL SECURITY SYSTEM|GOVERNMENT SERVICE INSURANCE SYSTEM/.test(normalized)) scores.umid += 2;
-
-    if (/POSTAL IDENTITY CARD|POSTAL ID CARD|\bPOSTAL ID\b/.test(normalized)) scores.postal_id += 10;
-    if (/PHILIPPINE POSTAL CORPORATION|\bPHLPOST\b/.test(normalized)) scores.postal_id += 7;
-    if (/POSTAL REFERENCE NUMBER|\bPRN\b/.test(normalized)) scores.postal_id += 3;
+    if (/PROFESSIONAL IDENTIFICATION CARD|PROFESSIONAL REGULATION COMMISSION/.test(normalized)) scores.prc_id += 10;
+    if (/\bPRC\b|\bE PIC\b|\bEPIC\b|\bLERIS\b/.test(normalized)) scores.prc_id += 7;
+    if (/REGISTRATION (?:NO|NUMBER)|PROFESSION|VALID UNTIL/.test(normalized)) scores.prc_id += 3;
 
     var ranked = Object.keys(scores).sort(function (first, second) { return scores[second] - scores[first]; });
     if (scores[ranked[0]] < 4 || (scores[ranked[1]] > 0 && scores[ranked[0]] - scores[ranked[1]] < 2)) return null;
@@ -830,7 +969,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var words = normalizeOcr(text).split(/[^A-Z]+/).filter(function (part) { return part.length >= 2; });
     return [parts[0], parts[parts.length - 1]].filter(function (part) { return ocrWordMatches(part, words); }).length;
   }
-  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport', umid: 'UMID', postal_id: 'Postal ID' }[type] || 'Valid Government-Issued ID'; }
+  function idTypeLabel(type) { return { philhealth: 'PhilHealth ID', national_id: 'Philippine National ID', drivers_license: 'Philippine Driver’s License', passport: 'Philippine Passport', prc_id: 'PRC ID' }[type] || 'Valid Government-Issued ID'; }
   function cloneCanvas(source) {
     var copy = document.createElement('canvas');
     copy.width = source.width;
@@ -1120,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', function () {
         card.querySelector('.retake-photo').classList.remove('hidden');
         button.classList.add('hidden');
         card.querySelector('.switch-camera').classList.add('hidden');
-        if (isGovernmentId(card)) { card.querySelector('.scan-id').classList.add('hidden'); card.querySelector('.id-type-select').disabled = true; }
+        if (isGovernmentId(card)) { card.querySelector('.scan-id').classList.add('hidden'); card.querySelector('.id-type-select').disabled = true; configureDigitalEvidence(card, true); }
         card.querySelector('.capture-state').textContent = isSelfie(card) ? 'Live selfie captured' : (isGovernmentId(card) ? 'Screened ID auto-captured' : 'Captured');
         card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
         note(card, (isSelfie(card) ? 'Verified live selfie captured at ' : 'Captured at ') + place.location + ' (GPS ±' + Math.round(coords.accuracy) + ' m)', 'text-emerald-700');

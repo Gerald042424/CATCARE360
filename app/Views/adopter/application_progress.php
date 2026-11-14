@@ -35,7 +35,7 @@ $currentIcon = $approved ? 'check-circle-2' : ($unavailable ? 'circle-alert' : (
 
     <?php
     $verificationMetadata = json_decode((string) ($application['verification_metadata'] ?? ''), true) ?: [];
-    $documents = ['Verified Live Selfie' => $application['selfie_path'] ?? null, 'Valid Government-Issued ID' => $application['gov_id_path'] ?? null, 'Proof of Address' => $application['address_proof_path'] ?? null, 'Indoor Living Area' => $application['home_photos_path'] ?? null, 'Windows / Outdoor Access Area' => $verificationMetadata['home_access']['stored_path'] ?? null];
+    $documents = ['Verified Live Selfie' => $application['selfie_path'] ?? null, 'Valid Government-Issued ID' => $application['gov_id_path'] ?? null, 'Official Digital ID Evidence' => $verificationMetadata['gov_id']['digital_evidence']['stored_path'] ?? null, 'Proof of Address' => $application['address_proof_path'] ?? null, 'Indoor Living Area' => $application['home_photos_path'] ?? null, 'Windows / Outdoor Access Area' => $verificationMetadata['home_access']['stored_path'] ?? null];
     ?>
     <div x-cloak x-show="showForm" x-transition.opacity class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm" @keydown.escape.window="showForm = false" @click.self="showForm = false">
         <div class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl" @click.stop>

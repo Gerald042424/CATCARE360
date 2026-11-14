@@ -16,6 +16,7 @@ use App\Services\CloudStorageService;
 class ApplicationController extends BaseController
 {
     private const DOCUMENT_FIELDS = ['selfie', 'gov_id', 'address_proof', 'home_photos', 'home_access'];
+    private const DIGITAL_EVIDENCE_TYPES = ['philhealth', 'national_id', 'drivers_license', 'prc_id'];
 
     public function index(int $catId = 0)
     {
@@ -193,6 +194,15 @@ class ApplicationController extends BaseController
             }
             $verificationFiles[$field] = $file;
         }
+        $selectedIdType = (string) ($metadata['gov_id']['id_verification']['selected_type'] ?? '');
+        $digitalEvidenceFile = null;
+        if (in_array($selectedIdType, self::DIGITAL_EVIDENCE_TYPES, true)) {
+            $digitalEvidenceFile = $this->request->getFile('verification_documents.digital_id_evidence');
+            $evidenceError = $this->validateDigitalEvidenceUpload($digitalEvidenceFile, $metadata['gov_id']['digital_evidence'] ?? null, $selectedIdType);
+            if ($evidenceError !== null) {
+                return redirect()->back()->withInput()->with('error', $evidenceError);
+            }
+        }
 
         $homePairError = $this->validateHomeCapturePair(
             $verificationFiles['home_photos'],
@@ -215,7 +225,26 @@ class ApplicationController extends BaseController
             $ocrResults[$documentType] = $ocrService->screen($verificationFiles[$documentType]->getTempName(), $documentType, trim((string) $post['full_name']), $expectedIdType);
             if (! $ocrResults[$documentType]['passed']) return redirect()->back()->withInput()->with('error', $ocrResults[$documentType]['message']);
         }
-        $ocrScreening = ['status' => 'Passed', 'message' => 'Preliminary screening matched the selected ID type and applicant name; final document authenticity remains subject to staff review. Proof-of-address text was readable, the live selfie passed its face challenge, and both home-area photos passed quality, location, and duplicate checks.'];
+        if ($digitalEvidenceFile !== null) {
+            $evidenceResult = $ocrService->screenDigitalEvidence(
+                $digitalEvidenceFile->getTempName(),
+                (string) ($ocrResults['gov_id']['ocr_text'] ?? ''),
+                trim((string) $post['full_name']),
+                $selectedIdType,
+            );
+            if (! $evidenceResult['passed']) return redirect()->back()->withInput()->with('error', $evidenceResult['message']);
+            $metadata['gov_id']['digital_evidence']['server_screening'] = [
+                'status' => 'Matched',
+                'source' => $evidenceResult['source'],
+                'match_basis' => $evidenceResult['match_basis'],
+                'number_match' => $evidenceResult['number_match'],
+                'birth_date_match' => $evidenceResult['birth_date_match'],
+                'screened_at' => date(DATE_ATOM),
+            ];
+        }
+        unset($ocrResults['gov_id']['ocr_text']);
+        $evidenceSummary = $digitalEvidenceFile !== null ? ' Official-source screenshot evidence matched the live-scanned ID.' : ' This ID type requires final manual staff verification.';
+        $ocrScreening = ['status' => 'Passed', 'message' => 'Preliminary screening matched the selected ID type and applicant name.' . $evidenceSummary . ' Proof-of-address text was readable, the live selfie passed its face challenge, and both home-area photos passed quality, location, and duplicate checks.'];
 
         $applicationCode = $this->newApplicationCode();
         $applicationModel = new AdoptionApplicationModel();
@@ -277,6 +306,16 @@ class ApplicationController extends BaseController
                 if ($field !== 'home_access') {
                     $paths[$field . '_path'] = $storedDocuments[$field];
                 }
+            }
+            if ($digitalEvidenceFile !== null) {
+                $extension = match ($digitalEvidenceFile->getMimeType()) {
+                    'image/png' => 'png',
+                    'image/webp' => 'webp',
+                    default => 'jpg',
+                };
+                $filename = 'digital_id_evidence_' . strtolower($applicationCode) . '_' . bin2hex(random_bytes(6)) . '.' . $extension;
+                $storedDocuments['digital_id_evidence'] = $storage->store($digitalEvidenceFile, 'applications', $filename);
+                $metadata['gov_id']['digital_evidence']['stored_path'] = $storedDocuments['digital_id_evidence'];
             }
             // Keep the additional private home-access image in server-owned
             // metadata so existing TiDB deployments need no risky schema edit.
@@ -422,7 +461,7 @@ class ApplicationController extends BaseController
         $provider = is_array($verification) ? (string) ($verification['provider'] ?? '') : '';
         $confidence = is_array($verification) ? filter_var($verification['confidence'] ?? null, FILTER_VALIDATE_FLOAT) : false;
         $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
-        $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport', 'umid', 'postal_id'];
+        $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport', 'prc_id'];
         $validTypeEvidence = $detectedType === $selectedType && $typeBasis === 'ocr_marker';
         // Passport MRZ OCR confidence is often lower on mobile Safari because
         // of the dense "<" characters. The captured image still goes through
@@ -443,6 +482,32 @@ class ApplicationController extends BaseController
             return 'Scan and pass the selected valid government-issued ID type and Full Name check before capturing it.';
         }
 
+        return null;
+    }
+
+    private function validateDigitalEvidenceUpload($file, $metadata, string $selectedIdType): ?string
+    {
+        if (! $file || ! $file->isValid() || $file->hasMoved()) {
+            return 'Upload a screenshot of the matching digital ID from the supported official government application or portal.';
+        }
+        if (! is_array($metadata)
+            || ($metadata['verified'] ?? false) !== true
+            || ($metadata['selected_type'] ?? '') !== $selectedIdType
+            || ($metadata['provider'] ?? '') !== 'tesseract_js') {
+            return 'The digital ID screenshot must pass the on-screen official-source and identity matching check before submission.';
+        }
+        $verifiedAt = strtotime((string) ($metadata['verified_at'] ?? ''));
+        if ($verifiedAt === false || abs(time() - $verifiedAt) > 15 * 60) {
+            return 'The digital ID screenshot verification expired. Upload and verify it again.';
+        }
+        if ($file->getSize() < 8 * 1024 || $file->getSizeByUnit('mb') > 5) {
+            return 'The digital ID screenshot must be a clear image between 8 KB and 5 MB.';
+        }
+        $imageInfo = @getimagesize($file->getTempName());
+        $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+        if (! $imageInfo || ! in_array((string) ($imageInfo['mime'] ?? ''), $allowedMimes, true) || $imageInfo[0] < 320 || $imageInfo[1] < 240) {
+            return 'Upload a valid JPG, PNG, or WebP government-app screenshot at least 320 × 240 pixels.';
+        }
         return null;
     }
 

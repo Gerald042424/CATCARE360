@@ -7,6 +7,7 @@ $verificationMetadata = ! empty($portalApplication)
 $applicationDocuments = ! empty($portalApplication) ? [
     'Verified Live Selfie' => $portalApplication['selfie_path'] ?? null,
     'Valid Government-Issued ID' => $portalApplication['gov_id_path'] ?? null,
+    'Official Digital ID Evidence' => $verificationMetadata['gov_id']['digital_evidence']['stored_path'] ?? null,
     'Proof of Address' => $portalApplication['address_proof_path'] ?? null,
     'Indoor Living Area' => $portalApplication['home_photos_path'] ?? null,
     'Windows / Outdoor Access Area' => $verificationMetadata['home_access']['stored_path'] ?? null,
