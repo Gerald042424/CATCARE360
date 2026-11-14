@@ -357,15 +357,15 @@ document.addEventListener('DOMContentLoaded', function () {
     box.querySelector('.id-scan-title').textContent = title;
     box.querySelector('.id-scan-detail').textContent = detail;
   }
-  function cleanRecognizedLines(text) {
+  function cleanRecognizedLines(text, preserveDuplicates) {
     var seen = {};
     return String(text || '').split(/\r?\n/).map(function (line) {
       return line.replace(/[^A-Za-z0-9<>,.\/:'()\-\s]/g, ' ').replace(/\s+/g, ' ').trim();
     }).filter(function (line) {
-      if (line.length < 2 || seen[line]) return false;
+      if (line.length < 2 || (!preserveDuplicates && seen[line])) return false;
       seen[line] = true;
       return true;
-    }).slice(0, 80);
+    }).slice(0, preserveDuplicates ? 160 : 80);
   }
   function labeledIdValue(lines, labels, pattern) {
     for (var index = 0; index < lines.length; index += 1) {
@@ -421,8 +421,18 @@ document.addEventListener('DOMContentLoaded', function () {
         candidates.push({ digits: digits, score: score });
       });
     });
-    candidates.sort(function (first, second) { return second.score - first.score; });
-    if (!candidates.length) return null;
+    var grouped = {};
+    candidates.forEach(function (candidate) {
+      if (!grouped[candidate.digits]) grouped[candidate.digits] = { digits: candidate.digits, support: 0, bestScore: 0 };
+      grouped[candidate.digits].support += 1;
+      grouped[candidate.digits].bestScore = Math.max(grouped[candidate.digits].bestScore, candidate.score);
+    });
+    candidates = Object.keys(grouped).map(function (digits) {
+      var candidate = grouped[digits];
+      candidate.score = candidate.bestScore + Math.max(0, candidate.support - 1) * 25;
+      return candidate;
+    }).sort(function (first, second) { return second.score - first.score; });
+    if (!candidates.length || (candidates[1] && candidates[0].score === candidates[1].score)) return null;
     var best = candidates[0].digits;
     return best.slice(0, 2) + '-' + best.slice(2, 11) + '-' + best.slice(11);
   }
@@ -448,7 +458,7 @@ document.addEventListener('DOMContentLoaded', function () {
     return null;
   }
   function extractIdInformation(text, detectedType, confidence, nameMatchCount) {
-    var lines = cleanRecognizedLines(text), joined = lines.join(' ').toUpperCase();
+    var lines = cleanRecognizedLines(text, true), displayLines = cleanRecognizedLines(text, false), joined = lines.join(' ').toUpperCase();
     var fullNameInput = form.querySelector('[name="full_name"]'), applicantName = fullNameInput ? fullNameInput.value.trim() : '';
     var numberPatterns = {
       philhealth: /\b\d{2}[-\s]?\d{9}[-\s]?\d\b/,
@@ -463,6 +473,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var monthName = '(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)';
     var datePattern = new RegExp('\\b(?:\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}|\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}|' + monthName + '\\s+\\d{1,2},?\\s+\\d{4}|\\d{1,2}\\s+' + monthName + ',?\\s+\\d{4})\\b', 'i');
     var sexValue = fuzzyLabeledIdValue(lines, ['SEX', 'GENDER'], /\b(?:MALE|FEMALE|M|F)\b/i);
+    var writtenSexValues = [];
+    lines.forEach(function (line) {
+      var matches = line.match(/\b(?:FEMALE|MALE)\b/ig) || [];
+      matches.forEach(function (value) { writtenSexValues.push(/^FEMALE$/i.test(value) ? 'Female' : 'Male'); });
+    });
+    writtenSexValues = writtenSexValues.filter(function (value, index, values) { return values.indexOf(value) === index; });
+    if (writtenSexValues.length === 1) sexValue = writtenSexValues[0];
+    if (writtenSexValues.length > 1) sexValue = null;
     if (!sexValue) {
       var standaloneSexValues = lines.filter(function (line) { return /^\s*(?:MALE|FEMALE|M|F)\s*$/i.test(line); });
       sexValue = standaloneSexValues.length === 1 ? standaloneSexValues[0].trim() : null;
@@ -474,7 +492,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (possibleDates.length === 1) birthDate = possibleDates[0];
     }
     return {
-      lines: lines,
+      lines: displayLines,
       fields: [
         ['Detected ID type', idTypeLabel(detectedType)],
         ['Applicant name', applicantName + (nameMatchCount === 2 ? ' — first and last name matched' : ' — partial OCR match')],
@@ -653,13 +671,27 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   async function recognizeIdDetails(worker, source) {
     var psm = window.Tesseract && window.Tesseract.PSM;
-    var changedMode = false;
+    var changedMode = false, texts = [], confidences = [], enhanced = detailEnhancedCanvas(source);
     try {
       if (worker.setParameters && psm && psm.SPARSE_TEXT) {
         await worker.setParameters({ tessedit_pageseg_mode: psm.SPARSE_TEXT, preserve_interword_spaces: '1' });
         changedMode = true;
       }
-      return await worker.recognize(detailEnhancedCanvas(source));
+      var sparseResult = await worker.recognize(enhanced);
+      if (sparseResult && sparseResult.data) {
+        texts.push(sparseResult.data.text || '');
+        confidences.push(Number(sparseResult.data.confidence || 0));
+      }
+      if (worker.setParameters && psm && psm.SINGLE_BLOCK) {
+        await worker.setParameters({ tessedit_pageseg_mode: psm.SINGLE_BLOCK, preserve_interword_spaces: '1' });
+        changedMode = true;
+        var blockResult = await worker.recognize(enhanced);
+        if (blockResult && blockResult.data) {
+          texts.push(blockResult.data.text || '');
+          confidences.push(Number(blockResult.data.confidence || 0));
+        }
+      }
+      return { data: { text: texts.join('\n'), confidence: confidences.length ? Math.max.apply(Math, confidences) : 0 } };
     } finally {
       if (changedMode && psm.AUTO) {
         try { await worker.setParameters({ tessedit_pageseg_mode: psm.AUTO, preserve_interword_spaces: '0' }); } catch (restoreError) { /* Use the current OCR mode on the next scan. */ }
@@ -906,6 +938,15 @@ document.addEventListener('DOMContentLoaded', function () {
   function wrapLine(ctx, text, maxWidth) { var words = text.split(/\s+/), lines = [], current = ''; words.forEach(function (word) { var candidate = current ? current + ' ' + word : word; if (!current || ctx.measureText(candidate).width <= maxWidth) { current = candidate; return; } lines.push(current); current = word; }); if (current) lines.push(current); return lines; }
   function stamp(ctx, w, h, place, coords, when) { var size = Math.max(15, Math.round(w / 55)), rawLines = ['CATCARE 360 • LIVE VERIFICATION', when.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium' }), 'ADDRESS: ' + place.location, 'GPS: ' + coords.latitude.toFixed(6) + ', ' + coords.longitude.toFixed(6) + '  ±' + Math.round(coords.accuracy) + ' m']; if (place.attribution) rawLines.push(place.attribution); ctx.font = '600 ' + size + 'px Arial'; var lines = []; rawLines.forEach(function (line) { lines = lines.concat(wrapLine(ctx, line, w - size * 2)); }); var box = Math.ceil(size * (lines.length * 1.5 + 1.4)); ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(0, h - box, w, box); ctx.fillStyle = '#fff'; lines.forEach(function (line, i) { ctx.fillText(line, size, h - box + size * (1.35 + i * 1.5)); }); }
   async function streamFor(facing, highDetail) { var settings = highDetail ? { width: { ideal: 3840 }, height: { ideal: 2160 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } }; try { return await navigator.mediaDevices.getUserMedia({ video: Object.assign({}, settings, { facingMode: { exact: facing } }), audio: false }); } catch (reason) { if (reason.name !== 'OverconstrainedError' && reason.name !== 'NotFoundError') throw reason; return navigator.mediaDevices.getUserMedia({ video: Object.assign({}, settings, { facingMode: { ideal: facing } }), audio: false }); } }
+  async function optimizeIdCameraFocus(stream) {
+    var track = stream && stream.getVideoTracks ? stream.getVideoTracks()[0] : null;
+    if (!track || !track.getCapabilities || !track.applyConstraints) return;
+    try {
+      var capabilities = track.getCapabilities(), advanced = {};
+      if (Array.isArray(capabilities.focusMode) && capabilities.focusMode.indexOf('continuous') !== -1) advanced.focusMode = 'continuous';
+      if (Object.keys(advanced).length) await track.applyConstraints({ advanced: [advanced] });
+    } catch (focusError) { /* The camera still works when manual focus controls are unavailable. */ }
+  }
   async function open(card) {
     clearError();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return error('Use a current Chrome, Edge, Firefox, or Safari browser for live camera capture.');
@@ -921,6 +962,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (isAddressProof(card)) card._facing = 'environment';
       if (isHomeScene(card)) card._facing = 'environment';
       var stream = await streamFor(card._facing || 'environment', isGovernmentId(card));
+      if (isGovernmentId(card)) await optimizeIdCameraFocus(stream);
       card._stream = stream;
       active = card;
       var video = card.querySelector('.camera-stream');
