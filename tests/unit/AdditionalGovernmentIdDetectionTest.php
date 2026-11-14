@@ -123,4 +123,13 @@ final class AdditionalGovernmentIdDetectionTest extends CIUnitTestCase
 
         $this->assertFalse($matcher->invoke(new DocumentOcrService(), $screenshotText, 'philhealth'));
     }
+
+    public function testDigitalEvidenceRequiresMeaningfulReadableText(): void
+    {
+        $checker = new ReflectionMethod(DocumentOcrService::class, 'hasMeaningfulEvidenceText');
+        $service = new DocumentOcrService();
+
+        $this->assertFalse($checker->invoke($service, 'tree cat road'));
+        $this->assertTrue($checker->invoke($service, 'eGovPH DIGITAL NATIONAL ID PHILSYS CARD NUMBER PCN JUAN DELA CRUZ'));
+    }
 }

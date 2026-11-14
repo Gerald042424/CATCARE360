@@ -56,11 +56,14 @@ class DocumentOcrService
             return $this->failed('This ID type does not have a supported digital-evidence source. It requires staff review.');
         }
 
+        $imageQualityError = $this->digitalEvidenceImageQualityError($imagePath);
+        if ($imageQualityError !== null) return $this->failed($imageQualityError);
+
         $ocr = $this->readText($imagePath, 'digital_id_evidence');
         if (! $ocr['passed']) return $ocr;
         $evidenceText = (string) $ocr['text'];
-        if (! $this->hasUsableText($evidenceText)) {
-            return $this->failed('The uploaded government-app screenshot has no readable text. Upload a clear, uncropped screenshot.');
+        if (! $this->hasMeaningfulEvidenceText($evidenceText)) {
+            return $this->failed('The uploaded image does not contain enough readable government ID text. Dark, blank, scenery, object, and ordinary figure photos are not accepted.');
         }
 
         $source = $this->detectDigitalEvidenceSource($evidenceText, $expectedIdType);
@@ -204,6 +207,48 @@ class DocumentOcrService
         };
         $shared = array_values(array_intersect($extract($firstText), $extract($secondText)));
         return count($shared) === 1 ? $shared[0] : null;
+    }
+
+    private function digitalEvidenceImageQualityError(string $imagePath): ?string
+    {
+        $contents = @file_get_contents($imagePath);
+        $image = is_string($contents) ? @imagecreatefromstring($contents) : false;
+        if (! $image) return 'The uploaded screenshot could not be opened as a valid image.';
+
+        $width = imagesx($image);
+        $height = imagesy($image);
+        $stepX = max(1, (int) floor($width / 64));
+        $stepY = max(1, (int) floor($height / 64));
+        $sum = 0.0;
+        $sumSquares = 0.0;
+        $samples = 0;
+        for ($y = 0; $y < $height; $y += $stepY) {
+            for ($x = 0; $x < $width; $x += $stepX) {
+                $color = imagecolorat($image, $x, $y);
+                $red = ($color >> 16) & 0xFF;
+                $green = ($color >> 8) & 0xFF;
+                $blue = $color & 0xFF;
+                $gray = $red * 0.299 + $green * 0.587 + $blue * 0.114;
+                $sum += $gray;
+                $sumSquares += $gray * $gray;
+                $samples++;
+            }
+        }
+        imagedestroy($image);
+        $brightness = $sum / max(1, $samples);
+        $variance = max(0.0, $sumSquares / max(1, $samples) - $brightness * $brightness);
+        $contrast = sqrt($variance);
+
+        if ($brightness < 35) return 'The uploaded image is too dark or black. Upload the original, clearly visible government-app screenshot.';
+        if ($brightness > 248) return 'The uploaded image appears blank or overexposed. Upload a clear government-app screenshot.';
+        if ($contrast < 7) return 'No clear screen or document detail was detected. Blank or plain images are not accepted.';
+        return null;
+    }
+
+    private function hasMeaningfulEvidenceText(string $text): bool
+    {
+        preg_match_all('/[A-Za-z0-9]{2,}/', $text, $tokens);
+        return mb_strlen(preg_replace('/\s+/', '', $text) ?? '') >= 20 && count($tokens[0]) >= 6;
     }
 
     private function readText(string $imagePath, string $documentType): array

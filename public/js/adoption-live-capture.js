@@ -517,11 +517,15 @@ document.addEventListener('DOMContentLoaded', function () {
     input.disabled = true; evidenceStatus(card, 'Reading the government-app screenshot and comparing its identity information…', 'info');
     try {
       if (!/^image\/(?:jpeg|png|webp)$/i.test(file.type) || file.size > 8 * 1024 * 1024) throw new Error('Choose a JPG, PNG, or WebP screenshot no larger than 8 MB.');
-      var canvas = await uploadedImageCanvas(file, 2600), worker = await getTesseractWorker();
+      var canvas = await uploadedImageCanvas(file, 2600), imageQuality = analyzeIdFrame(canvas);
+      if (imageQuality.brightness < 35) throw new Error('The uploaded image is too dark or black. Upload the original, clearly visible government-app screenshot.');
+      if (imageQuality.brightness > 248 || imageQuality.glareRatio > 0.82) throw new Error('The uploaded image is blank or overexposed. Upload a clear government-app screenshot.');
+      if (imageQuality.contrast < 7 && imageQuality.sharpness < 2) throw new Error('No clear screen or document detail was detected. Ordinary photos and blank images are not accepted.');
+      var worker = await getTesseractWorker();
       var basicResult = await worker.recognize(canvas), detailResult = await recognizeIdDetails(worker, canvas);
       var textParts = [(basicResult && basicResult.data ? basicResult.data.text : ''), (detailResult && detailResult.data ? detailResult.data.text : '')];
       if (type === 'national_id') {
-        evidenceStatus(card, 'National ID detected. Zooming into the Digital ID to read its PCN and birth date…', 'info');
+        evidenceStatus(card, 'Improving the selected National ID screenshot reading…', 'info');
         var zoomedRegions = evidenceZoomCanvases(canvas);
         for (var regionIndex = 0; regionIndex < zoomedRegions.length; regionIndex += 1) {
           var regionResult = await worker.recognize(zoomedRegions[regionIndex]);
@@ -530,9 +534,12 @@ document.addEventListener('DOMContentLoaded', function () {
       }
       var text = textParts.join('\n').trim();
       var source = detectDigitalEvidenceSource(type, text), selectedTypeMatched = matchesSelectedDigitalIdType(type, text), detectedType = selectedTypeMatched ? type : null, nameMatches = applicantNameMatchCount(text);
+      var readableTokens = normalizeOcr(text).split(/[^A-Z0-9]+/).filter(function (token) { return token.length >= 2; }).length;
+      if (readableTokens < 6) throw new Error('No readable government ID text was found. Dark, blank, scenery, object, and ordinary figure photos are not accepted.');
       if (!source) throw new Error('Expected official eGovPH, LTO/LTMS, or PRC source markers were not found. Upload the complete, uncropped official screen.');
       if (!selectedTypeMatched) throw new Error('The screenshot does not clearly show the selected ' + idTypeLabel(type) + '. Upload its complete official screen, including the ID title and number.');
       if (nameMatches < 2) throw new Error('The first and last name in the screenshot do not match the application.');
+      evidenceStatus(card, idTypeLabel(type) + ' detected. Comparing its identity information with the live-scanned ID…', 'info');
       var physicalNumber = compactIdentityValue(extractionField(card._idExtraction, 'Document number'));
       var numberComparison = digitalEvidenceNumberMatch(physicalNumber, text, type), numberMatched = numberComparison.matched;
       var physicalBirthDate = canonicalEvidenceDate(extractionField(card._idExtraction, 'Birth date'));
