@@ -8,6 +8,7 @@ use App\Models\AdoptionApplicationModel;
 use App\Models\AdoptionApplicationDraftModel;
 use App\Models\AnimalModel;
 use App\Models\ApplicationCatModel;
+use App\Models\StaffModel;
 use App\Services\DocumentOcrService;
 use App\Services\AdoptionAssessmentService;
 use App\Models\AdoptionAssessmentFlagModel;
@@ -348,6 +349,14 @@ class ApplicationController extends BaseController
         } catch (\Throwable $exception) {
             log_message('warning', 'Submitted application draft cleanup failed: {message}', ['message' => $exception->getMessage()]);
         }
+        $this->notifyAdminsOfNewApplication(
+            $applicationId,
+            $applicationCode,
+            trim((string) $post['full_name']),
+            (string) (session('adopter_user.email') ?: ''),
+            $cats ? implode(', ', array_column($cats, 'name')) : trim((string) $post['cat_description']),
+            (float) ($assessment['score'] ?? 0),
+        );
         return redirect()->to('/adopter/apply/success');
     }
 
@@ -377,6 +386,81 @@ class ApplicationController extends BaseController
             $code = 'APP-' . strtoupper(bin2hex(random_bytes(3)));
         } while ((new AdoptionApplicationModel())->where('application_id', $code)->first());
         return $code;
+    }
+
+    /** Notify active administrators only after the complete application is safely stored. */
+    private function notifyAdminsOfNewApplication(
+        int $applicationId,
+        string $applicationCode,
+        string $applicantName,
+        string $applicantEmail,
+        string $catNames,
+        float $score,
+    ): void {
+        try {
+            $admins = (new StaffModel())
+                ->select('name, email')
+                ->where('role', 'admin')
+                ->where('is_active', 1)
+                ->findAll();
+        } catch (\Throwable $exception) {
+            log_message('error', 'Admin recipients could not be loaded for application {id}: {message}', [
+                'id' => $applicationId,
+                'message' => $exception->getMessage(),
+            ]);
+            return;
+        }
+
+        $recipients = [];
+        foreach ($admins as $admin) {
+            $address = strtolower(trim((string) ($admin['email'] ?? '')));
+            if (filter_var($address, FILTER_VALIDATE_EMAIL)) $recipients[$address] = $address;
+        }
+        if ($recipients === []) {
+            log_message('warning', 'No active administrator email was available for application {id}.', ['id' => $applicationId]);
+            return;
+        }
+
+        $safeApplicant = htmlspecialchars($applicantName, ENT_QUOTES, 'UTF-8');
+        $safeApplicantEmail = htmlspecialchars($applicantEmail ?: 'Not available', ENT_QUOTES, 'UTF-8');
+        $safeCats = htmlspecialchars($catNames ?: 'Not specified', ENT_QUOTES, 'UTF-8');
+        $safeCode = htmlspecialchars($applicationCode, ENT_QUOTES, 'UTF-8');
+        $reviewUrl = site_url('admin/applications/' . $applicationId);
+        $submittedAt = date('F j, Y · g:i A') . ' (Philippine Time)';
+        $message = '<!doctype html><html><body style="margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#172033;padding:28px 16px">'
+            . '<div style="max-width:600px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(10,106,138,.12)">'
+            . '<div style="background:#0a6a8a;color:#fff;padding:24px 30px;font-weight:bold;font-size:18px">🐾 CatCare 360 · McKinley West Cats</div>'
+            . '<div style="padding:30px"><p style="margin:0 0 10px;color:#64748b;font-size:13px;text-transform:uppercase;letter-spacing:.08em;font-weight:bold">New adoption application</p>'
+            . '<h1 style="margin:0 0 18px;font-size:25px;color:#0f172a">An application is ready for review</h1>'
+            . '<p style="line-height:1.7;color:#475569">A new adoption application was successfully submitted and its required evidence was stored in CatCare 360.</p>'
+            . '<div style="margin:22px 0;padding:18px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0">'
+            . '<p style="margin:0 0 9px"><strong>Application:</strong> ' . $safeCode . '</p>'
+            . '<p style="margin:0 0 9px"><strong>Applicant:</strong> ' . $safeApplicant . '</p>'
+            . '<p style="margin:0 0 9px"><strong>Email:</strong> ' . $safeApplicantEmail . '</p>'
+            . '<p style="margin:0 0 9px"><strong>Cat:</strong> ' . $safeCats . '</p>'
+            . '<p style="margin:0 0 9px"><strong>Preliminary readiness score:</strong> ' . number_format($score, 2) . '%</p>'
+            . '<p style="margin:0"><strong>Submitted:</strong> ' . htmlspecialchars($submittedAt, ENT_QUOTES, 'UTF-8') . '</p></div>'
+            . '<a href="' . htmlspecialchars($reviewUrl, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:#0a6a8a;color:#fff;text-decoration:none;padding:12px 18px;border-radius:9px;font-weight:bold">Review Application</a>'
+            . '<p style="margin:22px 0 0;line-height:1.6;color:#64748b;font-size:13px">The preliminary score and document-screening results are decision-support information only. Please review the complete application, captured identification, official-source evidence, and applicant identity before recording a decision.</p>'
+            . '</div><div style="padding:16px 30px;background:#f8fafc;color:#94a3b8;font-size:12px">CatCare 360 · Administrative notification</div></div></body></html>';
+
+        foreach ($recipients as $recipient) {
+            try {
+                $email = service('email');
+                $email->clear(true);
+                $config = config('Email');
+                $email->setFrom($config->fromEmail ?: 'no-reply@catcare360.org', $config->fromName ?: 'CatCare 360');
+                $email->setTo($recipient);
+                $email->setSubject('New adoption application: ' . $applicationCode . ' | ' . $catNames);
+                $email->setMailType('html');
+                $email->setMessage($message);
+                if (! $email->send()) {
+                    log_message('error', 'New application notification could not be sent to {email} for application {id}.', ['email' => $recipient, 'id' => $applicationId]);
+                }
+            } catch (\Throwable $exception) {
+                log_message('error', 'New application notification failed for application {id}: {message}', ['id' => $applicationId, 'message' => $exception->getMessage()]);
+            }
+        }
     }
 
     private function draftText($value, int $maximumLength): string
