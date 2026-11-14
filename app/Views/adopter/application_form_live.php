@@ -55,11 +55,11 @@ $fieldValue = static function (string $name, $fallback = '') use ($draftValues) 
                 <ol class="flex min-w-max items-start gap-2" aria-label="Application progress">
                     <template x-for="(label, index) in labels" :key="index">
                         <li class="flex items-center" :data-step-index="index">
-                            <div class="flex w-12 flex-col items-center gap-1.5 text-center sm:w-14">
-                                <span class="flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition-colors" :class="completed[index] ? 'border-adopted-600 bg-adopted-600 text-white' : (step === index ? 'border-rescue-600 bg-rescue-600 text-white ring-4 ring-rescue-100' : 'border-slate-200 bg-white text-slate-400')"><i x-show="completed[index]" data-lucide="check" class="h-4 w-4"></i><span x-show="!completed[index]" x-text="index + 1"></span></span>
-                                <span class="hidden max-w-14 text-[10px] font-medium leading-3 sm:block" :class="step === index ? 'text-rescue-700' : 'text-slate-400'" x-text="label"></span>
-                            </div>
-                            <span x-show="index < total - 1" class="mb-5 h-px w-3 bg-slate-200 sm:w-5"></span>
+                            <button type="button" @click="goTo(index)" :disabled="!canGoTo(index)" :aria-current="step === index ? 'step' : null" :aria-label="(step === index ? 'Current step: ' : 'Go to step ' + (index + 1) + ': ') + label" :title="canGoTo(index) ? 'Open ' + label : 'Complete earlier sections to unlock this step'" class="group flex w-12 flex-col items-center gap-1.5 rounded-lg text-center outline-none transition focus-visible:ring-2 focus-visible:ring-rescue-500 focus-visible:ring-offset-2 sm:w-14" :class="canGoTo(index) ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'">
+                                <span class="flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold transition duration-150" :class="step === index ? 'border-rescue-600 bg-rescue-600 text-white ring-4 ring-rescue-100' : (completed[index] ? 'border-adopted-600 bg-adopted-600 text-white group-hover:-translate-y-0.5 group-hover:shadow-sm' : (canGoTo(index) ? 'border-slate-300 bg-white text-slate-600 group-hover:border-rescue-400 group-hover:text-rescue-700' : 'border-slate-200 bg-white text-slate-400'))"><i x-show="completed[index]" data-lucide="check" class="h-4 w-4"></i><span x-show="!completed[index]" x-text="index + 1"></span></span>
+                                <span class="hidden max-w-14 text-[10px] font-medium leading-3 sm:block" :class="step === index ? 'text-rescue-700' : (completed[index] ? 'text-adopted-700' : 'text-slate-400')" x-text="label"></span>
+                            </button>
+                            <span x-show="index < total - 1" class="mb-5 h-px w-3 transition-colors sm:w-5" :class="completed[index] ? 'bg-adopted-300' : 'bg-slate-200'"></span>
                         </li>
                     </template>
                 </ol>
@@ -118,10 +118,11 @@ $fieldValue = static function (string $name, $fallback = '') use ($draftValues) 
 <script>
 function applicationWizard(labels, initialStep) {
     return {
-        step: Math.max(0, Math.min(Number(initialStep) || 0, labels.length - 1)), labels: labels, total: labels.length, completed: labels.map(function (_label, index) { return index < initialStep; }),
+        step: Math.max(0, Math.min(Number(initialStep) || 0, labels.length - 1)), highestReached: Math.max(0, Math.min(Number(initialStep) || 0, labels.length - 1)), labels: labels, total: labels.length, completed: labels.map(function (_label, index) { return index < initialStep; }),
         progressPercent: function () { return Math.round((this.completed.filter(Boolean).length / this.total) * 100); },
         progressText: function () { var percent = this.progressPercent(); return percent === 0 ? 'Start with the details below.' : (percent === 100 ? 'Application sections complete.' : "You're " + percent + '% complete.'); },
         currentPanel: function () { return this.$root.querySelector('[data-wizard-panel="' + this.step + '"]'); },
+        canGoTo: function (index) { return index >= 0 && index <= this.highestReached; },
         validateCurrent: function () {
             var panel = this.currentPanel(); if (!panel) return false;
             var fields = Array.prototype.slice.call(panel.querySelectorAll('input:not([type="hidden"]), textarea, select'));
@@ -131,8 +132,9 @@ function applicationWizard(labels, initialStep) {
             var errorBox = document.getElementById('captureError'); if (errorBox) errorBox.classList.add('hidden'); return true;
         },
         syncDraftStep: function () { var input = document.getElementById('draftCurrentStep'); if (input) input.value = this.step; this.$root.dispatchEvent(new CustomEvent('application-draft-change')); },
-        next: function () { if (!this.validateCurrent()) return; this.completed[this.step] = true; this.completed = this.completed.slice(); if (this.step < this.total - 1) this.step += 1; this.syncDraftStep(); this.focusStep(); },
+        next: function () { if (!this.validateCurrent()) return; this.completed[this.step] = true; this.completed = this.completed.slice(); if (this.step < this.total - 1) this.step += 1; this.highestReached = Math.max(this.highestReached, this.step); this.syncDraftStep(); this.focusStep(); },
         previous: function () { if (this.step > 0) this.step -= 1; this.syncDraftStep(); this.focusStep(); },
+        goTo: function (index) { index = Number(index); if (!this.canGoTo(index) || index === this.step) return; if (index > this.step) { if (!this.validateCurrent()) return; this.completed[this.step] = true; this.completed = this.completed.slice(); } this.step = index; this.syncDraftStep(); this.focusStep(); },
         focusStep: function () { var form = this.$root, current = this.step; this.$nextTick(function () { form.scrollIntoView({ behavior: 'smooth', block: 'start' }); var marker = form.querySelector('[data-step-index="' + current + '"]'); if (marker) marker.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); if (window.lucide) window.lucide.createIcons(); }); }
     };
 }
