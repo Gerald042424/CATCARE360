@@ -418,7 +418,8 @@ document.addEventListener('DOMContentLoaded', function () {
       var url = URL.createObjectURL(file), image = new Image();
       image.onload = function () {
         URL.revokeObjectURL(url);
-        var longest = Math.max(image.naturalWidth, image.naturalHeight), scale = Math.min(1, (maximumSide || 2400) / longest);
+        var longest = Math.max(image.naturalWidth, image.naturalHeight);
+        var scale = Math.min((maximumSide || 2600) / longest, Math.max(1, 1800 / longest));
         var canvas = document.createElement('canvas'); canvas.width = Math.round(image.naturalWidth * scale); canvas.height = Math.round(image.naturalHeight * scale);
         canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height); resolve(canvas);
       };
@@ -432,12 +433,50 @@ document.addEventListener('DOMContentLoaded', function () {
     return field && field[1] !== 'Not confidently read' ? String(field[1]) : '';
   }
   function compactIdentityValue(value) { return normalizeOcr(value).replace(/[^A-Z0-9]/g, ''); }
+  function digitalEvidenceNumberCandidates(text, type) {
+    var normalized = String(text || '').toUpperCase(), candidates = [], chunks = [];
+    if (type === 'drivers_license') chunks = normalized.match(/\b[A-Z][0-9OQIL|ZSBG]{2}[\s.-]?[0-9OQIL|ZSBG]{2}[\s.-]?[0-9OQIL|ZSBG]{6}\b/g) || [];
+    else if (type === 'national_id') chunks = normalized.match(/\b[0-9OQIL|ZSBG]{4}(?:[\s.-]?[0-9OQIL|ZSBG]{4}){3}\b/g) || [];
+    else if (type === 'philhealth') chunks = normalized.match(/\b[0-9OQIL|ZSBG]{2}[\s.-]?[0-9OQIL|ZSBG]{9}[\s.-]?[0-9OQIL|ZSBG]\b/g) || [];
+    else if (type === 'prc_id') {
+      cleanRecognizedLines(text, true).forEach(function (line, index, lines) {
+        if (!lineHasOcrLabel(line, ['REGISTRATION', 'LICENSE'])) return;
+        chunks = chunks.concat((line.match(/\b[0-9OQIL|ZSBG]{5,8}\b/g) || []), ((lines[index + 1] || '').match(/\b[0-9OQIL|ZSBG]{5,8}\b/g) || []));
+      });
+    }
+    chunks.forEach(function (chunk) {
+      var compact = compactIdentityValue(chunk), value;
+      if (type === 'drivers_license') value = compact.charAt(0) + normalizeOcrDigits(compact.slice(1));
+      else value = normalizeOcrDigits(compact);
+      var expectedLength = { philhealth: 12, national_id: 16, drivers_license: 11 }[type];
+      if ((!expectedLength && value.length >= 5 && value.length <= 8) || value.length === expectedLength) candidates.push(value);
+    });
+    return candidates.filter(function (value, index) { return candidates.indexOf(value) === index; });
+  }
+  function digitalEvidenceNumberMatch(physicalNumber, evidenceText, type) {
+    var physical = compactIdentityValue(physicalNumber), candidates = digitalEvidenceNumberCandidates(evidenceText, type);
+    if (!physical) return { matched: false, quality: null, candidatesFound: candidates.length > 0 };
+    for (var index = 0; index < candidates.length; index += 1) {
+      if (physical === candidates[index]) return { matched: true, quality: 'exact', candidatesFound: true };
+    }
+    for (var candidateIndex = 0; candidateIndex < candidates.length; candidateIndex += 1) {
+      var candidate = candidates[candidateIndex];
+      if (physical.length === candidate.length && physical.length >= 7 && editDistance(physical, candidate) <= 1) return { matched: true, quality: 'ocr_tolerant', candidatesFound: true };
+      if (physical.length >= 10 && candidate.length === physical.length && physical.slice(-6) === candidate.slice(-6) && editDistance(physical, candidate) <= 2) return { matched: true, quality: 'ocr_tolerant', candidatesFound: true };
+    }
+    return { matched: false, quality: null, candidatesFound: candidates.length > 0 };
+  }
   function canonicalEvidenceDate(value) {
     var normalized = String(value || '').trim(), match;
     if ((match = normalized.match(/^(\d{4})[\/.-](\d{1,2})[\/.-](\d{1,2})$/))) return match[1] + '-' + match[2].padStart(2, '0') + '-' + match[3].padStart(2, '0');
     if ((match = normalized.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/))) return match[3] + '-' + match[1].padStart(2, '0') + '-' + match[2].padStart(2, '0');
     var timestamp = Date.parse(normalized);
     return Number.isNaN(timestamp) ? '' : new Date(timestamp).toISOString().slice(0, 10);
+  }
+  function canonicalEvidenceDates(text) {
+    var month = '(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)';
+    var pattern = new RegExp('\\b(?:\\d{4}[\\/.-]\\d{1,2}[\\/.-]\\d{1,2}|\\d{1,2}[\\/.-]\\d{1,2}[\\/.-]\\d{2,4}|' + month + '\\s+\\d{1,2},?\\s+\\d{4}|\\d{1,2}\\s+' + month + ',?\\s+\\d{4})\\b', 'gi');
+    return (String(text || '').match(pattern) || []).map(canonicalEvidenceDate).filter(function (value, index, values) { return value && values.indexOf(value) === index; });
   }
   function detectDigitalEvidenceSource(type, text) {
     var normalized = normalizeOcr(text), compact = normalized.replace(/[^A-Z]/g, '');
@@ -462,19 +501,18 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!source) throw new Error('Expected official eGovPH, LTO/LTMS, or PRC source markers were not found. Upload the complete, uncropped official screen.');
       if (detectedType !== type) throw new Error('The digital screenshot shows ' + idTypeLabel(detectedType) + ', not the scanned ' + idTypeLabel(type) + '.');
       if (nameMatches < 2) throw new Error('The first and last name in the screenshot do not match the application.');
-      var screenshotExtraction = extractIdInformation(text, type, Number(detailResult && detailResult.data ? detailResult.data.confidence || 0 : 0), nameMatches);
       var physicalNumber = compactIdentityValue(extractionField(card._idExtraction, 'Document number'));
-      var screenshotNumber = compactIdentityValue(extractionField(screenshotExtraction, 'Document number'));
-      var numberMatched = Boolean(physicalNumber && screenshotNumber && physicalNumber === screenshotNumber);
-      if (physicalNumber && screenshotNumber && !numberMatched) throw new Error('The document number does not match the live-scanned ID. The uploaded screenshot was removed.');
+      var numberComparison = digitalEvidenceNumberMatch(physicalNumber, text, type), numberMatched = numberComparison.matched;
       var physicalBirthDate = canonicalEvidenceDate(extractionField(card._idExtraction, 'Birth date'));
+      var screenshotExtraction = extractIdInformation(text, type, Number(detailResult && detailResult.data ? detailResult.data.confidence || 0 : 0), nameMatches);
       var screenshotBirthDate = canonicalEvidenceDate(extractionField(screenshotExtraction, 'Birth date'));
-      var birthDateMatched = Boolean(physicalBirthDate && screenshotBirthDate && physicalBirthDate === screenshotBirthDate);
-      if (!numberMatched && !birthDateMatched) throw new Error('No matching document number or birth date could be confirmed. Upload a clearer, uncropped screenshot.');
+      var screenshotDates = canonicalEvidenceDates(text);
+      var birthDateMatched = Boolean(physicalBirthDate && (physicalBirthDate === screenshotBirthDate || screenshotDates.indexOf(physicalBirthDate) !== -1));
+      if (!numberMatched && !birthDateMatched) throw new Error(numberComparison.candidatesFound ? 'The screenshot was recognized, but its identity number could not be reliably matched. Upload the complete original screenshot without cropping or editing.' : 'The document number or birth date was not read clearly enough. Upload the complete screenshot at its original resolution.');
       var blob = await canvasJpegBlob(canvas);
       if (!blob || blob.size < 8192) throw new Error('The screenshot could not be prepared. Choose it again.');
       var transfer = new DataTransfer(); transfer.items.add(new File([blob], 'digital-id-evidence-' + Date.now() + '.jpg', { type: 'image/jpeg' })); input.files = transfer.files;
-      card._digitalEvidence = { verified: true, selected_type: type, detected_type: detectedType, source: source, name_match: true, number_match: numberMatched, birth_date_match: birthDateMatched, match_basis: numberMatched ? 'name_and_document_number' : 'name_and_birth_date', verified_at: new Date().toISOString(), provider: 'tesseract_js' };
+      card._digitalEvidence = { verified: true, selected_type: type, detected_type: detectedType, source: source, name_match: true, number_match: numberMatched, number_match_quality: numberComparison.quality, birth_date_match: birthDateMatched, match_basis: numberMatched ? 'name_and_document_number' : 'name_and_birth_date', verified_at: new Date().toISOString(), provider: 'tesseract_js' };
       captures.gov_id.digital_evidence = card._digitalEvidence; meta.value = JSON.stringify(captures);
       card.querySelector('.digital-evidence-preview').src = canvas.toDataURL('image/jpeg', 0.82);
       card.querySelector('.digital-evidence-preview-wrap').classList.remove('hidden');

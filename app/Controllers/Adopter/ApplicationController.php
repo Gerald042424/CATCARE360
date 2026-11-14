@@ -238,6 +238,7 @@ class ApplicationController extends BaseController
                 'source' => $evidenceResult['source'],
                 'match_basis' => $evidenceResult['match_basis'],
                 'number_match' => $evidenceResult['number_match'],
+                'number_match_quality' => $evidenceResult['number_match_quality'],
                 'birth_date_match' => $evidenceResult['birth_date_match'],
                 'screened_at' => date(DATE_ATOM),
             ];

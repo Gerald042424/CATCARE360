@@ -63,4 +63,33 @@ final class AdditionalGovernmentIdDetectionTest extends CIUnitTestCase
         $this->assertSame('prc_e_pic_or_leris', $detector->invoke($service, 'PRC LERIS PROFESSIONAL IDENTIFICATION CARD E-PIC', 'prc_id'));
         $this->assertNull($detector->invoke($service, 'ORDINARY GALLERY SCREENSHOT', 'national_id'));
     }
+
+    public function testDigitalEvidenceNumberAllowsOneLikelyOcrError(): void
+    {
+        $matcher = new ReflectionMethod(DocumentOcrService::class, 'matchDocumentNumbers');
+
+        $this->assertSame(
+            'ocr_tolerant',
+            $matcher->invoke(
+                new DocumentOcrService(),
+                'PhilHealth PIN 02-251496877-6',
+                'eGovPH PhilHealth ID 02-251496677-6',
+                'philhealth',
+            ),
+        );
+    }
+
+    public function testDigitalEvidenceNumberStillRejectsDifferentIdentityNumber(): void
+    {
+        $matcher = new ReflectionMethod(DocumentOcrService::class, 'matchDocumentNumbers');
+
+        $this->assertNull(
+            $matcher->invoke(
+                new DocumentOcrService(),
+                'PhilHealth PIN 02-251496877-6',
+                'eGovPH PhilHealth ID 10-999999999-1',
+                'philhealth',
+            ),
+        );
+    }
 }

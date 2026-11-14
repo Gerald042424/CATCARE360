@@ -74,22 +74,19 @@ class DocumentOcrService
             return $this->failed('The name in the government-app screenshot does not match the applicant’s full name.');
         }
 
-        $physicalNumber = $this->extractDocumentNumber($physicalIdText, $expectedIdType);
-        $evidenceNumber = $this->extractDocumentNumber($evidenceText, $expectedIdType);
-        $numberMatched = $physicalNumber !== null && $evidenceNumber !== null && hash_equals($physicalNumber, $evidenceNumber);
-        if ($physicalNumber !== null && $evidenceNumber !== null && ! $numberMatched) {
-            return $this->failed('The document number in the government-app screenshot does not match the live-scanned ID. The uploaded file was rejected.');
-        }
+        $numberMatchQuality = $this->matchDocumentNumbers($physicalIdText, $evidenceText, $expectedIdType);
+        $numberMatched = $numberMatchQuality !== null;
 
         $sharedBirthDate = $this->sharedDate($physicalIdText, $evidenceText);
         if (! $numberMatched && $sharedBirthDate === null) {
-            return $this->failed('The screenshot source and name were found, but no matching document number or birth date could be confirmed. Upload a clearer, uncropped screenshot.');
+            return $this->failed('The official source, ID type, and applicant name were found, but the document number or birth date could not be matched reliably. Upload the complete original screenshot without cropping or editing.');
         }
 
         return $this->passed('The official-source markers and identity information matched the live-scanned ID. Final authenticity remains subject to staff review.', [
             'source' => $source,
             'match_basis' => $numberMatched ? 'name_and_document_number' : 'name_and_birth_date',
             'number_match' => $numberMatched,
+            'number_match_quality' => $numberMatchQuality,
             'birth_date_match' => $sharedBirthDate !== null,
         ]);
     }
@@ -111,21 +108,58 @@ class DocumentOcrService
 
     private function extractDocumentNumber(string $text, string $type): ?string
     {
+        return $this->documentNumberCandidates($text, $type)[0] ?? null;
+    }
+
+    private function documentNumberCandidates(string $text, string $type): array
+    {
         $normalized = strtoupper(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: $text);
+        $ocrDigit = '0-9OQILZSBG';
         $patterns = [
-            'philhealth' => '/\b\d{2}[-\s]?\d{9}[-\s]?\d\b/',
-            'national_id' => '/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/',
-            'drivers_license' => '/\b[A-Z]\d{2}[-\s]?\d{2}[-\s]?\d{6}\b/',
+            'philhealth' => '/\b[' . $ocrDigit . ']{2}[-\s.]?[' . $ocrDigit . ']{9}[-\s.]?[' . $ocrDigit . ']\b/',
+            'national_id' => '/\b[' . $ocrDigit . ']{4}(?:[-\s.]?[' . $ocrDigit . ']{4}){3}\b/',
+            'drivers_license' => '/\b[A-Z][' . $ocrDigit . ']{2}[-\s.]?[' . $ocrDigit . ']{2}[-\s.]?[' . $ocrDigit . ']{6}\b/',
         ];
-        if (isset($patterns[$type]) && preg_match($patterns[$type], $normalized, $match)) {
-            return preg_replace('/[^A-Z0-9]/', '', $match[0]) ?: null;
-        }
+        $matches = [0 => []];
+        if (isset($patterns[$type])) preg_match_all($patterns[$type], $normalized, $matches);
         if ($type === 'prc_id') {
             $lines = preg_split('/\R/', $normalized) ?: [];
             foreach ($lines as $index => $line) {
                 if (! preg_match('/REGISTRATION\s*(?:NO|NUMBER)|LICENSE\s*(?:NO|NUMBER)/', $line)) continue;
-                if (preg_match('/\b\d{5,8}\b/', $line, $match)) return $match[0];
-                if (isset($lines[$index + 1]) && preg_match('/\b\d{5,8}\b/', $lines[$index + 1], $match)) return $match[0];
+                preg_match_all('/\b[' . $ocrDigit . ']{5,8}\b/', $line . "\n" . ($lines[$index + 1] ?? ''), $lineMatches);
+                array_push($matches[0], ...($lineMatches[0] ?? []));
+            }
+        }
+
+        $candidates = [];
+        foreach ($matches[0] ?? [] as $match) {
+            $compact = preg_replace('/[^A-Z0-9]/', '', strtoupper($match)) ?? '';
+            $prefix = $type === 'drivers_license' ? substr($compact, 0, 1) : '';
+            $digits = strtr($type === 'drivers_license' ? substr($compact, 1) : $compact, [
+                'O' => '0', 'Q' => '0', 'I' => '1', 'L' => '1', 'Z' => '2',
+                'S' => '5', 'G' => '6', 'B' => '8',
+            ]);
+            $value = $prefix . preg_replace('/\D/', '', $digits);
+            $expectedLength = ['philhealth' => 12, 'national_id' => 16, 'drivers_license' => 11][$type] ?? null;
+            if (($expectedLength !== null && strlen($value) === $expectedLength)
+                || ($type === 'prc_id' && strlen($value) >= 5 && strlen($value) <= 8)) {
+                $candidates[] = $value;
+            }
+        }
+        return array_values(array_unique($candidates));
+    }
+
+    private function matchDocumentNumbers(string $physicalText, string $evidenceText, string $type): ?string
+    {
+        $physicalCandidates = $this->documentNumberCandidates($physicalText, $type);
+        $evidenceCandidates = $this->documentNumberCandidates($evidenceText, $type);
+        foreach ($physicalCandidates as $physical) {
+            foreach ($evidenceCandidates as $evidence) {
+                if (hash_equals($physical, $evidence)) return 'exact';
+                if (strlen($physical) !== strlen($evidence) || strlen($physical) < 7) continue;
+                $distance = levenshtein($physical, $evidence);
+                if ($distance <= 1) return 'ocr_tolerant';
+                if (strlen($physical) >= 10 && substr($physical, -6) === substr($evidence, -6) && $distance <= 2) return 'ocr_tolerant';
             }
         }
         return null;
