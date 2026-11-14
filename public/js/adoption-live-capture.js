@@ -428,6 +428,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   }
   function canvasJpegBlob(canvas) { return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/jpeg', 0.9); }); }
+  function evidenceZoomCanvases(source) {
+    return [
+      { y: 0, height: Math.round(source.height * 0.64) },
+      { y: Math.round(source.height * 0.36), height: Math.round(source.height * 0.64) }
+    ].map(function (region) {
+      var scale = Math.max(1, Math.min(2.4, 2300 / Math.max(source.width, region.height)));
+      var target = document.createElement('canvas');
+      target.width = Math.round(source.width * scale); target.height = Math.round(region.height * scale);
+      target.getContext('2d').drawImage(source, 0, region.y, source.width, region.height, 0, 0, target.width, target.height);
+      return detailEnhancedCanvas(target);
+    });
+  }
   function extractionField(extraction, label) {
     var field = extraction && extraction.fields ? extraction.fields.find(function (item) { return item[0] === label; }) : null;
     return field && field[1] !== 'Not confidently read' ? String(field[1]) : '';
@@ -436,7 +448,10 @@ document.addEventListener('DOMContentLoaded', function () {
   function digitalEvidenceNumberCandidates(text, type) {
     var normalized = String(text || '').toUpperCase(), candidates = [], chunks = [];
     if (type === 'drivers_license') chunks = normalized.match(/\b[A-Z][0-9OQIL|ZSBG]{2}[\s.-]?[0-9OQIL|ZSBG]{2}[\s.-]?[0-9OQIL|ZSBG]{6}\b/g) || [];
-    else if (type === 'national_id') chunks = normalized.match(/\b[0-9OQIL|ZSBG]{4}(?:[\s.-]?[0-9OQIL|ZSBG]{4}){3}\b/g) || [];
+    else if (type === 'national_id') {
+      chunks = normalized.match(/\b[0-9OQIL|ZSBG]{4}(?:[\s.-]?[0-9OQIL|ZSBG]{4}){3}\b/g) || [];
+      chunks = chunks.concat(nationalIdNumberCandidates(cleanRecognizedLines(text, true)));
+    }
     else if (type === 'philhealth') chunks = normalized.match(/\b[0-9OQIL|ZSBG]{2}[\s.-]?[0-9OQIL|ZSBG]{9}[\s.-]?[0-9OQIL|ZSBG]\b/g) || [];
     else if (type === 'prc_id') {
       cleanRecognizedLines(text, true).forEach(function (line, index, lines) {
@@ -496,7 +511,16 @@ document.addEventListener('DOMContentLoaded', function () {
       if (!/^image\/(?:jpeg|png|webp)$/i.test(file.type) || file.size > 8 * 1024 * 1024) throw new Error('Choose a JPG, PNG, or WebP screenshot no larger than 8 MB.');
       var canvas = await uploadedImageCanvas(file, 2600), worker = await getTesseractWorker();
       var basicResult = await worker.recognize(canvas), detailResult = await recognizeIdDetails(worker, canvas);
-      var text = ((basicResult && basicResult.data ? basicResult.data.text : '') + '\n' + (detailResult && detailResult.data ? detailResult.data.text : '')).trim();
+      var textParts = [(basicResult && basicResult.data ? basicResult.data.text : ''), (detailResult && detailResult.data ? detailResult.data.text : '')];
+      if (type === 'national_id') {
+        evidenceStatus(card, 'National ID detected. Zooming into the Digital ID to read its PCN and birth date…', 'info');
+        var zoomedRegions = evidenceZoomCanvases(canvas);
+        for (var regionIndex = 0; regionIndex < zoomedRegions.length; regionIndex += 1) {
+          var regionResult = await worker.recognize(zoomedRegions[regionIndex]);
+          if (regionResult && regionResult.data) textParts.push(regionResult.data.text || '');
+        }
+      }
+      var text = textParts.join('\n').trim();
       var source = detectDigitalEvidenceSource(type, text), detectedType = detectGovernmentIdType(text), nameMatches = applicantNameMatchCount(text);
       if (!source) throw new Error('Expected official eGovPH, LTO/LTMS, or PRC source markers were not found. Upload the complete, uncropped official screen.');
       if (detectedType !== type) throw new Error('The digital screenshot shows ' + idTypeLabel(detectedType) + ', not the scanned ' + idTypeLabel(type) + '.');
@@ -570,6 +594,29 @@ document.addEventListener('DOMContentLoaded', function () {
       .replace(/[OQ]/g, '0').replace(/[IL|]/g, '1').replace(/Z/g, '2')
       .replace(/S/g, '5').replace(/G/g, '6').replace(/B/g, '8')
       .replace(/[^0-9]/g, '');
+  }
+  function nationalIdNumberCandidates(lines) {
+    var candidates = [], joined = lines.join('\n').toUpperCase();
+    (joined.match(/\b[0-9OQIL|ZSBG]{4}(?:[\s.\-\n]?[0-9OQIL|ZSBG]{4}){3}\b/g) || []).forEach(function (chunk) {
+      var digits = normalizeOcrDigits(chunk);
+      if (digits.length === 16) candidates.push(digits);
+    });
+    lines.forEach(function (line, index) {
+      if (!lineHasOcrLabel(line, ['PCN', 'PHILSYS CARD NUMBER', 'CARD NUMBER'])) return;
+      var block = [line, lines[index + 1] || '', lines[index + 2] || ''].join(' ');
+      var tokens = block.match(/[0-9OQIL|ZSBG]{3,}/g) || [];
+      var digits = normalizeOcrDigits(tokens.join(''));
+      if (digits.length === 16) candidates.push(digits);
+    });
+    var grouped = {};
+    candidates.forEach(function (value) { grouped[value] = (grouped[value] || 0) + 1; });
+    return Object.keys(grouped).sort(function (first, second) { return grouped[second] - grouped[first]; });
+  }
+  function nationalIdNumber(lines) {
+    var candidates = nationalIdNumberCandidates(lines);
+    if (!candidates.length) return null;
+    var best = candidates[0];
+    return best.slice(0, 4) + '-' + best.slice(4, 8) + '-' + best.slice(8, 12) + '-' + best.slice(12);
   }
   function philHealthNumber(lines, applicantName) {
     var nameParts = normalizeOcr(applicantName).split(/[^A-Z]+/).filter(function (part) { return part.length >= 3; });
@@ -694,6 +741,8 @@ document.addEventListener('DOMContentLoaded', function () {
     var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
     var documentNumber = detectedType === 'philhealth'
       ? philHealthNumber(lines, applicantName)
+      : detectedType === 'national_id'
+        ? nationalIdNumber(lines)
       : detectedType === 'drivers_license'
         ? driversLicenseNumber(lines)
         : detectedType === 'prc_id'

@@ -122,6 +122,20 @@ class DocumentOcrService
         ];
         $matches = [0 => []];
         if (isset($patterns[$type])) preg_match_all($patterns[$type], $normalized, $matches);
+        if ($type === 'national_id') {
+            $lines = preg_split('/\R/', $normalized) ?: [];
+            foreach ($lines as $index => $line) {
+                if (! preg_match('/\bPCN\b|PHILSYS\s+CARD\s+NUMBER|CARD\s+NUMBER/', $line)) continue;
+                $block = $line . ' ' . ($lines[$index + 1] ?? '') . ' ' . ($lines[$index + 2] ?? '');
+                preg_match_all('/[' . $ocrDigit . ']{3,}/', $block, $tokens);
+                $joined = implode('', $tokens[0] ?? []);
+                $digits = preg_replace('/\D/', '', strtr($joined, [
+                    'O' => '0', 'Q' => '0', 'I' => '1', 'L' => '1', 'Z' => '2',
+                    'S' => '5', 'G' => '6', 'B' => '8',
+                ]));
+                if (strlen($digits) === 16) $matches[0][] = $digits;
+            }
+        }
         if ($type === 'prc_id') {
             $lines = preg_split('/\R/', $normalized) ?: [];
             foreach ($lines as $index => $line) {

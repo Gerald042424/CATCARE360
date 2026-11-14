@@ -92,4 +92,19 @@ final class AdditionalGovernmentIdDetectionTest extends CIUnitTestCase
             ),
         );
     }
+
+    public function testNationalIdPcnMayBeSplitAcrossOcrLines(): void
+    {
+        $matcher = new ReflectionMethod(DocumentOcrService::class, 'matchDocumentNumbers');
+
+        $this->assertSame(
+            'exact',
+            $matcher->invoke(
+                new DocumentOcrService(),
+                "PHILSYS CARD NUMBER (PCN)\n1234 5678\n9012 3456",
+                "eGovPH DIGITAL NATIONAL ID\nPCN\n1234-5678-9012-3456",
+                'national_id',
+            ),
+        );
+    }
 }
