@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
     frame.appendChild(video);
     video.classList.remove('rounded-lg');
     video.classList.add('block', 'w-full');
-    frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-0 overflow-hidden"><div class="face-guide absolute left-1/2 top-[47%] h-[66%] w-[58%] max-w-[21rem] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-[3px] border-white/90 shadow-[0_0_0_999px_rgba(2,6,23,.30)] transition-colors duration-200"></div><div class="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/20 bg-slate-950/75 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm">Keep your full face inside the oval</div><div class="face-liveness-panel absolute inset-x-3 bottom-3 hidden rounded-xl border border-white/25 bg-slate-950/80 p-3 text-white shadow-lg backdrop-blur-sm"><div class="flex items-center gap-2"><span class="face-liveness-dot h-2.5 w-2.5 rounded-full bg-sky-400"></span><strong class="face-liveness-title text-sm text-white">Face verification</strong></div><p class="face-liveness-message mt-1 text-xs leading-5 text-slate-100">Keep your face centered in the camera.</p></div><div class="selfie-capture-flash absolute inset-0 hidden bg-white/80"></div></div>');
+    frame.insertAdjacentHTML('beforeend', '<div class="pointer-events-none absolute inset-0 overflow-hidden"><div class="face-guide absolute left-1/2 top-[47%] h-[66%] w-[58%] max-w-[21rem] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-[3px] border-white/90 shadow-[0_0_0_999px_rgba(2,6,23,.30)] transition-colors duration-200"></div><div class="absolute left-1/2 top-3 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/20 bg-slate-950/75 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur-sm">Keep your full face inside the oval</div><div class="face-liveness-panel absolute inset-x-3 bottom-3 hidden rounded-xl border border-white/25 bg-slate-950/80 p-3 text-white shadow-lg backdrop-blur-sm"><div class="flex items-center gap-2"><span class="face-liveness-dot h-2.5 w-2.5 rounded-full bg-sky-400"></span><strong class="face-liveness-title text-sm text-white">Face verification</strong></div><p class="face-liveness-message mt-1 text-xs leading-5 text-slate-100">Keep your face centered in the camera.</p></div><div class="selfie-countdown-overlay absolute inset-0 hidden items-center justify-center bg-slate-950/45 text-center text-white"><div><strong class="selfie-countdown-number block text-7xl font-black leading-none">3</strong><span class="mt-3 block px-5 text-sm font-semibold">Challenge complete. Stay still for the automatic photo.</span></div></div><div class="selfie-capture-flash absolute inset-0 hidden bg-white/80"></div></div>');
   }
   function faceMessage(card, title, message, tone) {
     var panel = card.querySelector('.face-liveness-panel');
@@ -120,7 +120,9 @@ document.addEventListener('DOMContentLoaded', function () {
   function setCameraOrientation(video, facing) { var transform = facing === 'user' ? 'scaleX(-1)' : 'none'; video.style.setProperty('transform', transform, 'important'); video.style.setProperty('-webkit-transform', transform, 'important'); }
   function resetFaceVerification(card) {
     if (card._faceAnimation) cancelAnimationFrame(card._faceAnimation);
+    if (card._faceCountdownTimer) window.clearTimeout(card._faceCountdownTimer);
     card._faceAnimation = null;
+    card._faceCountdownTimer = null;
     card._faceRunning = false;
     card._faceStableFrames = 0;
     card._faceChallenge = null;
@@ -139,6 +141,11 @@ document.addEventListener('DOMContentLoaded', function () {
     button.textContent = isSelfie(card) ? 'Automatic capture after face check' : 'Capture photo';
     var panel = card.querySelector('.face-liveness-panel');
     if (panel) panel.classList.add('hidden');
+    var countdownOverlay = card.querySelector('.selfie-countdown-overlay');
+    if (countdownOverlay) {
+      countdownOverlay.classList.add('hidden');
+      countdownOverlay.classList.remove('flex');
+    }
   }
   function stop(card) {
     stopCaptureQualityMonitor(card);
@@ -176,10 +183,25 @@ document.addEventListener('DOMContentLoaded', function () {
     card.querySelector('.capture-photo').textContent = 'Capturing verified selfie…';
     card.querySelector('.capture-state').textContent = 'Face verified';
     card.querySelector('.capture-state').className = 'capture-state rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700';
-    faceMessage(card, 'Challenge complete', 'Stay still. Taking your verified selfie now…', 'success');
-    var video = card.querySelector('.camera-stream'), verifiedFrame = frameCanvas(video, 1280), flash = card.querySelector('.selfie-capture-flash');
-    if (flash) { flash.classList.remove('hidden'); window.setTimeout(function () { flash.classList.add('hidden'); }, 180); }
-    capture(card, { sourceCanvas: verifiedFrame, automaticSelfieCapture: true });
+    faceMessage(card, 'Challenge complete', 'No more blinking or head movement is needed. Stay still for the automatic photo.', 'success');
+    var overlay = card.querySelector('.selfie-countdown-overlay'), number = card.querySelector('.selfie-countdown-number'), remaining = 3;
+    if (overlay) { overlay.classList.remove('hidden'); overlay.classList.add('flex'); }
+    if (number) number.textContent = String(remaining);
+    function tick() {
+      if (!card._stream || !card._faceAutoCapturePending) return;
+      remaining -= 1;
+      if (remaining > 0) {
+        if (number) number.textContent = String(remaining);
+        card._faceCountdownTimer = window.setTimeout(tick, 1000);
+        return;
+      }
+      card._faceCountdownTimer = null;
+      if (overlay) { overlay.classList.add('hidden'); overlay.classList.remove('flex'); }
+      var video = card.querySelector('.camera-stream'), verifiedFrame = frameCanvas(video, 1280), flash = card.querySelector('.selfie-capture-flash');
+      if (flash) { flash.classList.remove('hidden'); window.setTimeout(function () { flash.classList.add('hidden'); }, 180); }
+      capture(card, { sourceCanvas: verifiedFrame, automaticSelfieCapture: true });
+    }
+    card._faceCountdownTimer = window.setTimeout(tick, 1000);
   }
   function chooseFaceChallenge(card, geometry, result) {
     card._faceChallenge = Math.random() < 0.5 ? 'blink' : 'turn';
@@ -1324,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     var button = card.querySelector('.capture-photo'), canvas = card.querySelector('.capture-canvas');
     button.disabled = true;
-    var liveness = isSelfie(card) ? { verified: true, challenge: card._livenessChallenge, verified_at: new Date(card._livenessVerifiedAt).toISOString(), provider: 'mediapipe_face_landmarker', version: '1.2.0', capture_mode: options.automaticSelfieCapture ? 'automatic_challenge_frame' : 'manual' } : null;
+    var liveness = isSelfie(card) ? { verified: true, challenge: card._livenessChallenge, verified_at: new Date(card._livenessVerifiedAt).toISOString(), provider: 'mediapipe_face_landmarker', version: '1.3.0', capture_mode: options.automaticSelfieCapture ? 'automatic_post_challenge_countdown' : 'manual' } : null;
     var idVerification = isGovernmentId(card) ? Object.assign({}, card._idVerification) : null;
     var captureSource = options.sourceCanvas || video;
     var sourceWidth = captureSource.width || captureSource.videoWidth, sourceHeight = captureSource.height || captureSource.videoHeight;
