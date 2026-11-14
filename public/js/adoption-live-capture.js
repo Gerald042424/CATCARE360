@@ -436,13 +436,57 @@ document.addEventListener('DOMContentLoaded', function () {
     var best = candidates[0].digits;
     return best.slice(0, 2) + '-' + best.slice(2, 11) + '-' + best.slice(11);
   }
+  function driversLicenseNumber(lines) {
+    var labelLines = [];
+    lines.forEach(function (line, index) {
+      if (lineHasOcrLabel(line, ['LICENSE', 'LICENCE']) && /\b(?:NO|NUMBER|NUM)\b/i.test(line)) labelLines.push(index);
+    });
+    var candidates = [];
+    lines.forEach(function (line, lineIndex) {
+      var chunks = line.match(/\b[A-Z][0-9OQIL|ZSBG]{2}[-\s]?[0-9OQIL|ZSBG]{2}[-\s]?[0-9OQIL|ZSBG]{6}\b/ig) || [];
+      chunks.forEach(function (chunk) {
+        var compact = chunk.toUpperCase().replace(/[^A-Z0-9]/g, ''), letter = compact.charAt(0);
+        var rawNumberPart = compact.slice(1), digits = normalizeOcrDigits(rawNumberPart);
+        var actualDigits = (rawNumberPart.match(/[0-9]/g) || []).length;
+        if (!/^[A-Z]$/.test(letter) || digits.length !== 10 || actualDigits < 8) return;
+        var score = actualDigits * 3;
+        if (labelLines.some(function (labelLine) { return lineIndex >= labelLine && lineIndex <= labelLine + 1; })) score += 25;
+        if (/^[A-Z]\d{2}[-\s]\d{2}[-\s]\d{6}$/i.test(chunk)) score += 15;
+        candidates.push({ value: letter + digits.slice(0, 2) + '-' + digits.slice(2, 4) + '-' + digits.slice(4), score: score });
+      });
+    });
+    var grouped = {};
+    candidates.forEach(function (candidate) {
+      if (!grouped[candidate.value]) grouped[candidate.value] = { value: candidate.value, support: 0, bestScore: 0 };
+      grouped[candidate.value].support += 1;
+      grouped[candidate.value].bestScore = Math.max(grouped[candidate.value].bestScore, candidate.score);
+    });
+    candidates = Object.keys(grouped).map(function (value) {
+      var candidate = grouped[value];
+      candidate.score = candidate.bestScore + Math.max(0, candidate.support - 1) * 25;
+      return candidate;
+    }).sort(function (first, second) { return second.score - first.score; });
+    if (!candidates.length || (candidates[1] && candidates[0].score === candidates[1].score)) return null;
+    return candidates[0].value;
+  }
+  function hasAddressBoundary(line) {
+    return lineHasOcrLabel(line, ['LICENSE', 'LICENCE', 'EXPIRATION', 'EXPIRY', 'AGENCY', 'BIRTH', 'SEX', 'GENDER', 'NATIONALITY', 'BLOOD', 'WEIGHT', 'HEIGHT', 'RESTRICTIONS', 'CONDITIONS', 'SIGNATURE']);
+  }
+  function trimAddressTail(value) {
+    var boundary = String(value || '').search(/\b(?:(?:DRIVER'?S?\s+)?LICEN[CS]E\s*(?:NO|NUMBER|NUM)?|EXPIR(?:ATION|Y)?(?:\s+DATE)?|AGENCY\s+CODE|DATE\s+OF\s+BIRTH|BIRTHDATE|SEX|GENDER|NATIONALITY|BLOOD\s+TYPE|WEIGHT|HEIGHT|RESTRICTIONS?|CONDITIONS?|SIGNATURE)\b/i);
+    return (boundary >= 0 ? value.slice(0, boundary) : value).replace(/[,:;\-\s]+$/g, '').trim();
+  }
   function extractedAddress(lines, applicantName) {
     for (var index = 0; index < lines.length; index += 1) {
       if (!lineHasOcrLabel(lines[index], ['ADDRESS', 'TIRAHAN'])) continue;
-      var address = lines[index].replace(/^.*?\b(?:ADDRESS|TIRAHAN)\b\s*[:\-]?\s*/i, '').trim();
-      for (var offset = 1; offset <= 2 && lines[index + offset]; offset += 1) {
-        if (/\b(?:BIRTH|BIRTHDATE|DATE OF BIRTH|DOB|SEX|GENDER|EXPIR|VALID|SIGNATURE|PHILHEALTH|MEMBER)\b/i.test(lines[index + offset])) break;
-        address += (address ? ', ' : '') + lines[index + offset];
+      var address = trimAddressTail(lines[index].replace(/^.*?\b(?:ADDRESS|TIRAHAN)\b\s*[:\-]?\s*/i, '').trim());
+      for (var offset = 1; offset <= 3 && lines[index + offset]; offset += 1) {
+        var continuation = lines[index + offset];
+        if (hasAddressBoundary(continuation) || /\b(?:PHILHEALTH|MEMBER)\b/i.test(continuation)) break;
+        if (/\b[A-Z][0-9OQIL|ZSBG]{2}[-\s]?[0-9OQIL|ZSBG]{2}[-\s]?[0-9OQIL|ZSBG]{6}\b/i.test(continuation)) break;
+        continuation = trimAddressTail(continuation);
+        if (!continuation) break;
+        address += (address ? ', ' : '') + continuation;
       }
       if (address.length >= 5) return address;
     }
@@ -450,7 +494,7 @@ document.addEventListener('DOMContentLoaded', function () {
     for (var fallbackIndex = 0; fallbackIndex < lines.length; fallbackIndex += 1) {
       var candidate = lines[fallbackIndex], normalizedCandidate = normalizeOcr(candidate);
       if (nameParts.some(function (part) { return normalizedCandidate.indexOf(part) !== -1; })) continue;
-      if (/PHILHEALTH|MEMBER|IDENTIFICATION|SIGNATURE|BIRTH|SEX|VALID|EXPIR|REPUBLIC OF (?:THE )?PHILIPPINES/i.test(candidate)) continue;
+      if (/PHILHEALTH|MEMBER|IDENTIFICATION|SIGNATURE|BIRTH|SEX|VALID|EXPIR|LICEN[CS]E|AGENCY\s+CODE|REPUBLIC OF (?:THE )?PHILIPPINES/i.test(candidate)) continue;
       var hasAddressCue = /\b(?:BRGY|BARANGAY|ST|STREET|AVE|AVENUE|ROAD|RD|CITY|MANILA|QUEZON|DISTRICT|PROVINCE|PHILIPPINES)\b/i.test(candidate);
       var startsWithHouseNumber = /^\s*\d{1,5}[A-Z]?\s+[A-Z]/i.test(candidate);
       if ((hasAddressCue || startsWithHouseNumber) && candidate.replace(/[^A-Za-z]/g, '').length >= 5) return candidate;
@@ -469,7 +513,11 @@ document.addEventListener('DOMContentLoaded', function () {
       postal_id: /\b(?:PRN\s*)?[A-Z0-9]{4}[-\s][A-Z0-9-]{5,12}\b/
     };
     var numberMatch = joined.match(numberPatterns[detectedType] || /$a/);
-    var documentNumber = detectedType === 'philhealth' ? philHealthNumber(lines, applicantName) : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
+    var documentNumber = detectedType === 'philhealth'
+      ? philHealthNumber(lines, applicantName)
+      : detectedType === 'drivers_license'
+        ? driversLicenseNumber(lines)
+        : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
     var monthName = '(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)';
     var datePattern = new RegExp('\\b(?:\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}|\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}|' + monthName + '\\s+\\d{1,2},?\\s+\\d{4}|\\d{1,2}\\s+' + monthName + ',?\\s+\\d{4})\\b', 'i');
     var sexValue = fuzzyLabeledIdValue(lines, ['SEX', 'GENDER'], /\b(?:MALE|FEMALE|M|F)\b/i);
