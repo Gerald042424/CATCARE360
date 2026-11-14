@@ -377,6 +377,24 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     return null;
   }
+  function lineHasOcrLabel(line, terms) {
+    var normalizedLine = normalizeOcr(line), compactLine = normalizedLine.replace(/[^A-Z]/g, '');
+    var words = normalizedLine.split(/[^A-Z]+/).filter(function (word) { return word.length >= 2; });
+    return terms.some(function (term) {
+      var normalizedTerm = normalizeOcr(term).replace(/[^A-Z]/g, '');
+      return compactLine.indexOf(normalizedTerm) !== -1 || ocrWordMatches(normalizedTerm, words);
+    });
+  }
+  function fuzzyLabeledIdValue(lines, terms, pattern) {
+    for (var index = 0; index < lines.length; index += 1) {
+      if (!lineHasOcrLabel(lines[index], terms)) continue;
+      var sameLine = lines[index].match(pattern);
+      if (sameLine) return sameLine[0];
+      var nextLine = lines[index + 1] && lines[index + 1].match(pattern);
+      if (nextLine) return nextLine[0];
+    }
+    return null;
+  }
   function normalizeOcrDigits(value) {
     return String(value || '').toUpperCase()
       .replace(/[OQ]/g, '0').replace(/[IL|]/g, '1').replace(/Z/g, '2')
@@ -410,7 +428,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function extractedAddress(lines, applicantName) {
     for (var index = 0; index < lines.length; index += 1) {
-      if (!/\b(?:ADDRESS|TIRAHAN)\b/i.test(lines[index])) continue;
+      if (!lineHasOcrLabel(lines[index], ['ADDRESS', 'TIRAHAN'])) continue;
       var address = lines[index].replace(/^.*?\b(?:ADDRESS|TIRAHAN)\b\s*[:\-]?\s*/i, '').trim();
       for (var offset = 1; offset <= 2 && lines[index + offset]; offset += 1) {
         if (/\b(?:BIRTH|BIRTHDATE|DATE OF BIRTH|DOB|SEX|GENDER|EXPIR|VALID|SIGNATURE|PHILHEALTH|MEMBER)\b/i.test(lines[index + offset])) break;
@@ -444,13 +462,13 @@ document.addEventListener('DOMContentLoaded', function () {
     var documentNumber = detectedType === 'philhealth' ? philHealthNumber(lines, applicantName) : (numberMatch ? numberMatch[0].replace(/\s+/g, '-') : null);
     var monthName = '(?:JAN(?:UARY)?|FEB(?:RUARY)?|MAR(?:CH)?|APR(?:IL)?|MAY|JUN(?:E)?|JUL(?:Y)?|AUG(?:UST)?|SEP(?:T(?:EMBER)?)?|OCT(?:OBER)?|NOV(?:EMBER)?|DEC(?:EMBER)?)';
     var datePattern = new RegExp('\\b(?:\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}|\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}|' + monthName + '\\s+\\d{1,2},?\\s+\\d{4}|\\d{1,2}\\s+' + monthName + ',?\\s+\\d{4})\\b', 'i');
-    var sexValue = labeledIdValue(lines, /\b(?:SEX|GENDER)\b/i, /\b(?:MALE|FEMALE|M|F)\b/i);
+    var sexValue = fuzzyLabeledIdValue(lines, ['SEX', 'GENDER'], /\b(?:MALE|FEMALE|M|F)\b/i);
     if (!sexValue) {
       var standaloneSexValues = lines.filter(function (line) { return /^\s*(?:MALE|FEMALE|M|F)\s*$/i.test(line); });
       sexValue = standaloneSexValues.length === 1 ? standaloneSexValues[0].trim() : null;
     }
     if (sexValue) sexValue = /^F(?:EMALE)?$/i.test(sexValue) ? 'Female' : 'Male';
-    var birthDate = labeledIdValue(lines, /BIRTH|BIRTHDATE|DATE OF BIRTH|DOB/i, datePattern);
+    var birthDate = fuzzyLabeledIdValue(lines, ['BIRTH', 'BIRTHDATE', 'DOB'], datePattern);
     if (!birthDate && detectedType === 'philhealth') {
       var possibleDates = lines.map(function (line) { var match = line.match(datePattern); return match ? match[0] : null; }).filter(Boolean).filter(function (date, index, dates) { return dates.indexOf(date) === index; });
       if (possibleDates.length === 1) birthDate = possibleDates[0];
@@ -464,7 +482,7 @@ document.addEventListener('DOMContentLoaded', function () {
         ['OCR text status', 'Readable for preliminary screening'],
         ['Birth date', birthDate || 'Not confidently read'],
         ['Address', extractedAddress(lines, applicantName) || 'Not confidently read'],
-        ['Expiry date', labeledIdValue(lines, /EXPIR|VALID UNTIL|VALIDITY/i, datePattern) || 'Not confidently read'],
+        ['Expiry date', fuzzyLabeledIdValue(lines, ['EXPIRY', 'EXPIRATION', 'VALIDITY'], datePattern) || 'Not confidently read'],
         ['Sex', sexValue || 'Not confidently read']
       ]
     };
@@ -519,6 +537,17 @@ document.addEventListener('DOMContentLoaded', function () {
     canvas.height = Math.round(video.videoHeight * scale);
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas;
+  }
+  function waitMilliseconds(milliseconds) { return new Promise(function (resolve) { window.setTimeout(resolve, milliseconds); }); }
+  async function clearestIdFrame(video) {
+    var bestFrame = null, bestScore = -Infinity;
+    for (var attempt = 0; attempt < 3; attempt += 1) {
+      if (attempt) await waitMilliseconds(220);
+      var frame = frameCanvas(video, 2560), quality = analyzeIdFrame(frame);
+      var score = quality.sharpness * 3 + quality.contrast - quality.glareRatio * 120;
+      if (score > bestScore) { bestFrame = frame; bestScore = score; }
+    }
+    return bestFrame || frameCanvas(video, 2560);
   }
   function analyzeIdFrame(canvas) {
     // Native Canvas analysis avoids downloading and compiling the 10 MB
@@ -621,6 +650,21 @@ document.addEventListener('DOMContentLoaded', function () {
       pixels[offset] = value; pixels[offset + 1] = value; pixels[offset + 2] = value;
     }
     context.putImageData(image, 0, 0); return target;
+  }
+  async function recognizeIdDetails(worker, source) {
+    var psm = window.Tesseract && window.Tesseract.PSM;
+    var changedMode = false;
+    try {
+      if (worker.setParameters && psm && psm.SPARSE_TEXT) {
+        await worker.setParameters({ tessedit_pageseg_mode: psm.SPARSE_TEXT, preserve_interword_spaces: '1' });
+        changedMode = true;
+      }
+      return await worker.recognize(detailEnhancedCanvas(source));
+    } finally {
+      if (changedMode && psm.AUTO) {
+        try { await worker.setParameters({ tessedit_pageseg_mode: psm.AUTO, preserve_interword_spaces: '0' }); } catch (restoreError) { /* Use the current OCR mode on the next scan. */ }
+      }
+    }
   }
   function rotateCanvas(source, clockwise) {
     var target = document.createElement('canvas');
@@ -763,7 +807,8 @@ document.addEventListener('DOMContentLoaded', function () {
       // Preserve enough native camera detail for small printed fields such as
       // PhilHealth numbers, birth dates, and addresses. The previous 1280 px
       // cap was sufficient for ID-type screening but could blur field text.
-      var source = frameCanvas(video, 2560), analysis = analyzeIdFrame(source), scanningPassport = select.value === 'passport';
+      idMessage(card, 'Stabilizing document', 'Hold the ID steady while the clearest camera frame is selected.', 'info');
+      var source = await clearestIdFrame(video), analysis = analyzeIdFrame(source), scanningPassport = select.value === 'passport';
       var minimumBrightness = scanningPassport ? 45 : 55, maximumBrightness = scanningPassport ? 235 : 225;
       var maximumGlare = scanningPassport ? 0.35 : 0.25, minimumSharpness = scanningPassport ? 4.5 : 7, minimumContrast = scanningPassport ? 12 : 18;
       if (analysis.brightness < minimumBrightness) throw new Error('The ID is too dark. Move to a brighter area and scan again.');
@@ -806,7 +851,7 @@ document.addEventListener('DOMContentLoaded', function () {
       // even when the screening pass did not need its fallback OCR attempts.
       idMessage(card, 'Extracting ID information', 'Improving the reading of the document number, birth date, address, and sex.', 'info');
       try {
-        var detailResult = await worker.recognize(detailEnhancedCanvas(ocrCanvas));
+        var detailResult = await recognizeIdDetails(worker, ocrCanvas);
         var detailText = detailResult && detailResult.data ? detailResult.data.text : '';
         var detailConfidence = detailResult && detailResult.data ? Number(detailResult.data.confidence || 0) : 0;
         text += '\n' + detailText; confidence = Math.max(confidence, detailConfidence);
@@ -860,7 +905,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
   function wrapLine(ctx, text, maxWidth) { var words = text.split(/\s+/), lines = [], current = ''; words.forEach(function (word) { var candidate = current ? current + ' ' + word : word; if (!current || ctx.measureText(candidate).width <= maxWidth) { current = candidate; return; } lines.push(current); current = word; }); if (current) lines.push(current); return lines; }
   function stamp(ctx, w, h, place, coords, when) { var size = Math.max(15, Math.round(w / 55)), rawLines = ['CATCARE 360 • LIVE VERIFICATION', when.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'medium' }), 'ADDRESS: ' + place.location, 'GPS: ' + coords.latitude.toFixed(6) + ', ' + coords.longitude.toFixed(6) + '  ±' + Math.round(coords.accuracy) + ' m']; if (place.attribution) rawLines.push(place.attribution); ctx.font = '600 ' + size + 'px Arial'; var lines = []; rawLines.forEach(function (line) { lines = lines.concat(wrapLine(ctx, line, w - size * 2)); }); var box = Math.ceil(size * (lines.length * 1.5 + 1.4)); ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(0, h - box, w, box); ctx.fillStyle = '#fff'; lines.forEach(function (line, i) { ctx.fillText(line, size, h - box + size * (1.35 + i * 1.5)); }); }
-  async function streamFor(facing) { var settings = { width: { ideal: 1920 }, height: { ideal: 1080 } }; try { return await navigator.mediaDevices.getUserMedia({ video: Object.assign({}, settings, { facingMode: { exact: facing } }), audio: false }); } catch (reason) { if (reason.name !== 'OverconstrainedError' && reason.name !== 'NotFoundError') throw reason; return navigator.mediaDevices.getUserMedia({ video: Object.assign({}, settings, { facingMode: { ideal: facing } }), audio: false }); } }
+  async function streamFor(facing, highDetail) { var settings = highDetail ? { width: { ideal: 3840 }, height: { ideal: 2160 } } : { width: { ideal: 1920 }, height: { ideal: 1080 } }; try { return await navigator.mediaDevices.getUserMedia({ video: Object.assign({}, settings, { facingMode: { exact: facing } }), audio: false }); } catch (reason) { if (reason.name !== 'OverconstrainedError' && reason.name !== 'NotFoundError') throw reason; return navigator.mediaDevices.getUserMedia({ video: Object.assign({}, settings, { facingMode: { ideal: facing } }), audio: false }); } }
   async function open(card) {
     clearError();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return error('Use a current Chrome, Edge, Firefox, or Safari browser for live camera capture.');
@@ -875,7 +920,7 @@ document.addEventListener('DOMContentLoaded', function () {
       if (isGovernmentId(card)) { card._facing = 'environment'; resetIdVerification(card); }
       if (isAddressProof(card)) card._facing = 'environment';
       if (isHomeScene(card)) card._facing = 'environment';
-      var stream = await streamFor(card._facing || 'environment');
+      var stream = await streamFor(card._facing || 'environment', isGovernmentId(card));
       card._stream = stream;
       active = card;
       var video = card.querySelector('.camera-stream');
