@@ -107,4 +107,20 @@ final class AdditionalGovernmentIdDetectionTest extends CIUnitTestCase
             ),
         );
     }
+
+    public function testSelectedNationalIdIsNotOverriddenByPhilHealthMenuText(): void
+    {
+        $matcher = new ReflectionMethod(DocumentOcrService::class, 'matchesDigitalEvidenceIdType');
+        $screenshotText = "eGovPH Services: PhilHealth\nDIGITAL NATIONAL ID\nPhilSys Card Number (PCN) 1234 5678 9012 3456";
+
+        $this->assertTrue($matcher->invoke(new DocumentOcrService(), $screenshotText, 'national_id'));
+    }
+
+    public function testNationalIdScreenDoesNotPassAsPhilHealthFromMenuLabelAlone(): void
+    {
+        $matcher = new ReflectionMethod(DocumentOcrService::class, 'matchesDigitalEvidenceIdType');
+        $screenshotText = "eGovPH Services: PhilHealth\nDIGITAL NATIONAL ID\nPhilSys Card Number (PCN) 1234 5678 9012 3456";
+
+        $this->assertFalse($matcher->invoke(new DocumentOcrService(), $screenshotText, 'philhealth'));
+    }
 }

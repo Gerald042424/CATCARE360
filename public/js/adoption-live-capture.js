@@ -502,6 +502,14 @@ document.addEventListener('DOMContentLoaded', function () {
     if (type === 'drivers_license') return hasEgov ? 'egovph' : (hasLto ? 'lto_ltms' : null);
     return hasEgov ? 'egovph' : null;
   }
+  function matchesSelectedDigitalIdType(type, text) {
+    var normalized = normalizeOcr(text), compact = normalized.replace(/[^A-Z0-9]/g, '');
+    if (type === 'national_id') return /DIGITAL NATIONAL ID|PHILIPPINE IDENTIFICATION|PAMBANSANG PAGKAKAKILANLAN|PHILSYS CARD NUMBER|\bPHILSYS\b|\bPCN\b/.test(normalized);
+    if (type === 'philhealth') return /PHILHEALTH (?:ID|PIN)|MEMBER IDENTIFICATION|PHILIPPINE HEALTH INSURANCE/.test(normalized) || compact.indexOf('PHILHEALTHID') !== -1;
+    if (type === 'drivers_license') return /(?:ELECTRONIC |DIGITAL )?DRIVER'?S? LICENSE|LAND TRANSPORTATION OFFICE|\bLTMS\b/.test(normalized);
+    if (type === 'prc_id') return /PROFESSIONAL IDENTIFICATION CARD|PROFESSIONAL REGULATION COMMISSION|\bE PIC\b|\bEPIC\b|\bLERIS\b/.test(normalized);
+    return false;
+  }
   async function verifyDigitalEvidence(card, input) {
     var file = input.files && input.files[0], type = card.querySelector('.id-type-select').value;
     if (!file || !digitalEvidenceRequired(type)) return;
@@ -521,9 +529,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       }
       var text = textParts.join('\n').trim();
-      var source = detectDigitalEvidenceSource(type, text), detectedType = detectGovernmentIdType(text), nameMatches = applicantNameMatchCount(text);
+      var source = detectDigitalEvidenceSource(type, text), selectedTypeMatched = matchesSelectedDigitalIdType(type, text), detectedType = selectedTypeMatched ? type : null, nameMatches = applicantNameMatchCount(text);
       if (!source) throw new Error('Expected official eGovPH, LTO/LTMS, or PRC source markers were not found. Upload the complete, uncropped official screen.');
-      if (detectedType !== type) throw new Error('The digital screenshot shows ' + idTypeLabel(detectedType) + ', not the scanned ' + idTypeLabel(type) + '.');
+      if (!selectedTypeMatched) throw new Error('The screenshot does not clearly show the selected ' + idTypeLabel(type) + '. Upload its complete official screen, including the ID title and number.');
       if (nameMatches < 2) throw new Error('The first and last name in the screenshot do not match the application.');
       var physicalNumber = compactIdentityValue(extractionField(card._idExtraction, 'Document number'));
       var numberComparison = digitalEvidenceNumberMatch(physicalNumber, text, type), numberMatched = numberComparison.matched;

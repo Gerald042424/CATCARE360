@@ -67,7 +67,7 @@ class DocumentOcrService
         if ($source === null) {
             return $this->failed('The screenshot does not show the expected official eGovPH, LTO/LTMS, or PRC verification source for the selected ID.');
         }
-        if ($this->detectGovernmentIdType($evidenceText) !== $expectedIdType) {
+        if (! $this->matchesDigitalEvidenceIdType($evidenceText, $expectedIdType)) {
             return $this->failed('The ID shown in the government-app screenshot does not match the selected and scanned ID type.');
         }
         if (! $this->nameMatches($applicantName, $evidenceText)) {
@@ -104,6 +104,18 @@ class DocumentOcrService
             return $hasLto ? 'lto_ltms' : null;
         }
         return $hasEgov ? 'egovph' : null;
+    }
+
+    private function matchesDigitalEvidenceIdType(string $text, string $expectedIdType): bool
+    {
+        $normalized = strtoupper(iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text) ?: $text);
+        $patterns = [
+            'national_id' => '/DIGITAL\s+NATIONAL\s+ID|PHILIPPINE\s+IDENTIFICATION|PAMBANSANG\s+PAGKAKAKILANLAN|PHILSYS\s+CARD\s+NUMBER|\bPHILSYS\b|\bPCN\b/',
+            'philhealth' => '/PHILHEALTH\s+(?:ID|PIN)|MEMBER\s+IDENTIFICATION|PHILIPPINE\s+HEALTH\s+INSURANCE/',
+            'drivers_license' => '/(?:ELECTRONIC\s+|DIGITAL\s+)?DRIVER\'?S?\s+LICENSE|LAND\s+TRANSPORTATION\s+OFFICE|\bLTMS\b/',
+            'prc_id' => '/PROFESSIONAL\s+IDENTIFICATION\s+CARD|PROFESSIONAL\s+REGULATION\s+COMMISSION|\bE\s*PIC\b|\bLERIS\b/',
+        ];
+        return isset($patterns[$expectedIdType]) && preg_match($patterns[$expectedIdType], $normalized) === 1;
     }
 
     private function extractDocumentNumber(string $text, string $type): ?string
