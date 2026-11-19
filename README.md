@@ -39,7 +39,8 @@ at pickup. Staff complete the caretaker details and any missing ID details.
 ## Adoption returns
 
 Adopters can request a return from **My Adopted Cats**, including after the
-3-3-3 monitoring period. Staff review the reason and contact details under
+3-3-3 monitoring period. Active admin accounts receive an email when a request
+is submitted, with an urgent subject prefix when applicable. Staff review the reason and contact details under
 **Monitoring → Return Requests**, coordinate with the adopter, and save the
 handover date, time (Philippine time), and location. Either role can cancel an
 open request. Staff confirm the return once they physically receive the cat.

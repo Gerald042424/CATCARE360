@@ -398,11 +398,7 @@ class ApplicationController extends BaseController
         float $score,
     ): void {
         try {
-            $admins = (new StaffModel())
-                ->select('name, email')
-                ->where('role', 'admin')
-                ->where('is_active', 1)
-                ->findAll();
+            $recipients = (new StaffModel())->activeAdminEmailAddresses();
         } catch (\Throwable $exception) {
             log_message('error', 'Admin recipients could not be loaded for application {id}: {message}', [
                 'id' => $applicationId,
@@ -411,11 +407,6 @@ class ApplicationController extends BaseController
             return;
         }
 
-        $recipients = [];
-        foreach ($admins as $admin) {
-            $address = strtolower(trim((string) ($admin['email'] ?? '')));
-            if (filter_var($address, FILTER_VALIDATE_EMAIL)) $recipients[$address] = $address;
-        }
         if ($recipients === []) {
             log_message('warning', 'No active administrator email was available for application {id}.', ['id' => $applicationId]);
             return;

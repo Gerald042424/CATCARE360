@@ -4,19 +4,25 @@ namespace App\Controllers\Adopter;
 
 use App\Controllers\BaseController;
 use App\Services\AdoptionReturnService;
+use App\Services\ReturnRequestNotification;
 
 class ReturnRequestsController extends BaseController
 {
     public function submit(int $adoptionId)
     {
         $user = session('adopter_user');
+        $urgent = $this->request->getPost('urgent') === '1';
         $saved = (new AdoptionReturnService())->submit(
             $adoptionId,
             (int) $user['adopter_id'],
             trim((string) $this->request->getPost('reason')),
             trim((string) $this->request->getPost('notes')),
-            $this->request->getPost('urgent') === '1',
+            $urgent,
         );
+
+        if ($saved) {
+            (new ReturnRequestNotification())->send($adoptionId, $urgent);
+        }
 
         $redirect = redirect()->to(site_url('adopter/portal/' . $adoptionId) . '#return-request');
         return $saved

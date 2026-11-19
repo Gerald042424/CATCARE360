@@ -19,7 +19,7 @@
         $actions = 'admin/monitoring/returns/' . $request['adoption_id'];
         $open = in_array($request['status'], AdoptionReturnService::OPEN_STATUSES, true);
         ?>
-        <article class="card space-y-3">
+        <article id="return-<?= (int) $request['adoption_id'] ?>" class="card space-y-3">
             <header class="flex flex-wrap items-center justify-between gap-2">
                 <h2 class="text-lg font-bold"><?= esc($request['cat_name'] ?? 'Cat record') ?> · <?= esc($request['adopter_name'] ?? 'Adopter record') ?></h2>
                 <div class="flex items-center gap-2">
