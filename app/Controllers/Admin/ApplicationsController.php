@@ -11,6 +11,7 @@ use App\Models\ApplicationCatModel;
 use App\Models\AnimalJourneyEventModel;
 use App\Models\AdoptionAssessmentModel;
 use App\Services\AdoptionAssessmentService;
+use App\Services\AdoptionWaiverService;
 use App\Models\AdoptionAssessmentFlagModel;
 
 class ApplicationsController extends BaseController
@@ -184,7 +185,13 @@ class ApplicationsController extends BaseController
             if ($status !== $application['status'] && in_array($status, ['Approved', 'Rejected'], true)) {
                 $adopter = (new AdopterModel())->find($application['adopter_id']);
                 if (! empty($adopter['email'])) {
-                    $this->sendDecisionEmail($adopter['email'], $application['full_name'], $application['animal_name'] ?: $application['cat_description'], $status, $decisionReason);
+                    $catName = $application['animal_name'] ?: $application['cat_description'];
+                    $cats = $status === 'Approved'
+                        ? [(new AnimalModel())->find($application['cat_id']) ?? ['name' => $catName]]
+                        : [];
+                    if (! $this->sendDecisionEmail($adopter['email'], $application, $catName, $status, $decisionReason, $cats)) {
+                        return redirect()->to('/admin/applications/' . $id)->with('error', 'Decision saved, but the email could not be sent.');
+                    }
                 }
             }
             return redirect()->to('/admin/applications/' . $id)->with('success', 'Application updated.');
@@ -232,7 +239,13 @@ class ApplicationsController extends BaseController
         }
         $itemModel->update($applicationCatId, ['status' => $status]);
         $this->syncParentApplicationStatus($applicationId);
-        if ($status !== $item['status'] && in_array($status, ['Approved', 'Rejected'], true) && ! empty($adopter['email'] ?? null)) $this->sendDecisionEmail($adopter['email'], $application['full_name'], $cat['name'] ?? 'the selected cat', $status, $decisionReason);
+        if ($status !== $item['status'] && in_array($status, ['Approved', 'Rejected'], true) && ! empty($adopter['email'])) {
+            $catName = $cat['name'] ?? 'the selected cat';
+            $cats = $status === 'Approved' ? [$cat ?? ['name' => $catName]] : [];
+            if (! $this->sendDecisionEmail($adopter['email'], $application, $catName, $status, $decisionReason, $cats)) {
+                return redirect()->to('/admin/applications/' . $applicationId)->with('error', 'Cat decision saved, but the email could not be sent.');
+            }
+        }
         return redirect()->to('/admin/applications/' . $applicationId)->with('success', 'Cat review updated.');
     }
 
@@ -327,7 +340,25 @@ class ApplicationsController extends BaseController
         if ($application['status'] === 'Rejected' && $decisionReason === '') {
             return redirect()->back()->with('error', 'Add and save a rejection reason before resending this decision email.');
         }
-        $this->sendDecisionEmail($adopter['email'], $application['full_name'], $application['animal_name'] ?: $application['cat_description'], $application['status'], $decisionReason);
+        $catName = $application['animal_name'] ?: $application['cat_description'];
+        $cats = [];
+        if ($application['status'] === 'Approved') {
+            $approvedCats = (new ApplicationCatModel())
+                ->where('application_id', $applicationId)
+                ->where('status', 'Approved')
+                ->findAll();
+            $animals = new AnimalModel();
+            foreach ($approvedCats as $approvedCat) {
+                $cats[] = $animals->find($approvedCat['cat_id']) ?? ['name' => 'the selected cat'];
+            }
+            if ($cats === []) {
+                $cats[] = $animals->find($application['cat_id']) ?? ['name' => $catName];
+            }
+            $catName = implode(', ', array_column($cats, 'name'));
+        }
+        if (! $this->sendDecisionEmail($adopter['email'], $application, $catName, $application['status'], $decisionReason, $cats)) {
+            return redirect()->back()->with('error', 'The decision email could not be sent.');
+        }
         return redirect()->to('/admin/applications/' . $applicationId)->with('success', 'Decision email resent to the applicant.');
     }
 
@@ -412,29 +443,43 @@ class ApplicationsController extends BaseController
         return redirect()->to('/admin/applications/' . $applicationId)->with('success', 'Interview invitation sent with ' . $slotCount . ' schedule choice' . ($slotCount === 1 ? '' : 's') . '.');
     }
 
-    private function sendDecisionEmail(string $recipient, string $name, string $catName, string $status, string $reason = ''): void
+    private function sendDecisionEmail(string $recipient, array $application, string $catName, string $status, string $reason = '', array $cats = []): bool
     {
         $approved = $status === 'Approved';
-        $safeName = htmlspecialchars($name, ENT_QUOTES, 'UTF-8');
+        $safeName = htmlspecialchars($application['full_name'], ENT_QUOTES, 'UTF-8');
         $safeCat = htmlspecialchars($catName, ENT_QUOTES, 'UTF-8');
         $safeReason = nl2br(htmlspecialchars(trim($reason), ENT_QUOTES, 'UTF-8'));
         $title = $approved ? 'Your adoption application was approved!' : 'An update on your adoption application';
         $message = $approved
-            ? "Wonderful news — your application to adopt {$safeCat} has been approved. Thank you for opening your home and heart to a rescued cat. Please sign in to CatCare 360 for the next steps."
+            ? "Wonderful news — your application to adopt {$safeCat} has been approved. Please print the attached adoption waiver(s) and bring them to pickup for signing. Sign in to CatCare 360 for the next steps."
             : "Thank you sincerely for taking the time to apply and for your interest in giving {$safeCat} a safe and loving home. We truly appreciate your willingness to care for one of our cats. After careful review, we’re sorry that we’re unable to approve this application at this time.";
         $color = $approved ? '#059669' : '#dc2626';
         $reasonBlock = ! $approved && $safeReason !== ''
             ? "<div style=\"margin:22px 0;padding:18px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca\"><p style=\"margin:0 0 8px;font-size:12px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#991b1b\">What influenced this decision</p><p style=\"margin:0;line-height:1.6;color:#7f1d1d\">{$safeReason}</p></div><p style=\"line-height:1.6;color:#4b5563\">Please know that this decision is made with the cat’s long-term safety, well-being, and compatibility in mind. It is not meant to dismiss the care and concern you have shown.</p><p style=\"line-height:1.6;color:#4b5563\">If your circumstances change or the concerns above can be addressed, we warmly welcome you to apply again in the future and continue supporting McKinley West Cats.</p>"
             : '';
-        $email = service('email');
+        $email = single_service('email');
         $config = config('Email');
         $email->setFrom($config->fromEmail ?: 'no-reply@catcare360.org', $config->fromName ?: 'CatCare 360');
         $email->setTo($recipient);
         $email->setSubject($title);
         $email->setMailType('html');
         $email->setMessage("<!doctype html><html><body style=\"margin:0;background:#f4f7fb;font-family:Arial,sans-serif;color:#172033;padding:28px 16px\"><div style=\"max-width:560px;margin:auto;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 8px 28px rgba(29,78,216,.1)\"><div style=\"background:#2563eb;color:#fff;padding:24px 30px;font-weight:bold;font-size:18px\">🐾 CatCare 360</div><div style=\"padding:30px\"><p style=\"margin:0 0 10px;color:#6b7280;font-size:14px\">Application decision</p><h1 style=\"margin:0 0 14px;font-size:24px;color:{$color}\">{$title}</h1><p style=\"line-height:1.6;color:#4b5563\">Hello {$safeName},</p><p style=\"line-height:1.6;color:#4b5563\">{$message}</p>{$reasonBlock}<a href=\"" . site_url('adopter/application') . "\" style=\"display:inline-block;margin-top:12px;background:#2563eb;color:#fff;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:bold;font-size:14px\">View My Application</a></div><div style=\"padding:16px 30px;background:#f8fafc;color:#9ca3af;font-size:12px\">© 2026 CatCare 360</div></div></body></html>");
-        if (! $email->send()) {
-            log_message('error', 'Application decision email could not be sent to {email}.', ['email' => $recipient]);
+        try {
+            if ($approved) {
+                $waiver = new AdoptionWaiverService();
+                foreach ($cats as $index => $cat) {
+                    $filename = 'CatCare360-Adoption-Waiver-' . ($index + 1) . '.pdf';
+                    $email->attach($waiver->render($application, $recipient, $cat), 'attachment', $filename, 'application/pdf');
+                }
+            }
+            if ($email->send()) {
+                return true;
+            }
+        } catch (\Throwable $exception) {
+            log_message('error', 'Application decision email failed: {type}.', ['type' => $exception::class]);
         }
+
+        log_message('error', 'Decision email could not be sent for adoption application {id}.', ['id' => $application['id']]);
+        return false;
     }
 }

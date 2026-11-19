@@ -26,6 +26,16 @@ It supports the full care journey: cat records, adopter applications, evaluation
 - Post-adoption monitoring and compliance tracking
 - Admin analytics, reports, and follow-up flags
 
+## Adoption waiver
+
+When staff approve a cat for adoption, the decision email includes a print-ready
+waiver filled with the cat record and the adopter's application details. Staff
+can resend the decision email for finalized applications. An approved multi-cat
+application includes one waiver per approved cat on resend.
+
+The adopter and the McKinley West Cats representative sign and date the waiver
+at pickup. Staff complete the caretaker details and any missing ID details.
+
 ## System requirements
 
 - PHP 8.2 or newer
