@@ -9,6 +9,7 @@ class AdoptionReturnService
     public const REASONS = ['Financial difficulty', 'Housing or relocation', 'Health or family circumstances', 'Other'];
     public const OPEN_STATUSES = ['Submitted', 'Handover Scheduled'];
     public const CUSTODY_STATUSES = ['Active', 'Completed'];
+    public const REASON_LENGTH = 60;
 
     private BaseConnection $db;
 
@@ -17,11 +18,17 @@ class AdoptionReturnService
         $this->db = $db ?? db_connect();
     }
 
-    public function submit(int $adoptionId, int $adopterId, string $reason, string $notes, bool $urgent): bool
+    public function submit(int $adoptionId, int $adopterId, string $reason, string $notes, bool $urgent, string $otherReason = ''): bool
     {
         if (! in_array($reason, self::REASONS, true) || mb_strlen($notes) > 1000
             || ! $this->db->tableExists('adoption_return_requests')) {
             return false;
+        }
+        if ($reason === 'Other') {
+            $reason = trim($otherReason);
+            if ($reason === '' || mb_strlen($reason) > self::REASON_LENGTH) {
+                return false;
+            }
         }
         if (! $this->db->table('adoptions')->where([
             'id' => $adoptionId, 'adopter_id' => $adopterId,
