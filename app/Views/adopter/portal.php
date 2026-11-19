@@ -26,6 +26,9 @@ $cnvrSteps = [
         <h1 class="text-3xl font-semibold text-slate-900 mb-2">My Adoption Dashboard</h1>
         <p class="text-slate-500 font-medium">Track your adopted cat's journey and submit updates</p>
     </div>
+    <?php if ($returnsEnabled): ?>
+        <?= view('adopter/return_request', ['cat' => $cat, 'adopter' => $adopter, 'returnRequest' => $returnRequest]) ?>
+    <?php endif; ?>
 
     <?php if (! empty($isOverdue)): ?>
         <div class="mb-8 flex items-start gap-4 rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 shadow-sm" role="alert">

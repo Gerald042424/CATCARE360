@@ -36,6 +36,20 @@ application includes one waiver per approved cat on resend.
 The adopter and the McKinley West Cats representative sign and date the waiver
 at pickup. Staff complete the caretaker details and any missing ID details.
 
+## Adoption returns
+
+Adopters can request a return from **My Adopted Cats**, including after the
+3-3-3 monitoring period. Staff review the reason and contact details under
+**Monitoring → Return Requests**, coordinate with the adopter, and save the
+handover date, time (Philippine time), and location. Either role can cancel an
+open request. Staff confirm the return once they physically receive the cat.
+
+Confirmation preserves the adoption in the adopter's **Return History**, stops
+active monitoring, and moves the cat to **Under Assessment**. When the cat is
+ready to be adopted again, staff can set it to **Available** in Cat Management.
+Apply the `CreateAdoptionReturnRequests` migration in each environment to enable
+the feature.
+
 ## System requirements
 
 - PHP 8.2 or newer

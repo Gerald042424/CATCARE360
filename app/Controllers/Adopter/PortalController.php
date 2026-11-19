@@ -13,6 +13,7 @@ use App\Models\ApplicationCatModel;
 use App\Models\AnimalPhotoModel;
 use App\Models\AdoptionAssessmentModel;
 use App\Services\AdoptionAssessmentService;
+use App\Services\AdoptionReturnService;
 
 class PortalController extends BaseController
 {
@@ -31,12 +32,14 @@ class PortalController extends BaseController
         $adoptedCats = (new AnimalModel())
             ->join('adoptions', 'adoptions.animal_id = animals.id')
             ->where('adoptions.adopter_id', $user['adopter_id'])
-            ->where('adoptions.status', 'Active')
+            ->whereIn('adoptions.status', AdoptionReturnService::CUSTODY_STATUSES)
             ->select('animals.*, adoptions.id AS adoption_id, adoptions.adoption_date')
             ->orderBy('adoptions.adoption_date', 'DESC')
             ->findAll();
 
         $updateModel = new MonitoringSubmissionModel();
+        $db = db_connect();
+        $returnsEnabled = $db->tableExists('adoption_return_requests');
         if ($adoptionId === null) {
             foreach ($adoptedCats as &$adoptedCat) {
                 $adoptionUpdates = $updateModel
@@ -71,6 +74,13 @@ class PortalController extends BaseController
                 'title' => 'My Adoptions',
                 'adopter' => $adopter,
                 'adoptedCats' => $adoptedCats,
+                'returnedCats' => $returnsEnabled ? $db->table('adoption_return_requests r')
+                    ->select('animals.name, r.updated_at')
+                    ->join('adoptions', 'adoptions.id = r.adoption_id')
+                    ->join('animals', 'animals.id = adoptions.animal_id', 'left')
+                    ->where(['adoptions.adopter_id' => $user['adopter_id'], 'r.status' => 'Returned'])
+                    ->orderBy('r.updated_at', 'DESC')
+                    ->get()->getResultArray() : [],
             ]);
         }
 
@@ -157,6 +167,9 @@ class PortalController extends BaseController
             'title' => 'Adopter Portal',
             'adopter' => $adopter,
             'cat' => $adoptedCat,
+            'returnsEnabled' => $returnsEnabled,
+            'returnRequest' => $returnsEnabled ? $db->table('adoption_return_requests')
+                ->where('adoption_id', $adoptionId)->get()->getRowArray() : null,
             'totalUpdates' => $totalUpdates,
             'pendingCount' => $pendingCount,
             'nextCheckIn' => $nextCheckIn,

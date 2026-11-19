@@ -150,7 +150,8 @@ if (! function_exists('closeMonitoringCaseWhenComplete')) {
         $verified = $db->table('monitoring_submissions')->where('adoption_id', $adoptionId)->where('status', 'Verified')->select('checkpoint')->get()->getResultArray();
         $completed = array_column($verified, 'checkpoint');
         foreach (['3-day', '3-week', '3-month'] as $checkpoint) if (! in_array($checkpoint, $completed, true)) return false;
-        $db->table('adoptions')->where('id', $adoptionId)->update(['status' => 'Completed', 'monitoring_closed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        $db->table('adoptions')->where(['id' => $adoptionId, 'status' => 'Active'])->update(['status' => 'Completed', 'monitoring_closed_at' => date('Y-m-d H:i:s'), 'updated_at' => date('Y-m-d H:i:s')]);
+        if ($db->affectedRows() !== 1) return false;
         $exists = $db->table('animal_journey_events')->where(['animal_id' => $adoption['animal_id'], 'event_type' => 'Monitoring Closed'])->countAllResults();
         if (! $exists) $db->table('animal_journey_events')->insert(['animal_id' => $adoption['animal_id'], 'event_type' => 'Monitoring Closed', 'title' => '3-3-3 monitoring case closed', 'description' => 'All required post-adoption updates were verified. The monitoring case is archived for reporting.', 'event_date' => date('Y-m-d'), 'created_at' => date('Y-m-d H:i:s')]);
         return true;

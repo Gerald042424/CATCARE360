@@ -11,5 +11,18 @@
             </a>
         <?php endforeach; ?></div>
     <?php else: ?><div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm"><div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-rescue-50 text-rescue-600"><i data-lucide="heart" class="h-8 w-8"></i></div><h2 class="text-xl font-semibold text-slate-900">No adopted cats yet</h2><p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">Once an application is approved and an adoption is active, your cat will appear here.</p><a href="<?= site_url('adopter/home') ?>" class="mt-6 inline-flex items-center gap-2 rounded-lg bg-rescue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-rescue-700">Meet the Cats</a></div><?php endif; ?>
+    <?php if ($returnedCats !== []): ?>
+        <section class="mt-8">
+            <h2 class="mb-3 text-xl font-semibold text-slate-900">Return History</h2>
+            <ul class="divide-y rounded-2xl border border-slate-200 bg-white px-5">
+                <?php foreach ($returnedCats as $returnedCat): ?>
+                    <li class="flex flex-wrap justify-between gap-2 py-4 text-sm">
+                        <span class="font-semibold text-slate-900"><?= esc($returnedCat['name'] ?? 'Cat record') ?></span>
+                        <span class="text-slate-600">Returned <?= esc(date('M d, Y', strtotime($returnedCat['updated_at']))) ?></span>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endif; ?>
 </div>
 <?= $this->endSection() ?>

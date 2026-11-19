@@ -45,6 +45,8 @@ $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCol
     $routes->post('apply', 'Adopter\ApplicationController::submit');
     $routes->get('portal', 'Adopter\PortalController::index');
     $routes->get('portal/(:num)', 'Adopter\PortalController::index/$1');
+    $routes->post('portal/(:num)/return-request', 'Adopter\ReturnRequestsController::submit/$1');
+    $routes->post('portal/(:num)/return-request/cancel', 'Adopter\ReturnRequestsController::cancel/$1');
     $routes->get('application', 'Adopter\PortalController::application');
     $routes->get('application/(:num)', 'Adopter\PortalController::applicationProgress/$1');
     $routes->get('application/(:num)/cat/(:num)', 'Adopter\PortalController::applicationProgress/$1/$2');
@@ -81,6 +83,10 @@ $routes->group('admin', ['filter' => 'staffAuth'], static function (RouteCollect
     $routes->match(['get', 'post'], 'adopters/(:num)', 'Admin\AdoptersController::profile/$1');
 
     $routes->match(['get', 'post'], 'monitoring', 'Admin\MonitoringController::index');
+    $routes->get('monitoring/returns', 'Admin\ReturnRequestsController::index');
+    $routes->post('monitoring/returns/(:num)/schedule', 'Admin\ReturnRequestsController::schedule/$1');
+    $routes->post('monitoring/returns/(:num)/cancel', 'Admin\ReturnRequestsController::cancel/$1');
+    $routes->post('monitoring/returns/(:num)/confirm', 'Admin\ReturnRequestsController::confirm/$1');
     $routes->post('monitoring/(:num)/verify-gps', 'Admin\MonitoringController::verify/$1');
     $routes->post('monitoring/(:num)/review', 'Admin\MonitoringController::review/$1');
     $routes->get('home-visits', 'Admin\HomeVisitsController::index');
