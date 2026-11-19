@@ -40,7 +40,7 @@
                     <label><span class="label">Handover location</span>
                         <input class="field" name="handover_location" maxlength="255" required value="<?= esc($request['handover_location'] ?? '') ?>">
                     </label>
-                    <div><button class="btn btn-primary" type="submit">Save Handover Schedule</button></div>
+                    <div><button class="btn btn-primary" type="submit">Save &amp; Email Schedule</button></div>
                 </form>
                 <div class="flex flex-wrap gap-3 border-t border-slate-100 pt-3">
                     <?php if ($request['status'] === 'Handover Scheduled'): ?>

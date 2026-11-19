@@ -4,6 +4,7 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Services\AdoptionReturnService;
+use App\Services\ReturnRequestNotification;
 
 class ReturnRequestsController extends BaseController
 {
@@ -31,10 +32,14 @@ class ReturnRequestsController extends BaseController
             (string) $this->request->getPost('handover_at'),
             trim((string) $this->request->getPost('handover_location')),
         );
-        return redirect()->to('admin/monitoring/returns')->with(
-            $saved ? 'success' : 'error',
-            $saved ? 'Handover schedule saved.' : 'Could not save the schedule. Confirm the request is open and enter a future date, time, and location.',
-        );
+        $redirect = redirect()->to(site_url('admin/monitoring/returns') . '#return-' . $adoptionId);
+        if (! $saved) {
+            return $redirect->with('error', 'Could not save the schedule. Confirm the request is open and enter a future date, time, and location.');
+        }
+        if (! (new ReturnRequestNotification())->sendHandover($adoptionId)) {
+            return $redirect->with('error', 'Handover schedule saved, but the email could not be sent. Try saving again or contact the adopter directly.');
+        }
+        return $redirect->with('success', 'Handover schedule saved and emailed to the adopter.');
     }
 
     public function cancel(int $adoptionId)

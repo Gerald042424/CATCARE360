@@ -349,37 +349,11 @@ class AuthController extends BaseController
 
     private function verificationEmailTemplate(string $firstName, string $code): string
     {
-        $name = htmlspecialchars($firstName, ENT_QUOTES, 'UTF-8');
-
-        return <<<HTML
-<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-<body style="margin:0;padding:0;background:#f4f7fb;font-family:Arial,Helvetica,sans-serif;color:#172033;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7fb;padding:32px 16px;">
-    <tr><td align="center">
-      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 28px rgba(29,78,216,.10);">
-        <tr><td style="background:linear-gradient(135deg,#2563eb,#4338ca);padding:30px 34px;color:#ffffff;">
-          <table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.18);text-align:center;font-size:22px;">🐾</td><td style="padding-left:12px;"><div style="font-size:18px;font-weight:700;">CatCare 360</div><div style="font-size:12px;opacity:.8;margin-top:3px;">McKinley West Cats</div></td></tr></table>
-        </td></tr>
-        <tr><td style="padding:34px;">
-          <div style="font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#2563eb;">Secure verification</div>
-          <h1 style="margin:10px 0 10px;font-size:26px;line-height:1.25;color:#172033;">Almost there, {$name}!</h1>
-          <p style="margin:0;font-size:15px;line-height:1.65;color:#5b6475;">Use this one-time verification code to finish creating your CatCare 360 adopter account.</p>
-          <div style="margin:28px 0;background:#eff6ff;border:1px solid #bfdbfe;border-radius:16px;padding:22px;text-align:center;">
-            <div style="font-size:11px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:#4b6b9d;margin-bottom:10px;">Your verification code</div>
-            <div style="font-size:32px;line-height:1;font-weight:700;letter-spacing:9px;color:#1d4ed8;padding-left:9px;">{$code}</div>
-          </div>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f8fafc;border-radius:12px;"><tr><td style="padding:14px 16px;font-size:13px;line-height:1.5;color:#64748b;">⏱ <strong style="color:#334155;">Expires in 10 minutes.</strong> For your security, never share this code with anyone.</td></tr></table>
-          <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:#7b8494;">If you did not request an account, you can safely ignore this email.</p>
-        </td></tr>
-        <tr><td style="padding:20px 34px;background:#f8fafc;border-top:1px solid #e8edf5;text-align:center;font-size:12px;line-height:1.5;color:#8a94a6;">© 2026 CatCare 360 · McKinley West Cats</td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>
-HTML;
+        return view('emails/layout', [
+            'label' => 'Secure verification',
+            'heading' => 'Almost there, ' . $firstName . '!',
+            'content' => view('emails/verification', ['code' => $code]),
+        ]);
     }
 
     public function volunteerLogin()
