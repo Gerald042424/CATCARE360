@@ -246,6 +246,11 @@ class AuthController extends BaseController
             return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => 'Your verification session has ended. Please start again.']]);
         }
 
+        if ($error = $this->registrationEmailError($pending['email'])) {
+            session()->remove('pending_adopter_registration');
+            return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => $error . ' Please start registration again.']]);
+        }
+
         if (($pending['expires_at'] ?? 0) < time()) {
             session()->remove('pending_adopter_registration');
             return $this->response->setStatusCode(422)->setJSON(['errors' => ['form' => 'That code has expired. Please request a new one.']]);
@@ -319,13 +324,25 @@ class AuthController extends BaseController
         $errors = [];
         if ($details['first_name'] === '') $errors['first_name'] = 'Enter your first name.';
         if ($details['last_name'] === '') $errors['last_name'] = 'Enter your last name.';
-        if (! filter_var($details['email'], FILTER_VALIDATE_EMAIL)) $errors['email'] = 'Enter a valid email address.';
+        if ($emailError = $this->registrationEmailError($details['email'])) {
+            $errors['email'] = $emailError;
+        } elseif ($this->accountsForEmail($details['email']) !== []) {
+            $errors['email'] = 'That email is already used by another account.';
+        }
         if ($passwordError = $this->passwordStrengthError($details['password'])) $errors['password'] = $passwordError;
         if ($details['confirm_password'] === '') $errors['confirm_password'] = 'Confirm your password.';
         elseif ($details['password'] !== $details['confirm_password']) $errors['confirm_password'] = 'Passwords do not match.';
         if (! $details['terms']) $errors['terms'] = 'Read and accept the Terms & Conditions to continue.';
-        if ($details['email'] !== '' && $this->accountsForEmail($details['email']) !== []) $errors['email'] = 'That email is already used by another account.';
         return $errors;
+    }
+
+    private function registrationEmailError(string $email): ?string
+    {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return 'Enter a valid email address.';
+        }
+
+        return str_ends_with(strtolower($email), '.com') ? null : 'Use an email address that ends in .com.';
     }
 
     private function accountsForEmail(string $email): array

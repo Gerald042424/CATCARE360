@@ -99,7 +99,7 @@
                     <div><label class="label">First Name</label><input class="field" :class="errors.first_name && 'border-red-400 focus:ring-red-100'" x-model="form.first_name" name="first_name" autocomplete="given-name"><p x-show="errors.first_name" x-text="errors.first_name" class="mt-1 text-xs font-medium text-red-600"></p></div>
                     <div><label class="label">Last Name</label><input class="field" :class="errors.last_name && 'border-red-400 focus:ring-red-100'" x-model="form.last_name" name="last_name" autocomplete="family-name"><p x-show="errors.last_name" x-text="errors.last_name" class="mt-1 text-xs font-medium text-red-600"></p></div>
                 </div>
-                <div><label class="label">Email Address</label><input class="field" :class="errors.email && 'border-red-400 focus:ring-red-100'" x-model="form.email" @input="validateRegistrationField('email')" type="email" name="email" autocomplete="email" placeholder="yourname@example.com"><p class="mt-1 text-xs text-slate-500">Use an active email inbox. A verification code is required before an account is created.</p><p x-show="errors.email" x-text="errors.email" class="mt-1 text-xs font-medium text-red-600"></p></div>
+                <div><label class="label">Email Address</label><input class="field" :class="errors.email && 'border-red-400 focus:ring-red-100'" x-model="form.email" @input="validateRegistrationField('email')" type="email" name="email" autocomplete="email" placeholder="yourname@example.com"><p class="mt-1 text-xs text-slate-500">Use an active email address that ends in .com. We’ll send you a verification code.</p><p x-show="errors.email" x-text="errors.email" class="mt-1 text-xs font-medium text-red-600"></p></div>
                 <div>
                     <label class="label">Password</label>
                     <div class="relative"><input class="field pr-20" :class="errors.password && 'border-red-400 focus:ring-red-100'" x-model="form.password" @input="validateRegistrationField('password')" :type="showPassword ? 'text' : 'password'" name="password" autocomplete="new-password"><button type="button" @click="showPassword=!showPassword" class="absolute inset-y-0 right-2 px-2 text-xs font-semibold text-rescue-600" x-text="showPassword ? 'Hide' : 'Show'"></button></div>
@@ -197,6 +197,11 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
             return '';
         },
         setError(group, field, message) { this[group] = {...this[group], [field]: message}; },
+        registrationEmailError(value, required = false) {
+            const email = value.trim();
+            return this.emailError(email, required) ||
+                (email && !email.toLowerCase().endsWith('.com') ? 'Use an email address that ends in .com.' : '');
+        },
         validateLogin(showEmpty = false) {
             const emailError = this.emailError(this.login.email, showEmpty);
             const passwordError = this.login.password ? '' : (showEmpty ? 'Enter your password.' : '');
@@ -204,7 +209,7 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
             return !emailError && !passwordError;
         },
         validateRegistrationField(field) {
-            if (field === 'email') this.setError('errors', 'email', this.emailError(this.form.email));
+            if (field === 'email') this.setError('errors', 'email', this.registrationEmailError(this.form.email));
             if (field === 'password') {
                 this.setError('errors', 'password', this.passwordError(this.form.password));
                 if (this.form.confirm_password) this.setError('errors', 'confirm_password', this.form.password === this.form.confirm_password ? '' : 'Passwords do not match.');
@@ -215,7 +220,7 @@ function authState(initialOpen, initialTab, initialType, initialLoginEmail, init
             const nextErrors = {};
             if (!this.form.first_name.trim()) nextErrors.first_name = 'Enter your first name.';
             if (!this.form.last_name.trim()) nextErrors.last_name = 'Enter your last name.';
-            const emailError = this.emailError(this.form.email, true); if (emailError) nextErrors.email = emailError;
+            const emailError = this.registrationEmailError(this.form.email, true); if (emailError) nextErrors.email = emailError;
             const passwordError = this.passwordError(this.form.password, true); if (passwordError) nextErrors.password = passwordError;
             if (!this.form.confirm_password) nextErrors.confirm_password = 'Confirm your password.';
             else if (this.form.password !== this.form.confirm_password) nextErrors.confirm_password = 'Passwords do not match.';
