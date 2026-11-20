@@ -33,15 +33,15 @@ class AnalyticsController extends BaseController
         return view('admin/analytics/index', [
             'title' => 'Analytics Dashboard',
             'summary' => [
-                ['label' => 'Cats in records', 'value' => $db->table('animals')->countAllResults(), 'tone' => 'blue'],
-                ['label' => 'Active adoptions', 'value' => $db->table('adoptions')->where('status', 'Active')->countAllResults(), 'tone' => 'emerald'],
-                ['label' => 'Monitoring updates', 'value' => $db->table('monitoring_submissions')->countAllResults(), 'tone' => 'violet'],
-                ['label' => 'Completed tasks', 'value' => $db->table('tasks')->where('status', 'Completed')->countAllResults(), 'tone' => 'amber'],
+                ['label' => 'Cats in records', 'value' => $db->table('animals')->countAllResults(), 'tone' => 'text-blue-600', 'description' => 'All cat profiles across every status. Open Cat Records to see which cats are available.', 'source' => 'Cat Records', 'path' => 'admin/animals'],
+                ['label' => 'Active adoptions', 'value' => $db->table('adoptions')->where('status', 'Active')->countAllResults(), 'tone' => 'text-emerald-600', 'description' => 'Adoption records currently marked Active. Use this count to see how many adoptions are ongoing.', 'source' => 'Adoption Register', 'path' => 'admin/reports/preview/adoptions'],
+                ['label' => 'Monitoring updates', 'value' => $db->table('monitoring_submissions')->countAllResults(), 'tone' => 'text-violet-600', 'description' => 'All post-adoption check-ins submitted by adopters, across all review statuses.', 'source' => 'Monitoring', 'path' => 'admin/monitoring'],
+                ['label' => 'Completed tasks', 'value' => $db->table('tasks')->where('status', 'Completed')->countAllResults(), 'tone' => 'text-amber-600', 'description' => 'Volunteer tasks marked Completed. Use this count to track how much assigned work has been finished.', 'source' => 'Tasks & Schedule', 'path' => 'admin/tasks'],
             ],
             'applicationBreakdown' => $db->table('adoption_applications')->select('status, COUNT(*) AS total')->groupBy('status')->orderBy('total', 'DESC')->get()->getResultArray(),
             'monitoringBreakdown' => $db->table('monitoring_submissions')->select('status, COUNT(*) AS total')->groupBy('status')->orderBy('total', 'DESC')->get()->getResultArray(),
             'monthlyAdoptions' => $monthlyAdoptions,
-            'assessment' => ['average' => round((float) ($assessment['average_score'] ?? 0), 2), 'strong' => (int) ($assessment['strong'] ?? 0), 'watch' => (int) ($assessment['watch'] ?? 0), 'risk' => (int) ($assessment['risk'] ?? 0), 'provisional' => (int) ($assessment['provisional'] ?? 0), 'welfareConcerns' => (int) ($assessment['welfare_concerns'] ?? 0)],
+            'assessment' => ['average' => isset($assessment['average_score']) ? (float) $assessment['average_score'] : null, 'strong' => (int) ($assessment['strong'] ?? 0), 'watch' => (int) ($assessment['watch'] ?? 0), 'risk' => (int) ($assessment['risk'] ?? 0), 'provisional' => (int) ($assessment['provisional'] ?? 0), 'welfareConcerns' => (int) ($assessment['welfare_concerns'] ?? 0)],
         ]);
     }
 }
