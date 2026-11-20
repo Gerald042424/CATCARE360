@@ -64,6 +64,7 @@ $routes->group('admin', ['filter' => 'staffAuth'], static function (RouteCollect
     $routes->get('dashboard', 'Admin\DashboardController::index');
     $routes->get('analytics', 'Admin\AnalyticsController::index');
     $routes->get('reports', 'Admin\ReportsController::index');
+    $routes->get('reports/preview/(:segment)', 'Admin\ReportsController::preview/$1');
     $routes->get('reports/export/(:segment)', 'Admin\ReportsController::export/$1');
 
     $routes->match(['get', 'post'], 'animals', 'Admin\AnimalsController::index');
