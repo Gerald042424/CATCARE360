@@ -48,10 +48,15 @@ $fieldValue = static function (string $name, $fallback = '') use ($draftValues) 
         <div class="sticky top-16 z-30 rounded-t-2xl border-b border-slate-200 bg-white/95 px-4 py-4 shadow-sm backdrop-blur sm:px-6">
             <div class="flex items-end justify-between gap-4">
                 <div><p class="text-sm font-semibold text-slate-900" x-text="'Step ' + (step + 1) + ' of ' + total"></p><p class="mt-0.5 text-xs text-slate-500" x-text="progressText()"></p><p id="draftSaveStatus" class="mt-1 text-[11px] font-medium <?= ! empty($draft) ? 'text-adopted-700' : 'text-slate-400' ?>" aria-live="polite"><?= ! empty($draft) ? 'Draft restored · Autosave is on' : 'Autosave is on' ?></p></div>
-                <p class="max-w-[45%] text-right text-sm font-semibold text-rescue-700" x-text="labels[step]"></p>
+                <div class="flex max-w-[55%] items-center gap-2">
+                    <p class="text-right text-sm font-semibold text-rescue-700" x-text="labels[step]"></p>
+                    <button type="button" @click="stepsExpanded = !stepsExpanded" :aria-expanded="stepsExpanded" aria-controls="application-step-list" :aria-label="stepsExpanded ? 'Hide application steps' : 'Show application steps'" class="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-rescue-700 hover:bg-rescue-50 focus-visible:ring-2 focus-visible:ring-rescue-500">
+                        <span :class="{ 'rotate-180': stepsExpanded }" aria-hidden="true"><i data-lucide="chevron-down" class="h-5 w-5"></i></span>
+                    </button>
+                </div>
             </div>
             <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true"><div class="h-full rounded-full bg-rescue-600 transition-[width] duration-300 motion-reduce:transition-none" :style="'width:' + progressPercent() + '%'"></div></div>
-            <div class="wizard-step-scroll mt-4 overflow-x-auto pb-1">
+            <div id="application-step-list" x-show="stepsExpanded" x-cloak class="wizard-step-scroll mt-4 overflow-x-auto pb-1">
                 <ol class="flex min-w-max items-start gap-2" aria-label="Application progress">
                     <template x-for="(label, index) in labels" :key="index">
                         <li class="flex items-center" :data-step-index="index">
@@ -118,6 +123,7 @@ $fieldValue = static function (string $name, $fallback = '') use ($draftValues) 
 <script>
 function applicationWizard(labels, initialStep) {
     return {
+        stepsExpanded: true,
         step: Math.max(0, Math.min(Number(initialStep) || 0, labels.length - 1)), highestReached: Math.max(0, Math.min(Number(initialStep) || 0, labels.length - 1)), labels: labels, total: labels.length, completed: labels.map(function (_label, index) { return index < initialStep; }),
         progressPercent: function () { return Math.round((this.completed.filter(Boolean).length / this.total) * 100); },
         progressText: function () { var percent = this.progressPercent(); return percent === 0 ? 'Start with the details below.' : (percent === 100 ? 'Application sections complete.' : "You're " + percent + '% complete.'); },

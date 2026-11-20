@@ -609,11 +609,11 @@ class PortalController extends BaseController
     {
         $user = session('adopter_user');
         if (! $user) return redirect()->to('/')->with('error', 'Please sign in to continue.');
-        $phone = preg_replace('/[\s\-().]+/', '', trim((string) $this->request->getPost('phone'))) ?? '';
+        $phone = trim((string) $this->request->getPost('phone'));
         $address = trim((string) $this->request->getPost('address'));
-        if (! preg_match('/^(?:09\d{9}|\+639\d{9})$/', $phone)) {
+        if (! preg_match('/\A09[0-9]{9}\z/', $phone)) {
             return redirect()->back()->withInput()
-                ->with('error', 'Enter a valid Philippine mobile number using 09XXXXXXXXX or +639XXXXXXXXX.')
+                ->with('error', 'Enter an 11-digit Philippine mobile number starting with 09.')
                 ->with('profile_modal_open', true)
                 ->with('profile_editing', true);
         }
