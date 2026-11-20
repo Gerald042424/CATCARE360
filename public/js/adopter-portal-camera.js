@@ -9,6 +9,8 @@
     var startBtn = document.getElementById('startCameraBtn');
     var switchBtn = document.getElementById('switchCameraBtn');
     var captureBtn = document.getElementById('captureBtn');
+    var checkBtn = document.getElementById('cameraCheckBtn');
+    var checkStatus = document.getElementById('cameraCheckStatus');
     var retakeBtn = document.getElementById('retakeBtn');
     var video = document.getElementById('cameraStream');
     var canvas = document.getElementById('captureCanvas');
@@ -32,6 +34,9 @@
     var locationReady = false;
     var sceneReady = false;
     var lightingTimer = null;
+    var cameraCheckRunning = false;
+    var cameraCheckUntil = 0;
+    var capturePending = false;
 
     if (!startBtn) return;
 
@@ -41,6 +46,78 @@
     var qualityCanvas = document.createElement('canvas');
     qualityCanvas.width = 160;
     qualityCanvas.height = 120;
+    var checkCanvas = document.createElement('canvas');
+    checkCanvas.width = 96;
+    checkCanvas.height = 64;
+    var checkContext = checkCanvas.getContext('2d', { willReadFrequently: true });
+
+    function sampleCheckFrame() {
+        checkContext.drawImage(video, 0, 0, 96, 64);
+        var pixels = checkContext.getImageData(0, 0, 96, 64).data;
+        return Uint8Array.from({ length: 96 * 64 }, function (_, i) {
+            return (pixels[i * 4] + pixels[i * 4 + 1] * 2 + pixels[i * 4 + 2]) / 4;
+        });
+    }
+
+    function hasRequestedPan(before, after, direction) {
+        // A leftward camera pan moves background detail to the right in the frame.
+        // Match textured regions in several parts of the frame to reject static
+        // input and ordinary exposure changes.
+        var matches = 0;
+        for (var y = 16; y <= 48; y += 16) {
+            for (var x = 24; x <= 72; x += 24) {
+                var stationaryError, bestError = Infinity, bestShift = 0;
+                for (var shift = -18; shift <= 18; shift += 2) {
+                    var error = 0;
+                    for (var row = -5; row <= 5; row += 2) {
+                        for (var column = -5; column <= 5; column += 2) {
+                            var offset = (y + row) * 96 + x + column;
+                            error += Math.abs(before[offset] - after[offset + shift]);
+                        }
+                    }
+                    if (shift === 0) stationaryError = error;
+                    if (error < bestError) {
+                        bestError = error;
+                        bestShift = shift;
+                    }
+                }
+                if (bestShift * direction >= 4 && stationaryError >= 160 && bestError < stationaryError * 0.65) matches++;
+            }
+        }
+        return matches >= 4;
+    }
+
+    async function runCameraCheck() {
+        if (!cameraReady || !sceneReady || cameraCheckRunning || capturePending) return;
+        var checkStream = stream;
+        var direction = Math.random() < 0.5 ? 1 : -1;
+        cameraCheckRunning = true;
+        cameraCheckUntil = 0;
+        updateCaptureButton();
+        if (photoError) photoError.classList.add('hidden');
+        checkStatus.textContent = 'Slowly point the camera a little to the ' + (direction === 1 ? 'left' : 'right') + '. Keep your cat and the surrounding area visible.';
+
+        try {
+            var initial = sampleCheckFrame();
+            var matchingFrames = 0;
+            for (var sample = 0; sample < 12; sample++) {
+                await new Promise(function (resolve) { window.setTimeout(resolve, 250); });
+                if (stream !== checkStream) return;
+                if (video.readyState >= 2 && hasRequestedPan(initial, sampleCheckFrame(), direction)) matchingFrames++;
+                if (matchingFrames >= 2) {
+                    cameraCheckUntil = Date.now() + 15000;
+                    checkStatus.textContent = 'Camera check passed. Take the photo within 15 seconds.';
+                    return;
+                }
+            }
+            checkStatus.textContent = 'Camera check did not pass. Show more of the area around your cat and try again.';
+        } catch (reason) {
+            checkStatus.textContent = 'Could not check the live camera. Try again.';
+        } finally {
+            cameraCheckRunning = false;
+            updateCaptureButton();
+        }
+    }
 
     function showFullscreenPreview() {
         if (!preview || !preview.src) return;
@@ -69,7 +146,12 @@
     }
 
     function updateCaptureButton() {
-        captureBtn.disabled = !(cameraReady && locationReady && sceneReady);
+        if (cameraCheckUntil && Date.now() >= cameraCheckUntil) {
+            cameraCheckUntil = 0;
+            checkStatus.textContent = 'Camera check expired. Start another check to capture your photo.';
+        }
+        checkBtn.disabled = !cameraReady || !sceneReady || cameraCheckRunning || capturePending;
+        captureBtn.disabled = !(cameraReady && locationReady && sceneReady && cameraCheckUntil) || capturePending;
     }
 
     function showLightingStatus(message, passed) {
@@ -111,7 +193,7 @@
             showLightingStatus('No clear scene detected — uncover the camera and point it at the cat or area.', false);
         } else {
             sceneReady = true;
-            showLightingStatus('Lighting and camera view look clear. You can capture now.', true);
+            showLightingStatus('Lighting and camera view look clear.', true);
         }
         updateCaptureButton();
         return sceneReady;
@@ -225,6 +307,8 @@
             await video.play();
             showFullCameraFrame();
             cameraReady = true;
+            checkBtn.hidden = false;
+            checkStatus.textContent = 'Frame your cat and their surroundings, then start the camera check.';
             startLightingMonitor();
             updateCaptureButton();
             startBtn.classList.add('hidden');
@@ -248,6 +332,9 @@
         video.srcObject = null;
         video.classList.add('hidden');
         cameraReady = false;
+        cameraCheckUntil = 0;
+        checkBtn.hidden = true;
+        checkStatus.textContent = '';
         lightingStatus.classList.add('hidden');
         updateCaptureButton();
         startBtn.classList.remove('hidden');
@@ -255,14 +342,18 @@
     }
 
     startBtn.addEventListener('click', requestCamera);
+    checkBtn.addEventListener('click', runCameraCheck);
 
     switchBtn.addEventListener('click', function () {
+        if (capturePending) return;
         facingMode = facingMode === 'environment' ? 'user' : 'environment';
         stopCamera();
         requestCamera();
     });
 
     captureBtn.addEventListener('click', function () {
+        updateCaptureButton();
+        if (captureBtn.disabled) return;
         if (!video.videoWidth || !video.videoHeight) {
             showPhotoError('Camera is still starting. Please wait a moment and try Capture again.');
             return;
@@ -304,7 +395,11 @@
             context.fillText(line, fontSize, canvas.height - stampHeight + fontSize * (1.35 + (index * 1.45)));
         });
         enhanceDarkCapture(canvas);
+        capturePending = true;
+        updateCaptureButton();
         canvas.toBlob(function (blob) {
+            capturePending = false;
+            updateCaptureButton();
             if (!blob) {
                 showPhotoError('Could not create the camera photo. Please retake it.');
                 return;
