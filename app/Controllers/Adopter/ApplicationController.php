@@ -536,7 +536,11 @@ class ApplicationController extends BaseController
         $typeBasis = is_array($verification) ? (string) ($verification['type_basis'] ?? '') : '';
         $provider = is_array($verification) ? (string) ($verification['provider'] ?? '') : '';
         $confidence = is_array($verification) ? filter_var($verification['confidence'] ?? null, FILTER_VALIDATE_FLOAT) : false;
-        $secondsFromVerification = $verifiedAt === false ? -1 : $capturedAt - $verifiedAt;
+        // Scan ID freezes the camera frame first, then verifies that same
+        // frame. Older sessions saved the capture timestamp after screening.
+        $automaticFrame = ($verification['capture_mode'] ?? null) === 'automatic_verified_frame';
+        $secondsFromVerification = $verifiedAt === false ? null : $capturedAt - $verifiedAt;
+        $minimumOffset = $automaticFrame ? -90 : 0;
         $allowedTypes = ['philhealth', 'national_id', 'drivers_license', 'passport', 'prc_id'];
         $validTypeEvidence = $detectedType === $selectedType && $typeBasis === 'ocr_marker';
         // Passport MRZ OCR confidence is often lower on mobile Safari because
@@ -553,7 +557,8 @@ class ApplicationController extends BaseController
             || $provider !== 'tesseract_js'
             || $confidence === false
             || $confidence < $minimumConfidence
-            || $secondsFromVerification < 0
+            || $secondsFromVerification === null
+            || $secondsFromVerification < $minimumOffset
             || $secondsFromVerification > 90) {
             return 'Scan and pass the selected valid government-issued ID type and Full Name check before capturing it.';
         }
