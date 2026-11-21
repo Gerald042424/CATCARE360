@@ -99,9 +99,10 @@ $cnvrSteps = [
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4">Submit Update</h3>
-                <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" class="space-y-4">
+                <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" data-capture-attempt-url="<?= esc(site_url('adopter/updates/capture-attempt'), 'attr') ?>" data-csrf-field="<?= esc(csrf_token(), 'attr') ?>" class="space-y-4">
                     <?= csrf_field() ?>
                     <input type="hidden" name="cat_id" value="<?= esc($cat['id'] ?? '') ?>">
+                    <input type="hidden" name="capture_attempt" value="">
                     <div>
                         <label class="text-sm font-medium text-slate-700 mb-2 block">Update Type</label>
                         <select name="update_type" class="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-4 text-sm text-slate-900 shadow-sm">
@@ -128,13 +129,14 @@ $cnvrSteps = [
                             </div>
                             <div id="cameraHelp" class="mt-2 text-sm text-red-600 hidden">Camera access is required. Allow it from the lock icon in the address bar, then try again. Gallery uploads are disabled for verification.</div>
                             <p id="cameraCheckStatus" class="mt-2 text-sm font-medium text-slate-700" role="status"></p>
+                            <p id="catDetectionStatus" class="mt-2 text-sm font-medium text-slate-700" role="status"></p>
                             <div id="photoError" class="mt-2 text-sm text-red-600 hidden"></div>
 
                             <div class="mt-3">
                                 <img id="photoPreview" src="" alt="Preview — click to view fullscreen" class="hidden w-full max-h-[70vh] cursor-zoom-in rounded-lg border border-slate-200 object-contain">
                             </div>
 
-                            <p class="mt-2 text-xs text-slate-500">Show your cat and the area around them, then follow the camera prompt. The check uses a short sequence of frames on your device. Only the final photo is submitted, with your current GPS location, date, and time.</p>
+                            <p class="mt-2 text-xs text-slate-500">Keep your cat and the surrounding area in view while following the camera prompt. Cat detection runs on your device. Only the final photo is submitted, with your current GPS location, date, and time.</p>
                         </div>
                     </div>
                     <div>

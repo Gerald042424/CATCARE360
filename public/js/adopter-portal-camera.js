@@ -1,4 +1,7 @@
 (function () {
+    var catDetection = { threshold: 0.50, intervalMs: 350, consecutiveFrames: 3, staleMs: 1000 };
+    var visionAssets = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0';
+    var catModel = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite';
     function enhanceDarkCapture(canvas) {
         var context = canvas.getContext('2d'), image = context.getImageData(0, 0, canvas.width, canvas.height), pixels = image.data, total = 0, count = 0;
         for (var i = 0; i < pixels.length; i += 16) { total += (pixels[i] * .2126) + (pixels[i + 1] * .7152) + (pixels[i + 2] * .0722); count++; }
@@ -11,6 +14,7 @@
     var captureBtn = document.getElementById('captureBtn');
     var checkBtn = document.getElementById('cameraCheckBtn');
     var checkStatus = document.getElementById('cameraCheckStatus');
+    var detectionStatus = document.getElementById('catDetectionStatus');
     var retakeBtn = document.getElementById('retakeBtn');
     var video = document.getElementById('cameraStream');
     var canvas = document.getElementById('captureCanvas');
@@ -39,6 +43,110 @@
     var capturePending = false;
 
     if (!startBtn) return;
+
+    var attemptInput = form.elements.capture_attempt;
+    var attemptUntil = 0;
+    var detectorPromise;
+    var detectionTimer = null;
+    var detectedFrames = 0;
+    var lastDetectionAt = -Infinity;
+    var lastVideoTime = -1;
+    var detectorCanvas = document.createElement('canvas');
+    var detectorContext = detectorCanvas.getContext('2d', { willReadFrequently: true });
+
+    function loadDetector() {
+        if (!detectorPromise) {
+            detectorPromise = import(visionAssets + '/vision_bundle.mjs').then(async function (vision) {
+                var files = await vision.FilesetResolver.forVisionTasks(visionAssets + '/wasm');
+                return vision.ObjectDetector.createFromOptions(files, {
+                    baseOptions: { modelAssetPath: catModel, delegate: 'CPU' },
+                    runningMode: 'VIDEO',
+                    categoryAllowlist: ['cat'],
+                    scoreThreshold: catDetection.threshold
+                });
+            }).catch(function (reason) {
+                detectorPromise = null;
+                throw reason;
+            });
+        }
+        return detectorPromise;
+    }
+
+    function detectCat(detector, frame, width, height) {
+        var scale = Math.min(1, 320 / Math.max(width, height));
+        var inputWidth = Math.round(width * scale), inputHeight = Math.round(height * scale);
+        if (detectorCanvas.width !== inputWidth) detectorCanvas.width = inputWidth;
+        if (detectorCanvas.height !== inputHeight) detectorCanvas.height = inputHeight;
+        detectorContext.drawImage(frame, 0, 0, detectorCanvas.width, detectorCanvas.height);
+        return detector.detectForVideo(detectorCanvas, performance.now()).detections.some(function (detection) {
+            return detection.categories.some(function (category) {
+                return category.categoryName === 'cat' && category.score >= catDetection.threshold;
+            });
+        });
+    }
+
+    function stopCatDetection() {
+        window.clearInterval(detectionTimer);
+        detectionTimer = null;
+        detectedFrames = 0;
+        lastDetectionAt = -Infinity;
+        lastVideoTime = -1;
+    }
+
+    async function startCatDetection(cameraStream) {
+        detectionStatus.textContent = 'Checking camera and loading cat detection…';
+        try {
+            var detector = await loadDetector();
+            if (stream !== cameraStream) return;
+            detectionTimer = window.setInterval(function () {
+                try {
+                    if (video.readyState >= 2 && video.videoWidth && video.currentTime !== lastVideoTime) {
+                        lastVideoTime = video.currentTime;
+                        if (detectCat(detector, video, video.videoWidth, video.videoHeight)) {
+                            if (performance.now() - lastDetectionAt > catDetection.staleMs) detectedFrames = 0;
+                            detectedFrames = Math.min(detectedFrames + 1, catDetection.consecutiveFrames);
+                            lastDetectionAt = performance.now();
+                            detectionStatus.textContent = detectedFrames >= catDetection.consecutiveFrames
+                                ? 'Cat detected. Complete the camera check and GPS to capture.'
+                                : 'Cat detected. Keep your cat in view…';
+                        } else {
+                            detectedFrames = 0;
+                            lastDetectionAt = -Infinity;
+                            detectionStatus.textContent = 'No cat detected. Position your cat within the camera view.';
+                        }
+                    }
+                    updateCaptureButton();
+                } catch (reason) {
+                    stopCatDetection();
+                    detectionStatus.textContent = 'Cat detection stopped. Reopen the camera to try again.';
+                    stopCamera(true);
+                }
+            }, catDetection.intervalMs);
+        } catch (reason) {
+            if (stream !== cameraStream) return;
+            detectionStatus.textContent = 'Cat detection could not load. Check your connection and reopen the camera.';
+            stopCamera(true);
+        }
+    }
+
+    async function authorizeCapture(blob) {
+        var digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+        var photoHash = Array.from(new Uint8Array(digest), function (byte) {
+            return byte.toString(16).padStart(2, '0');
+        }).join('');
+        var data = new FormData();
+        data.set('cat_id', form.elements.cat_id.value);
+        data.set('photo_sha256', photoHash);
+        var csrf = form.elements.namedItem(form.dataset.csrfField);
+        data.set(csrf.name, csrf.value);
+        var response = await fetch(form.dataset.captureAttemptUrl, {
+            method: 'POST', body: data, credentials: 'same-origin', headers: { Accept: 'application/json' }
+        });
+        if (!response.ok || response.redirected) throw new Error('Unable to authorize this capture. Sign in again if your session expired.');
+        var attempt = await response.json();
+        if (!attempt.token || !attempt.expires_in) throw new Error('Capture authorization was unavailable.');
+        return attempt;
+    }
 
     var lightingStatus = document.createElement('p');
     lightingStatus.className = 'mt-2 hidden text-sm font-semibold';
@@ -151,7 +259,9 @@
             checkStatus.textContent = 'Camera check expired. Start another check to capture your photo.';
         }
         checkBtn.disabled = !cameraReady || !sceneReady || cameraCheckRunning || capturePending;
-        captureBtn.disabled = !(cameraReady && locationReady && sceneReady && cameraCheckUntil) || capturePending;
+        var catReady = detectedFrames >= catDetection.consecutiveFrames
+            && performance.now() - lastDetectionAt <= catDetection.staleMs;
+        captureBtn.disabled = !(cameraReady && locationReady && sceneReady && cameraCheckUntil && catReady) || capturePending;
     }
 
     function showLightingStatus(message, passed) {
@@ -275,6 +385,7 @@
     }
 
     async function requestCamera() {
+        if (startBtn.disabled) return;
         if (helpEl) helpEl.classList.add('hidden');
         captureLocation();
 
@@ -286,6 +397,7 @@
             return;
         }
 
+        startBtn.disabled = true;
         try {
             var cameraRequest = navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -302,6 +414,15 @@
                 if (permissionTimedOut) lateStream.getTracks().forEach(function (track) { track.stop(); });
             });
             stream = await Promise.race([cameraRequest, timeoutRequest]);
+            var openedStream = stream;
+            stream.getVideoTracks().forEach(function (track) {
+                track.addEventListener('ended', function () {
+                    if (stream === openedStream) {
+                        stopCamera();
+                        showPhotoError('The camera disconnected. Reopen it to continue.');
+                    }
+                });
+            });
             video.srcObject = stream;
             video.classList.remove('hidden');
             await video.play();
@@ -310,20 +431,27 @@
             checkBtn.hidden = false;
             checkStatus.textContent = 'Frame your cat and their surroundings, then start the camera check.';
             startLightingMonitor();
+            startCatDetection(stream);
             updateCaptureButton();
             startBtn.classList.add('hidden');
             switchBtn.classList.remove('hidden');
         } catch (err) {
+            stopCamera();
             if (helpEl) {
                 helpEl.textContent = err && err.message === 'Camera permission timed out.'
                     ? 'Camera permission did not respond. Open this site in Chrome or Edge, allow Camera from the lock icon, then try again.'
-                    : 'Camera access is required. Allow it from the browser permission prompt or lock icon, then try again.';
+                    : err && err.name === 'NotFoundError' ? 'No camera was found on this device.'
+                    : err && err.name === 'NotReadableError' ? 'The camera is unavailable. Close other apps using it and try again.'
+                    : 'Camera access is required for verification. Please allow camera permission and try again.';
                 helpEl.classList.remove('hidden');
             }
+        } finally {
+            startBtn.disabled = false;
         }
     }
 
-    function stopCamera() {
+    function stopCamera(keepDetectionMessage) {
+        stopCatDetection();
         stopLightingMonitor();
         if (stream) {
             stream.getTracks().forEach(function (track) { track.stop(); });
@@ -335,6 +463,7 @@
         cameraCheckUntil = 0;
         checkBtn.hidden = true;
         checkStatus.textContent = '';
+        if (!keepDetectionMessage) detectionStatus.textContent = '';
         lightingStatus.classList.add('hidden');
         updateCaptureButton();
         startBtn.classList.remove('hidden');
@@ -366,6 +495,27 @@
         canvas.height = video.videoHeight;
         var context = canvas.getContext('2d');
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        // Verify the actual still before the GPS stamp is applied.
+        var captureStream = stream;
+        capturePending = true;
+        updateCaptureButton();
+        finishCapture(context, captureStream).catch(function (reason) {
+            if (stream === captureStream) showPhotoError(reason.message || 'Could not save the camera photo. Please try again.');
+        }).finally(function () {
+            capturePending = false;
+            updateCaptureButton();
+        });
+    });
+
+    async function finishCapture(context, captureStream) {
+        var detector = await loadDetector();
+        if (stream !== captureStream) return;
+        if (!detectCat(detector, canvas, canvas.width, canvas.height)) {
+            detectedFrames = 0;
+            lastDetectionAt = -Infinity;
+            detectionStatus.textContent = 'No cat detected in the photo. Position your cat and capture again.';
+            return;
+        }
         var now = new Date();
         var fontSize = Math.max(16, Math.round(canvas.width / 48));
         var stampLines = [
@@ -395,48 +545,48 @@
             context.fillText(line, fontSize, canvas.height - stampHeight + fontSize * (1.35 + (index * 1.45)));
         });
         enhanceDarkCapture(canvas);
-        capturePending = true;
-        updateCaptureButton();
-        canvas.toBlob(function (blob) {
-            capturePending = false;
-            updateCaptureButton();
-            if (!blob) {
-                showPhotoError('Could not create the camera photo. Please retake it.');
-                return;
-            }
-            var file = new File([blob], 'live-update-' + Date.now() + '.jpg', { type: 'image/jpeg' });
-            var dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            hiddenInput.files = dataTransfer.files;
-            captureSourceInput.value = 'in_app_camera';
-            deviceInfoInput.value = JSON.stringify({
-                platform: navigator.platform || '', language: navigator.language || '',
-                screen: (window.screen.width || '') + 'x' + (window.screen.height || ''),
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '', capturedAt: new Date().toISOString(),
-                location: currentPlace ? currentPlace.location : '', locationSource: currentPlace ? currentPlace.source : 'gps_coordinates'
-            });
-            var previewReader = new FileReader();
-            previewReader.onload = function () {
-                preview.src = previewReader.result;
-                preview.classList.remove('hidden');
-                preview.style.cssText = 'display:block!important;width:100%;min-height:220px;max-height:420px;object-fit:contain';
-            };
-            previewReader.onerror = function () {
-                showPhotoError('The photo was captured but its preview could not be displayed. Please retake it.');
-            };
-            previewReader.readAsDataURL(file);
+        var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/jpeg', 0.92); });
+        if (!blob) throw new Error('Could not create the camera photo. Please retake it.');
+        if (stream !== captureStream) return;
+        var attempt = await authorizeCapture(blob);
+        if (stream !== captureStream) return;
+        var file = new File([blob], 'live-update-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+        var dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        hiddenInput.files = dataTransfer.files;
+        attemptInput.value = attempt.token;
+        attemptUntil = Date.now() + attempt.expires_in * 1000;
+        captureSourceInput.value = 'in_app_camera';
+        deviceInfoInput.value = JSON.stringify({
+            platform: navigator.platform || '', language: navigator.language || '',
+            screen: (window.screen.width || '') + 'x' + (window.screen.height || ''),
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '', capturedAt: new Date().toISOString(),
+            location: currentPlace ? currentPlace.location : '', locationSource: currentPlace ? currentPlace.source : 'gps_coordinates'
+        });
+        var previewReader = new FileReader();
+        previewReader.onload = function () {
+            preview.src = previewReader.result;
             preview.classList.remove('hidden');
             preview.style.cssText = 'display:block!important;width:100%;min-height:220px;max-height:420px;object-fit:contain';
-            captureBtn.classList.add('hidden');
-            retakeBtn.classList.remove('hidden');
-            if (photoError) photoError.classList.add('hidden');
-            stopCamera();
-        }, 'image/jpeg', 0.92);
-    });
+        };
+        previewReader.onerror = function () {
+            showPhotoError('The photo was captured but its preview could not be displayed. Please retake it.');
+        };
+        previewReader.readAsDataURL(file);
+        preview.classList.remove('hidden');
+        preview.style.cssText = 'display:block!important;width:100%;min-height:220px;max-height:420px;object-fit:contain';
+        captureBtn.classList.add('hidden');
+        retakeBtn.classList.remove('hidden');
+        if (photoError) photoError.classList.add('hidden');
+        stopCamera();
+        startBtn.classList.add('hidden');
+    }
 
     retakeBtn.addEventListener('click', function () {
         hiddenInput.value = '';
         captureSourceInput.value = '';
+        attemptInput.value = '';
+        attemptUntil = 0;
         preview.removeAttribute('src');
         preview.classList.add('hidden');
         preview.style.cssText = '';
@@ -449,6 +599,7 @@
     preview.addEventListener('touchend', function (event) { event.preventDefault(); showFullscreenPreview(); }, { passive: false });
 
     locationBtn.addEventListener('click', captureLocation);
+    window.addEventListener('pagehide', function () { stopCamera(); });
 
     form.addEventListener('submit', function (event) {
         if (!hiddenInput.files.length || captureSourceInput.value !== 'in_app_camera') {
@@ -461,6 +612,11 @@
             event.preventDefault();
             showPhotoError('Please allow and capture your current location before submitting.');
             locationBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        if (!attemptInput.value || Date.now() >= attemptUntil) {
+            event.preventDefault();
+            showPhotoError('Your capture authorization expired. Retake the photo before submitting.');
         }
     });
 })();

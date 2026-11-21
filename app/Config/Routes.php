@@ -50,6 +50,7 @@ $routes->group('adopter', ['filter' => 'adopterAuth'], static function (RouteCol
     $routes->get('application', 'Adopter\PortalController::application');
     $routes->get('application/(:num)', 'Adopter\PortalController::applicationProgress/$1');
     $routes->get('application/(:num)/cat/(:num)', 'Adopter\PortalController::applicationProgress/$1/$2');
+    $routes->post('updates/capture-attempt', 'Adopter\PortalController::authorizeUpdateCapture');
     $routes->post('updates/submit', 'Adopter\PortalController::submitUpdate');
     $routes->post('profile', 'Adopter\PortalController::updateProfile');
 });

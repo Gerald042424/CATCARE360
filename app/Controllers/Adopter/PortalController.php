@@ -698,10 +698,64 @@ class PortalController extends BaseController
         ]);
     }
 
+    public function authorizeUpdateCapture()
+    {
+        $session = session();
+        $user = $session->get('adopter_user');
+        if (empty($user['id']) || empty($user['adopter_id'])) {
+            return $this->response->setStatusCode(401)->setJSON(['error' => 'Sign in again to capture a photo.']);
+        }
+
+        $catId = filter_var($this->request->getPost('cat_id'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $photoHash = $this->request->getPost('photo_sha256');
+        if ($catId === false || ! is_string($photoHash) || ! preg_match('/\A[a-f0-9]{64}\z/', $photoHash)) {
+            return $this->response->setStatusCode(422)->setJSON(['error' => 'Capture a valid camera photo.']);
+        }
+
+        $adoption = $this->activeUpdateAdoption((int) $user['adopter_id'], $catId);
+        if (! $adoption) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'No active adoption was found for this cat.']);
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $ttl = 180;
+        $session->set('monitoring_capture_attempt', [
+            'token_hash' => hash('sha256', $token),
+            'photo_hash' => $photoHash,
+            'user_id' => (int) $user['id'],
+            'adopter_id' => (int) $user['adopter_id'],
+            'adoption_id' => (int) $adoption['id'],
+            'expires_at' => time() + $ttl,
+        ]);
+
+        return $this->response->setHeader('Cache-Control', 'no-store')->setJSON(['token' => $token, 'expires_in' => $ttl]);
+    }
+
+    private function activeUpdateAdoption(int $adopterId, int $catId): ?array
+    {
+        return (new \App\Models\AdoptionModel())->where('adopter_id', $adopterId)
+            ->where('animal_id', $catId)->where('status', 'Active')->first();
+    }
+
+    private function matchesUpdateCapture($attempt, $token, array $user, int $adoptionId, string $photoPath): bool
+    {
+        if (! is_array($attempt) || ! is_string($token) || ! preg_match('/\A[a-f0-9]{64}\z/', $token)
+            || $attempt['expires_at'] <= time()
+            || $attempt['user_id'] !== (int) $user['id']
+            || $attempt['adopter_id'] !== (int) $user['adopter_id']
+            || $attempt['adoption_id'] !== $adoptionId
+            || ! hash_equals($attempt['token_hash'], hash('sha256', $token))) {
+            return false;
+        }
+
+        $photoHash = hash_file('sha256', $photoPath);
+        return is_string($photoHash) && hash_equals($attempt['photo_hash'], $photoHash);
+    }
+
     public function submitUpdate()
     {
         $user = session('adopter_user');
-        if (! $user) {
+        if (empty($user['id']) || empty($user['adopter_id'])) {
             return redirect()->to('/')->with('error', 'Please sign in to continue.')->with('auth_modal', 'signin')->with('signin_type', 'adopter');
         }
         $adopter = (new AdopterModel())->find($user['adopter_id']);
@@ -723,7 +777,7 @@ class PortalController extends BaseController
         $latitude = filter_var($post['latitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $longitude = filter_var($post['longitude'] ?? null, FILTER_VALIDATE_FLOAT);
         $accuracy = filter_var($post['gps_accuracy'] ?? null, FILTER_VALIDATE_FLOAT);
-        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180) {
+        if ($latitude === false || $longitude === false || $accuracy === false || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180 || $accuracy < 0) {
             return redirect()->back()->withInput()->with('error', 'Location verification is required. Please allow location access, then capture again.');
         }
 
@@ -733,8 +787,13 @@ class PortalController extends BaseController
             return redirect()->back()->withInput()->with('error', 'The camera capture must be a valid JPEG photo (at least 320 × 240 and no more than 10 MB).');
         }
 
-        $adoption = (new \App\Models\AdoptionModel())->where('adopter_id', $user['adopter_id'])->where('animal_id', $post['cat_id'])->where('status', 'Active')->first();
+        $catId = filter_var($post['cat_id'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $adoption = $catId === false ? null : $this->activeUpdateAdoption((int) $user['adopter_id'], $catId);
         if (! $adoption) return redirect()->back()->with('error', 'No active adoption was found for this cat.');
+        $session = session();
+        if (! $this->matchesUpdateCapture($session->get('monitoring_capture_attempt'), $post['capture_attempt'] ?? null, $user, (int) $adoption['id'], $photo->getTempName())) {
+            return redirect()->back()->withInput()->with('error', 'The camera capture authorization is missing, expired, or has already been used. Retake the photo to continue.');
+        }
         $dates = monitoringCheckpoints($adoption['adoption_date']);
         $submissionModel = new MonitoringSubmissionModel();
         $checkpoint = null;
@@ -743,6 +802,8 @@ class PortalController extends BaseController
         }
         if (! $checkpoint) return redirect()->back()->with('error', 'All required monitoring checkpoints have already been submitted.');
 
+        // Consume under the session lock before storing the photo.
+        $session->remove('monitoring_capture_attempt');
         $photoName = strtolower('update_' . time() . '_' . uniqid() . '.' . $photo->getExtension());
         try {
             $photoPath = (new CloudStorageService())->store($photo, 'updates', $photoName);
