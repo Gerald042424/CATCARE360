@@ -49,6 +49,85 @@
     var lastVideoTime = -1;
     var detectorCanvas = document.createElement('canvas');
     var detectorContext = detectorCanvas.getContext('2d', { willReadFrequently: true });
+    var replayDebug = new URLSearchParams(window.location.search).get('replay_debug') === '1';
+    var replayWorkerUrl = new URL('adopter-pet-replay-worker.js', document.currentScript.src);
+    replayWorkerUrl.search = new URL(document.currentScript.src).search;
+    var replayWorker = null;
+    var replayCanvas = null;
+    var replayPending = false;
+    var replayUnavailable = false;
+    var replayVideoTime = -Infinity;
+
+    function stopReplayDiagnostics() {
+        if (replayWorker) replayWorker.terminate();
+        replayWorker = null;
+        replayCanvas = null;
+        replayPending = false;
+        replayVideoTime = -Infinity;
+    }
+
+    function sampleReplayDiagnostics(box) {
+        if (replayUnavailable || replayPending || video.currentTime - replayVideoTime < 0.7) return;
+        try {
+            if (!replayWorker) {
+                if (typeof Worker !== 'function') {
+                    replayUnavailable = true;
+                    return;
+                }
+                var started = performance.now();
+                replayWorker = new Worker(replayWorkerUrl);
+                replayWorker.onmessage = function (event) {
+                    if (event.data.type === 'ready') {
+                        if (replayDebug) console.info('[CatCare 360 replay shadow] Worker startup (ms)', Math.round(performance.now() - started));
+                        return;
+                    }
+                    replayPending = false;
+                    if (event.data.type === 'result' && replayDebug) console.info('[CatCare 360 replay shadow]', event.data);
+                };
+                replayWorker.onerror = function () {
+                    stopReplayDiagnostics();
+                    replayUnavailable = true;
+                    if (replayDebug) console.info('[CatCare 360 replay shadow] INCONCLUSIVE: diagnostics worker unavailable.');
+                };
+                replayCanvas = document.createElement('canvas');
+            }
+
+            var scaleX = video.videoWidth / detectorCanvas.width;
+            var scaleY = video.videoHeight / detectorCanvas.height;
+            var left = Math.max(0, Math.floor(box.originX * scaleX));
+            var top = Math.max(0, Math.floor(box.originY * scaleY));
+            var width = Math.min(video.videoWidth - left, Math.ceil(box.width * scaleX));
+            var height = Math.min(video.videoHeight - top, Math.ceil(box.height * scaleY));
+            if (width < 1 || height < 1) return;
+
+            function pixels(x, y, w, h, maxSide) {
+                var scale = Math.min(1, maxSide / Math.max(w, h));
+                replayCanvas.width = Math.max(1, Math.round(w * scale));
+                replayCanvas.height = Math.max(1, Math.round(h * scale));
+                var context = replayCanvas.getContext('2d', { willReadFrequently: true });
+                context.drawImage(video, x, y, w, h, 0, 0, replayCanvas.width, replayCanvas.height);
+                return { width: replayCanvas.width, height: replayCanvas.height, rgba: context.getImageData(0, 0, replayCanvas.width, replayCanvas.height).data };
+            }
+
+            // Keep the entire scene for display boundaries and a closer cat crop
+            // for texture. Neither pixel buffer is stored or uploaded.
+            var scene = pixels(0, 0, video.videoWidth, video.videoHeight, 384);
+            var subject = pixels(left, top, width, height, 192);
+            var catBox = {
+                left: Math.floor(left * scene.width / video.videoWidth),
+                top: Math.floor(top * scene.height / video.videoHeight),
+                right: Math.ceil((left + width) * scene.width / video.videoWidth),
+                bottom: Math.ceil((top + height) * scene.height / video.videoHeight)
+            };
+            replayPending = true;
+            replayVideoTime = video.currentTime;
+            replayWorker.postMessage({ scene: scene, subject: subject, catBox: catBox, videoTime: replayVideoTime }, [scene.rgba.buffer, subject.rgba.buffer]);
+        } catch (reason) {
+            stopReplayDiagnostics();
+            replayUnavailable = true;
+            console.info('[CatCare 360 replay shadow] INCONCLUSIVE: camera sampling unavailable.');
+        }
+    }
 
     function loadDetector() {
         if (!detectorPromise) {
@@ -82,6 +161,7 @@
     }
 
     function stopCatDetection() {
+        stopReplayDiagnostics();
         window.clearInterval(detectionTimer);
         detectionTimer = null;
         detectedFrames = 0;
@@ -100,13 +180,18 @@
                         lastVideoTime = video.currentTime;
                         var cat = detectCat(detector, video, video.videoWidth, video.videoHeight);
                         if (cat) {
-                            if (performance.now() - lastDetectionAt > catDetection.staleMs) detectedFrames = 0;
+                            if (performance.now() - lastDetectionAt > catDetection.staleMs) {
+                                detectedFrames = 0;
+                                if (replayWorker) stopReplayDiagnostics();
+                            }
                             detectedFrames = Math.min(detectedFrames + 1, catDetection.consecutiveFrames);
                             lastDetectionAt = performance.now();
                             detectionStatus.textContent = detectedFrames >= catDetection.consecutiveFrames
                                 ? 'Cat detected. Capture is available when lighting and GPS are ready.'
                                 : 'Cat detected. Keep your cat in view…';
+                            if (detectedFrames === catDetection.consecutiveFrames) sampleReplayDiagnostics(cat.boundingBox);
                         } else {
+                            if (replayWorker) stopReplayDiagnostics();
                             detectedFrames = 0;
                             lastDetectionAt = -Infinity;
                             detectionStatus.textContent = 'No cat detected. Position your cat within the camera view.';
