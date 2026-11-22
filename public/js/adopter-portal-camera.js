@@ -214,7 +214,6 @@
                 if (video.readyState >= 2 && hasRequestedPan(initial, sampleCheckFrame(), direction)) matchingFrames++;
                 if (matchingFrames >= 2) {
                     cameraCheckUntil = Date.now() + 15000;
-                    checkStatus.textContent = 'Camera check passed. Take the photo within 15 seconds.';
                     return;
                 }
             }
@@ -261,6 +260,10 @@
         checkBtn.disabled = !cameraReady || !sceneReady || cameraCheckRunning || capturePending;
         var catReady = detectedFrames >= catDetection.consecutiveFrames
             && performance.now() - lastDetectionAt <= catDetection.staleMs;
+        if (cameraCheckUntil) {
+            var message = catReady ? 'Camera check passed. Take the photo within 15 seconds.' : '';
+            if (checkStatus.textContent !== message) checkStatus.textContent = message;
+        }
         captureBtn.disabled = !(cameraReady && locationReady && sceneReady && cameraCheckUntil && catReady) || capturePending;
     }
 
