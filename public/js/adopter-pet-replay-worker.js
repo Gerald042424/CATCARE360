@@ -8,6 +8,27 @@ const rules = {
     uncertainEnter: 27, uncertainExit: 23, suspectedEnter: 62, suspectedExit: 50
 };
 const frames = [];
+const build = 'replay-pipeline-debug-1';
+let samplesReceived = 0;
+let lastVideoTime = null;
+
+function validImage(image) {
+    return image && Number.isInteger(image.width) && image.width > 0
+        && Number.isInteger(image.height) && image.height > 0
+        && image.rgba instanceof Uint8ClampedArray
+        && image.rgba.length === image.width * image.height * 4;
+}
+
+function pixelSummary(image) {
+    let min = 255, max = 0, opaque = 0;
+    for (let i = 0; i < image.rgba.length; i += 4) {
+        const luma = (image.rgba[i] + 2 * image.rgba[i + 1] + image.rgba[i + 2]) / 4;
+        min = Math.min(min, luma);
+        max = Math.max(max, luma);
+        if (image.rgba[i + 3]) opaque++;
+    }
+    return { min: Math.round(min), max: Math.round(max), opaque, bytes: image.rgba.byteLength };
+}
 
 function luminance(image) {
     const values = new Uint8Array(image.width * image.height);
@@ -191,8 +212,41 @@ let decision = 'NORMAL';
 let pendingDecision = null;
 let pendingCount = 0;
 self.onmessage = ({ data }) => {
+    samplesReceived++;
+    const sceneValid = validImage(data.scene);
+    const box = data.catBox;
+    const catValid = Boolean(validImage(data.subject) && sceneValid && box
+        && [box.left, box.top, box.right, box.bottom].every(Number.isInteger)
+        && box.left >= 0 && box.top >= 0 && box.right <= data.scene.width && box.bottom <= data.scene.height
+        && box.left < box.right && box.top < box.bottom);
+    const timing = Number.isFinite(data.videoTime) && lastVideoTime !== null
+        ? Math.round((data.videoTime - lastVideoTime) * 1000) : null;
+    if (Number.isFinite(data.videoTime)) lastVideoTime = data.videoTime;
+    const diagnostics = data.debug ? {
+        build, samplesReceived, sceneValid: Boolean(sceneValid), catValid, intervalMs: timing,
+        sceneWidth: data.scene?.width, sceneHeight: data.scene?.height,
+        catWidth: data.subject?.width, catHeight: data.subject?.height,
+        scenePixels: sceneValid ? pixelSummary(data.scene) : null,
+        catPixels: catValid ? pixelSummary(data.subject) : null
+    } : undefined;
+    if (!sceneValid || !catValid || !Number.isFinite(data.videoTime)) {
+        self.postMessage({ type: 'sampleError', error: 'Invalid RGBA buffer, dimensions, cat crop, or frame timestamp.', diagnostics });
+        return;
+    }
+    if (diagnostics && (!diagnostics.scenePixels.opaque || !diagnostics.catPixels.opaque)) {
+        self.postMessage({ type: 'sampleError', error: 'Canvas returned fully transparent pixels.', diagnostics });
+        return;
+    }
+    try {
+        processSample(data, diagnostics);
+    } catch (error) {
+        self.postMessage({ type: 'sampleError', error: error.message, diagnostics });
+    }
+};
+
+function processSample(data, diagnostics) {
     if (previous && data.videoTime <= previous.videoTime) {
-        self.postMessage({ type: 'sampled' });
+        self.postMessage({ type: 'sampled', diagnostics });
         return;
     }
     if (previous && data.videoTime - previous.videoTime > 2) {
@@ -207,7 +261,7 @@ self.onmessage = ({ data }) => {
     frames.push({ evidence: previous.evidence, videoTime: data.videoTime, processingMs: performance.now() - started });
     if (frames.length > rules.windowSize) frames.shift();
     if (frames.length < rules.minSamples) {
-        self.postMessage({ type: 'sampled' });
+        self.postMessage({ type: 'sampled', diagnostics });
         return;
     }
     const { candidate, replayScore, components, boundarySamples, patternSamples } = summarizeWindow(frames, decision);
@@ -224,10 +278,11 @@ self.onmessage = ({ data }) => {
         }
     }
     self.postMessage({
-        type: 'result', replayScreening: decision, replayScore, components, boundarySamples, patternSamples,
+        type: 'result', replayScreening: decision, replayScore, components, boundarySamples, patternSamples, diagnostics,
+        rawEvidence: diagnostics ? previous.evidence : undefined,
         frames: frames.length, windowSeconds: frames.at(-1).videoTime - frames[0].videoTime,
         averageProcessingMs: frames.reduce((sum, frame) => sum + frame.processingMs, 0) / frames.length
     });
-};
+}
 
-self.postMessage({ type: 'ready' });
+self.postMessage({ type: 'ready', build });

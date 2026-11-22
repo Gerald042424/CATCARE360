@@ -53,6 +53,7 @@
     var replayDebugStatus = replayDebug ? document.getElementById('replayDebugStatus') : null;
     var replayDebugState = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-state]');
     var replayDebugVotes = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-votes]');
+    var replayPipeline = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-pipeline]');
     var replayWorkerUrl = new URL('adopter-pet-replay-worker.js', document.currentScript.src);
     replayWorkerUrl.search = new URL(document.currentScript.src).search;
     var replayWorker = null;
@@ -60,6 +61,28 @@
     var replayPending = false;
     var replayUnavailable = false;
     var replayVideoTime = -Infinity;
+    var replayRunning = false;
+    var replayBuild = '';
+    var replayDiagnostics = null;
+    var replayLastResult = '—';
+    var replayLastError = '—';
+
+    function showReplayPipeline() {
+        if (!replayPipeline) return;
+        var d = replayDiagnostics;
+        var stats = d && d.scenePixels;
+        replayPipeline.textContent = [
+            'Replay Worker: ' + (replayRunning ? 'RUNNING' : 'NOT RUNNING') + (replayBuild ? ' · ' + replayBuild : ''),
+            'Samples Received: ' + (d ? d.samplesReceived : 0),
+            'Last Sample Size: ' + (d ? d.sceneWidth + ' × ' + d.sceneHeight : '—'),
+            'Pixel Data: ' + (stats && stats.opaque ? 'VALID · ' + stats.bytes + ' bytes · luma ' + stats.min + '–' + stats.max : d ? 'EMPTY' : '—'),
+            'Cat Crop: ' + (d ? d.catValid ? 'VALID · ' + d.catWidth + ' × ' + d.catHeight : 'INVALID' : '—'),
+            'Scene Crop: ' + (d ? d.sceneValid ? 'VALID' : 'INVALID' : '—'),
+            'Sample Interval: ' + (d && d.intervalMs !== null ? d.intervalMs + ' ms' : '—'),
+            'Last Worker Result: ' + replayLastResult,
+            'Last Error: ' + replayLastError
+        ].join('\n');
+    }
 
     function showReplayDebug(state, result) {
         if (!replayDebugStatus) return;
@@ -72,6 +95,7 @@
             : '';
         replayDebugVotes.hidden = !scores;
         replayDebugStatus.hidden = false;
+        showReplayPipeline();
     }
 
     function stopReplayDiagnostics() {
@@ -80,6 +104,8 @@
         replayCanvas = null;
         replayPending = false;
         replayVideoTime = -Infinity;
+        replayRunning = false;
+        showReplayPipeline();
     }
 
     function sampleReplayDiagnostics(box) {
@@ -88,25 +114,44 @@
             if (!replayWorker) {
                 if (typeof Worker !== 'function') {
                     replayUnavailable = true;
+                    replayLastError = 'Web Worker unavailable.';
                     showReplayDebug('ERROR');
                     return;
                 }
                 var started = performance.now();
+                replayDiagnostics = null;
+                replayBuild = '';
+                replayLastResult = 'Waiting for frames';
+                replayLastError = '—';
                 replayWorker = new Worker(replayWorkerUrl);
                 replayWorker.onmessage = function (event) {
+                    var result = event.data;
                     if (event.data.type === 'ready') {
+                        replayRunning = true;
+                        replayBuild = result.build || 'unversioned worker';
+                        showReplayPipeline();
                         if (replayDebug) console.info('[CatCare 360 replay shadow] Worker startup (ms)', Math.round(performance.now() - started));
                         return;
                     }
                     replayPending = false;
-                    if (event.data.type === 'result' && replayDebug) {
-                        showReplayDebug(event.data.replayScreening, event.data);
-                        console.info('[CatCare 360 replay shadow]', event.data);
+                    if (replayDebug) {
+                        replayDiagnostics = result.diagnostics || replayDiagnostics;
+                        if (result.type === 'sampleError') {
+                            replayLastError = result.error;
+                            showReplayDebug('ERROR');
+                        } else if (result.type === 'result') {
+                            replayLastResult = result.replayScreening + ' · ' + result.replayScore;
+                            showReplayDebug(result.replayScreening, result);
+                            console.info('[CatCare 360 replay shadow]', result);
+                        } else {
+                            showReplayPipeline();
+                        }
                     }
                 };
-                replayWorker.onerror = function () {
+                replayWorker.onerror = function (event) {
                     stopReplayDiagnostics();
                     replayUnavailable = true;
+                    replayLastError = event.message || 'Replay worker failed to load or execute.';
                     showReplayDebug('ERROR');
                     if (replayDebug) console.info('[CatCare 360 replay shadow] INCONCLUSIVE: diagnostics worker unavailable.');
                 };
@@ -119,7 +164,11 @@
             var top = Math.max(0, Math.floor(box.originY * scaleY));
             var width = Math.min(video.videoWidth - left, Math.ceil(box.width * scaleX));
             var height = Math.min(video.videoHeight - top, Math.ceil(box.height * scaleY));
-            if (width < 1 || height < 1) return;
+            if (![left, top, width, height].every(Number.isFinite) || width < 1 || height < 1) {
+                replayLastError = 'Invalid cat bounding box before sampling.';
+                showReplayDebug('ERROR');
+                return;
+            }
 
             function pixels(x, y, w, h, maxSide) {
                 var scale = Math.min(1, maxSide / Math.max(w, h));
@@ -142,10 +191,11 @@
             };
             replayPending = true;
             replayVideoTime = video.currentTime;
-            replayWorker.postMessage({ scene: scene, subject: subject, catBox: catBox, videoTime: replayVideoTime }, [scene.rgba.buffer, subject.rgba.buffer]);
+            replayWorker.postMessage({ scene: scene, subject: subject, catBox: catBox, videoTime: replayVideoTime, debug: replayDebug }, [scene.rgba.buffer, subject.rgba.buffer]);
         } catch (reason) {
             stopReplayDiagnostics();
             replayUnavailable = true;
+            replayLastError = reason.message || 'Camera sampling unavailable.';
             showReplayDebug('ERROR');
             console.info('[CatCare 360 replay shadow] INCONCLUSIVE: camera sampling unavailable.');
         }

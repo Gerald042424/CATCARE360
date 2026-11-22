@@ -122,6 +122,7 @@ $cnvrSteps = [
                                 <span class="block text-[11px] text-slate-500">Replay debug · Shadow mode</span>
                                 <span data-replay-state class="font-semibold"></span>
                                 <span data-replay-votes hidden class="block"></span>
+                                <span data-replay-pipeline class="mt-1 block whitespace-pre-line break-words"></span>
                             </div>
                             <canvas id="captureCanvas" class="hidden"></canvas>
 
