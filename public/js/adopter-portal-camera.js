@@ -1,6 +1,5 @@
 (function () {
     var catDetection = { threshold: 0.50, intervalMs: 350, consecutiveFrames: 3, staleMs: 1000 };
-    var cameraMotion = { timeoutMs: 6500, windowFrames: 6, requiredSamples: 3, minTravel: 2, minSeparation: 2, maxShift: 16 };
     var visionAssets = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0';
     var catModel = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite';
     function enhanceDarkCapture(canvas) {
@@ -13,8 +12,6 @@
     var startBtn = document.getElementById('startCameraBtn');
     var switchBtn = document.getElementById('switchCameraBtn');
     var captureBtn = document.getElementById('captureBtn');
-    var checkBtn = document.getElementById('cameraCheckBtn');
-    var checkStatus = document.getElementById('cameraCheckStatus');
     var detectionStatus = document.getElementById('catDetectionStatus');
     var retakeBtn = document.getElementById('retakeBtn');
     var video = document.getElementById('cameraStream');
@@ -39,10 +36,6 @@
     var locationReady = false;
     var sceneReady = false;
     var lightingTimer = null;
-    var cameraCheckRunning = false;
-    var cameraCheckUntil = 0;
-    var challengeNonce = '';
-    var latestScene = null;
     var capturePending = false;
 
     if (!startBtn) return;
@@ -107,21 +100,15 @@
                         lastVideoTime = video.currentTime;
                         var cat = detectCat(detector, video, video.videoWidth, video.videoHeight);
                         if (cat) {
-                            if (performance.now() - lastDetectionAt > catDetection.staleMs) {
-                                detectedFrames = 0;
-                                invalidateCameraCheck();
-                            }
-                            latestScene = sampleCheckFrame(cat.boundingBox);
+                            if (performance.now() - lastDetectionAt > catDetection.staleMs) detectedFrames = 0;
                             detectedFrames = Math.min(detectedFrames + 1, catDetection.consecutiveFrames);
                             lastDetectionAt = performance.now();
                             detectionStatus.textContent = detectedFrames >= catDetection.consecutiveFrames
-                                ? 'Cat detected. Complete the camera check and GPS to capture.'
+                                ? 'Cat detected. Capture is available when lighting and GPS are ready.'
                                 : 'Cat detected. Keep your cat in view…';
                         } else {
                             detectedFrames = 0;
                             lastDetectionAt = -Infinity;
-                            latestScene = null;
-                            invalidateCameraCheck();
                             detectionStatus.textContent = 'No cat detected. Position your cat within the camera view.';
                         }
                     }
@@ -139,13 +126,18 @@
         }
     }
 
-    async function authorizeCapture(blob) {
+    async function authorizeCapture(blob, captureStream) {
         var digest = await crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
         var photoHash = Array.from(new Uint8Array(digest), function (byte) {
             return byte.toString(16).padStart(2, '0');
         }).join('');
+        if (stream !== captureStream) return null;
+        // The nonce authorizes this capture attempt. It does not attest to liveness.
+        var challenge = await requestCameraAuthorization(form.dataset.cameraChallengeUrl, {});
+        if (stream !== captureStream) return null;
+        if (!challenge.nonce) throw new Error('Capture authorization was unavailable.');
         return requestCameraAuthorization(form.dataset.captureAttemptUrl, {
-            photo_sha256: photoHash, challenge_nonce: challengeNonce
+            photo_sha256: photoHash, challenge_nonce: challenge.nonce
         });
     }
 
@@ -170,146 +162,9 @@
     var qualityCanvas = document.createElement('canvas');
     qualityCanvas.width = 160;
     qualityCanvas.height = 120;
-    var checkCanvas = document.createElement('canvas');
-    checkCanvas.width = 96;
-    checkCanvas.height = 64;
-    var checkContext = checkCanvas.getContext('2d', { willReadFrequently: true });
-
-    function normalizedCatBox(box) {
-        return {
-            left: box.originX * 96 / detectorCanvas.width,
-            top: box.originY * 64 / detectorCanvas.height,
-            width: box.width * 96 / detectorCanvas.width,
-            height: box.height * 64 / detectorCanvas.height
-        };
-    }
-
-    function sampleCheckFrame(box) {
-        checkContext.drawImage(detectorCanvas, 0, 0, 96, 64);
-        var pixels = checkContext.getImageData(0, 0, 96, 64).data;
-        return {
-            box: normalizedCatBox(box),
-            pixels: Uint8Array.from({ length: 96 * 64 }, function (_, i) {
-                return (pixels[i * 4] + pixels[i * 4 + 1] * 2 + pixels[i * 4 + 2]) / 4;
-            })
-        };
-    }
-
-    function patchShift(before, after, x, y) {
-        var stationaryError, bestError = Infinity, bestShift = 0, texture = 0;
-        for (var row = -4; row <= 4; row += 2) {
-            for (var column = -4; column <= 4; column += 2) {
-                var offset = (y + row) * 96 + x + column;
-                texture += Math.abs(before[offset] - before[offset + 1]);
-            }
-        }
-        if (texture < 100) return null;
-        for (var shift = -cameraMotion.maxShift; shift <= cameraMotion.maxShift; shift++) {
-            var error = 0;
-            for (var row = -4; row <= 4; row += 2) {
-                for (var column = -4; column <= 4; column += 2) {
-                    var offset = (y + row) * 96 + x + column;
-                    error += Math.abs(before[offset] - after[offset + shift]);
-                }
-            }
-            if (shift === 0) stationaryError = error;
-            if (error < bestError) {
-                bestError = error;
-                bestShift = shift;
-            }
-        }
-        if (bestError > texture * 0.65) return null;
-        if (stationaryError <= texture * 0.25 && bestError >= stationaryError * 0.8) return 0;
-        return bestError < stationaryError * 0.75 ? bestShift : null;
-    }
-
-    function hasRequestedPan(before, after, direction) {
-        var box = before.box, end = after.box;
-        if (end.width < box.width * 0.55 || end.width > box.width * 1.8) return false;
-
-        // Lateral translation should move nearby and distant detail by
-        // different amounts. A single plane shifting uniformly fails.
-        var subject = [], surroundings = [];
-        for (var y = 10; y <= 55; y += 5) {
-            for (var x = 21; x <= 74; x += 5) {
-                var inside = x >= box.left + 4 && x <= box.left + box.width - 4
-                    && y >= box.top + 4 && y <= box.top + box.height - 4;
-                var outside = x <= box.left - 5 || x >= box.left + box.width + 5
-                    || y <= box.top - 5 || y >= box.top + box.height + 5;
-                if (!inside && !outside) continue;
-                var shift = patchShift(before.pixels, after.pixels, x, y);
-                if (shift !== null) (inside ? subject : surroundings).push(shift * direction);
-            }
-        }
-        if (subject.length < 3 || surroundings.length < 4) return false;
-        subject.sort(function (a, b) { return a - b; });
-        surroundings.sort(function (a, b) { return a - b; });
-        var catMotion = subject[Math.floor(subject.length / 2)];
-        var sceneMotion = surroundings[Math.floor(surroundings.length / 2)];
-        return Math.max(catMotion, sceneMotion) >= cameraMotion.minTravel
-            && Math.min(catMotion, sceneMotion) >= -1
-            && Math.abs(catMotion - sceneMotion) >= cameraMotion.minSeparation;
-    }
-
     function catDetectionReady() {
         return detectedFrames >= catDetection.consecutiveFrames
             && performance.now() - lastDetectionAt <= catDetection.staleMs;
-    }
-
-    function invalidateCameraCheck() {
-        if (cameraCheckUntil) {
-            cameraCheckUntil = 0;
-            challengeNonce = '';
-            checkStatus.textContent = 'Camera check reset. Keep your cat visible and try again.';
-        }
-    }
-
-    async function runCameraCheck() {
-        if (!cameraReady || !sceneReady || !catDetectionReady() || cameraCheckRunning || capturePending) return;
-        var checkStream = stream;
-        cameraCheckRunning = true;
-        cameraCheckUntil = 0;
-        challengeNonce = '';
-        checkStatus.textContent = 'Preparing camera check…';
-        updateCaptureButton();
-        if (photoError) photoError.classList.add('hidden');
-
-        try {
-            var challenge = await requestCameraAuthorization(form.dataset.cameraChallengeUrl, {});
-            if (stream !== checkStream) return;
-            if (!challenge.nonce || ![-1, 1].includes(challenge.direction)) throw new Error('Camera challenge was unavailable.');
-            for (var direction of [challenge.direction, -challenge.direction]) {
-                if (!catDetectionReady()) throw new Error('Keep your cat visible throughout the camera check.');
-                var frames = [latestScene], votes = [];
-                checkStatus.textContent = 'Slide your phone slightly to the ' + (direction === 1 ? 'left' : 'right') + '. Keep it facing your cat and show the area behind them.';
-                var deadline = performance.now() + cameraMotion.timeoutMs;
-                var passed = false;
-                while (performance.now() < deadline && !passed) {
-                    await new Promise(function (resolve) { window.setTimeout(resolve, 120); });
-                    if (stream !== checkStream) return;
-                    if (!sceneReady || !catDetectionReady()) throw new Error('Keep your cat visible in a well-lit scene and try again.');
-                    var current = latestScene;
-                    if (current === frames[frames.length - 1]) continue;
-                    // Compare against two recent baselines, with one vote per
-                    // fresh frame so a noisy sample cannot pass a direction.
-                    var matched = hasRequestedPan(frames[0], current, direction)
-                        || (frames.length >= 4 && hasRequestedPan(frames[Math.floor(frames.length / 2)], current, direction));
-                    frames.push(current);
-                    votes.push(Number(matched));
-                    if (frames.length > cameraMotion.windowFrames) frames.shift();
-                    if (votes.length > cameraMotion.windowFrames) votes.shift();
-                    passed = votes.reduce(function (total, vote) { return total + vote; }, 0) >= cameraMotion.requiredSamples;
-                }
-                if (!passed) throw new Error('Could not verify the camera movement. Show more of the area behind your cat and slide the phone slowly.');
-            }
-            challengeNonce = challenge.nonce;
-            cameraCheckUntil = Date.now() + 15000;
-        } catch (reason) {
-            if (stream === checkStream) checkStatus.textContent = reason.message || 'Could not check the live camera. Try again.';
-        } finally {
-            cameraCheckRunning = false;
-            updateCaptureButton();
-        }
     }
 
     function showFullscreenPreview() {
@@ -338,20 +193,12 @@
         updateCaptureButton();
     }
 
+    function cameraCaptureReady() {
+        return cameraReady && locationReady && sceneReady && catDetectionReady();
+    }
+
     function updateCaptureButton() {
-        if (cameraCheckUntil && Date.now() >= cameraCheckUntil) {
-            cameraCheckUntil = 0;
-            challengeNonce = '';
-            checkStatus.textContent = 'Camera check expired. Start another check to capture your photo.';
-        }
-        var catReady = catDetectionReady();
-        if (!catReady || !sceneReady) invalidateCameraCheck();
-        checkBtn.disabled = !cameraReady || !sceneReady || !catReady || cameraCheckRunning || capturePending;
-        if (cameraCheckUntil) {
-            var message = catReady ? 'Camera check passed. Take the photo within 15 seconds.' : '';
-            if (checkStatus.textContent !== message) checkStatus.textContent = message;
-        }
-        captureBtn.disabled = !(cameraReady && locationReady && sceneReady && cameraCheckUntil && catReady) || capturePending;
+        captureBtn.disabled = !cameraCaptureReady() || capturePending;
     }
 
     function showLightingStatus(message, passed) {
@@ -518,8 +365,6 @@
             await video.play();
             showFullCameraFrame();
             cameraReady = true;
-            checkBtn.hidden = false;
-            checkStatus.textContent = 'Frame your cat and their surroundings, then start the camera check.';
             startLightingMonitor();
             startCatDetection(stream);
             updateCaptureButton();
@@ -550,11 +395,6 @@
         video.srcObject = null;
         video.classList.add('hidden');
         cameraReady = false;
-        cameraCheckUntil = 0;
-        challengeNonce = '';
-        latestScene = null;
-        checkBtn.hidden = true;
-        checkStatus.textContent = '';
         if (!keepDetectionMessage) detectionStatus.textContent = '';
         lightingStatus.classList.add('hidden');
         updateCaptureButton();
@@ -563,7 +403,6 @@
     }
 
     startBtn.addEventListener('click', requestCamera);
-    checkBtn.addEventListener('click', runCameraCheck);
 
     switchBtn.addEventListener('click', function () {
         if (capturePending) return;
@@ -602,13 +441,8 @@
     async function finishCapture(context, captureStream) {
         var detector = await loadDetector();
         if (stream !== captureStream) return;
-        if (!cameraCheckUntil || Date.now() >= cameraCheckUntil || !challengeNonce || !catDetectionReady() || !sceneReady || !locationReady) return;
-        var cat = detectCat(detector, canvas, canvas.width, canvas.height);
-        var box = cat && normalizedCatBox(cat.boundingBox);
-        var previousBox = latestScene.box;
-        if (!box || Math.abs(box.left + box.width / 2 - previousBox.left - previousBox.width / 2) > 12
-            || Math.abs(box.top + box.height / 2 - previousBox.top - previousBox.height / 2) > 8) {
-            invalidateCameraCheck();
+        if (!cameraCaptureReady()) return;
+        if (!detectCat(detector, canvas, canvas.width, canvas.height)) {
             detectedFrames = 0;
             lastDetectionAt = -Infinity;
             detectionStatus.textContent = 'No cat detected in the photo. Position your cat and capture again.';
@@ -646,11 +480,8 @@
         var blob = await new Promise(function (resolve) { canvas.toBlob(resolve, 'image/jpeg', 0.92); });
         if (!blob) throw new Error('Could not create the camera photo. Please retake it.');
         if (stream !== captureStream) return;
-        if (!challengeNonce || Date.now() >= cameraCheckUntil || !catDetectionReady() || !sceneReady || !locationReady) {
-            throw new Error('The camera check expired or lost the cat. Start another check.');
-        }
-        var attempt = await authorizeCapture(blob);
-        if (stream !== captureStream) return;
+        var attempt = await authorizeCapture(blob, captureStream);
+        if (stream !== captureStream || !attempt) return;
         if (!attempt.token || !attempt.expires_in) throw new Error('Capture authorization was unavailable.');
         var file = new File([blob], 'live-update-' + Date.now() + '.jpg', { type: 'image/jpeg' });
         var dataTransfer = new DataTransfer();

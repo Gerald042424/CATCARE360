@@ -123,12 +123,10 @@ $cnvrSteps = [
                             <div class="mt-3 flex flex-wrap gap-2">
                                 <button type="button" id="startCameraBtn" class="flex items-center gap-2 bg-rescue-50 text-rescue-700 px-4 py-2 rounded-lg font-medium text-sm hover:bg-rescue-100"><i data-lucide="camera" class="w-4 h-4"></i>Open Camera</button>
                                 <button type="button" id="switchCameraBtn" class="hidden flex items-center gap-2 bg-violet-50 text-violet-700 px-4 py-2 rounded-lg font-medium text-sm hover:bg-violet-100"><i data-lucide="switch-camera" class="w-4 h-4"></i>Switch Front / Back</button>
-                                <button type="button" id="cameraCheckBtn" hidden class="rounded-lg border border-rescue-200 px-4 py-2 text-sm font-medium text-rescue-700 disabled:opacity-50">Start Camera Check</button>
                                 <button type="button" id="captureBtn" disabled class="bg-adopted-600 text-white px-4 py-2 rounded-lg font-medium text-sm hover:bg-adopted-700 disabled:opacity-50">Capture</button>
                                 <button type="button" id="retakeBtn" class="hidden bg-slate-100 text-slate-800 px-4 py-2 rounded-lg font-medium text-sm hover:bg-slate-200">Retake</button>
                             </div>
                             <div id="cameraHelp" class="mt-2 text-sm text-red-600 hidden">Camera access is required. Allow it from the lock icon in the address bar, then try again. Gallery uploads are disabled for verification.</div>
-                            <p id="cameraCheckStatus" class="mt-2 text-sm font-medium text-slate-700" role="status"></p>
                             <p id="catDetectionStatus" class="mt-2 text-sm font-medium text-slate-700" role="status"></p>
                             <div id="photoError" class="mt-2 text-sm text-red-600 hidden"></div>
 
@@ -136,7 +134,7 @@ $cnvrSteps = [
                                 <img id="photoPreview" src="" alt="Preview — click to view fullscreen" class="hidden w-full max-h-[70vh] cursor-zoom-in rounded-lg border border-slate-200 object-contain">
                             </div>
 
-                            <p class="mt-2 text-xs text-slate-500">Keep your cat and the surrounding area in view while following the camera prompt. Cat detection runs on your device. Only the final photo is submitted, with your current GPS location, date, and time.</p>
+                            <p class="mt-2 text-xs text-slate-500">Keep your cat in view and allow location access to capture. Cat detection runs on your device. Only the final photo is submitted, with your current GPS location, date, and time.</p>
                         </div>
                     </div>
                     <div>
