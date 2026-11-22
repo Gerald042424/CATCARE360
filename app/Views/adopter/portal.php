@@ -118,6 +118,11 @@ $cnvrSteps = [
 
                         <div id="cameraArea" class="mt-2">
                             <video id="cameraStream" class="hidden h-auto w-full max-h-[70vh] rounded-lg border border-slate-200 bg-black object-contain" autoplay playsinline></video>
+                            <div id="replayDebugStatus" hidden class="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" role="status">
+                                <span class="block text-[11px] text-slate-500">Replay debug · Shadow mode</span>
+                                <span data-replay-state class="font-semibold"></span>
+                                <span data-replay-votes hidden class="block"></span>
+                            </div>
                             <canvas id="captureCanvas" class="hidden"></canvas>
 
                             <div class="mt-3 flex flex-wrap gap-2">

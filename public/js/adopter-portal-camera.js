@@ -50,6 +50,9 @@
     var detectorCanvas = document.createElement('canvas');
     var detectorContext = detectorCanvas.getContext('2d', { willReadFrequently: true });
     var replayDebug = new URLSearchParams(window.location.search).get('replay_debug') === '1';
+    var replayDebugStatus = replayDebug ? document.getElementById('replayDebugStatus') : null;
+    var replayDebugState = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-state]');
+    var replayDebugVotes = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-votes]');
     var replayWorkerUrl = new URL('adopter-pet-replay-worker.js', document.currentScript.src);
     replayWorkerUrl.search = new URL(document.currentScript.src).search;
     var replayWorker = null;
@@ -57,6 +60,17 @@
     var replayPending = false;
     var replayUnavailable = false;
     var replayVideoTime = -Infinity;
+
+    function showReplayDebug(state, votes) {
+        if (!replayDebugStatus) return;
+        replayDebugState.textContent = 'Replay Check: ' + state;
+        var showVotes = votes && [votes.rectangle, votes.localizedPattern, votes.combined].every(Number.isInteger);
+        replayDebugVotes.textContent = showVotes
+            ? 'Boundary: ' + votes.rectangle + ' | Pattern: ' + votes.localizedPattern + ' | Combined: ' + votes.combined
+            : '';
+        replayDebugVotes.hidden = !showVotes;
+        replayDebugStatus.hidden = false;
+    }
 
     function stopReplayDiagnostics() {
         if (replayWorker) replayWorker.terminate();
@@ -72,6 +86,7 @@
             if (!replayWorker) {
                 if (typeof Worker !== 'function') {
                     replayUnavailable = true;
+                    showReplayDebug('ERROR');
                     return;
                 }
                 var started = performance.now();
@@ -82,11 +97,15 @@
                         return;
                     }
                     replayPending = false;
-                    if (event.data.type === 'result' && replayDebug) console.info('[CatCare 360 replay shadow]', event.data);
+                    if (event.data.type === 'result' && replayDebug) {
+                        showReplayDebug(event.data.replayScreening, event.data.votes);
+                        console.info('[CatCare 360 replay shadow]', event.data);
+                    }
                 };
                 replayWorker.onerror = function () {
                     stopReplayDiagnostics();
                     replayUnavailable = true;
+                    showReplayDebug('ERROR');
                     if (replayDebug) console.info('[CatCare 360 replay shadow] INCONCLUSIVE: diagnostics worker unavailable.');
                 };
                 replayCanvas = document.createElement('canvas');
@@ -125,6 +144,7 @@
         } catch (reason) {
             stopReplayDiagnostics();
             replayUnavailable = true;
+            showReplayDebug('ERROR');
             console.info('[CatCare 360 replay shadow] INCONCLUSIVE: camera sampling unavailable.');
         }
     }
@@ -191,7 +211,10 @@
                                 : 'Cat detected. Keep your cat in view…';
                             if (detectedFrames === catDetection.consecutiveFrames) sampleReplayDiagnostics(cat.boundingBox);
                         } else {
-                            if (replayWorker) stopReplayDiagnostics();
+                            if (replayWorker) {
+                                stopReplayDiagnostics();
+                                showReplayDebug('INCONCLUSIVE');
+                            }
                             detectedFrames = 0;
                             lastDetectionAt = -Infinity;
                             detectionStatus.textContent = 'No cat detected. Position your cat within the camera view.';
@@ -447,6 +470,7 @@
             });
             video.srcObject = stream;
             video.classList.remove('hidden');
+            showReplayDebug(replayUnavailable ? 'ERROR' : 'STARTING');
             await video.play();
             showFullCameraFrame();
             cameraReady = true;
@@ -457,6 +481,7 @@
             switchBtn.classList.remove('hidden');
         } catch (err) {
             stopCamera();
+            showReplayDebug('ERROR');
             if (helpEl) {
                 helpEl.textContent = err && err.message === 'Camera permission timed out.'
                     ? 'Camera permission did not respond. Open this site in Chrome or Edge, allow Camera from the lock icon, then try again.'
