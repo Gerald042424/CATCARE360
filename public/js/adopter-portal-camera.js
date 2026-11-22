@@ -1,5 +1,6 @@
 (function () {
     var catDetection = { threshold: 0.50, intervalMs: 350, consecutiveFrames: 3, staleMs: 1000 };
+    var cameraMotion = { timeoutMs: 6500, windowFrames: 6, requiredSamples: 3, minTravel: 2, minSeparation: 2, maxShift: 16 };
     var visionAssets = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.0';
     var catModel = 'https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite';
     function enhanceDarkCapture(canvas) {
@@ -195,8 +196,15 @@
     }
 
     function patchShift(before, after, x, y) {
-        var stationaryError, bestError = Infinity, bestShift = 0;
-        for (var shift = -16; shift <= 16; shift += 2) {
+        var stationaryError, bestError = Infinity, bestShift = 0, texture = 0;
+        for (var row = -4; row <= 4; row += 2) {
+            for (var column = -4; column <= 4; column += 2) {
+                var offset = (y + row) * 96 + x + column;
+                texture += Math.abs(before[offset] - before[offset + 1]);
+            }
+        }
+        if (texture < 100) return null;
+        for (var shift = -cameraMotion.maxShift; shift <= cameraMotion.maxShift; shift++) {
             var error = 0;
             for (var row = -4; row <= 4; row += 2) {
                 for (var column = -4; column <= 4; column += 2) {
@@ -210,13 +218,14 @@
                 bestShift = shift;
             }
         }
-        return stationaryError >= 120 && bestError < stationaryError * 0.65 ? bestShift : 0;
+        if (bestError > texture * 0.65) return null;
+        if (stationaryError <= texture * 0.25 && bestError >= stationaryError * 0.8) return 0;
+        return bestError < stationaryError * 0.75 ? bestShift : null;
     }
 
     function hasRequestedPan(before, after, direction) {
         var box = before.box, end = after.box;
-        var catTravel = (end.left + end.width / 2 - box.left - box.width / 2) * direction;
-        if (catTravel < 2 || catTravel > 20 || end.width < box.width * 0.65 || end.width > box.width * 1.5) return false;
+        if (end.width < box.width * 0.55 || end.width > box.width * 1.8) return false;
 
         // Lateral translation should move nearby and distant detail by
         // different amounts. A single plane shifting uniformly fails.
@@ -228,8 +237,8 @@
                 var outside = x <= box.left - 5 || x >= box.left + box.width + 5
                     || y <= box.top - 5 || y >= box.top + box.height + 5;
                 if (!inside && !outside) continue;
-                var movement = patchShift(before.pixels, after.pixels, x, y) * direction;
-                if (movement >= 2) (inside ? subject : surroundings).push(movement);
+                var shift = patchShift(before.pixels, after.pixels, x, y);
+                if (shift !== null) (inside ? subject : surroundings).push(shift * direction);
             }
         }
         if (subject.length < 3 || surroundings.length < 4) return false;
@@ -237,7 +246,9 @@
         surroundings.sort(function (a, b) { return a - b; });
         var catMotion = subject[Math.floor(subject.length / 2)];
         var sceneMotion = surroundings[Math.floor(surroundings.length / 2)];
-        return catMotion >= sceneMotion + 2 && Math.abs(catMotion - catTravel) <= 5;
+        return Math.max(catMotion, sceneMotion) >= cameraMotion.minTravel
+            && Math.min(catMotion, sceneMotion) >= -1
+            && Math.abs(catMotion - sceneMotion) >= cameraMotion.minSeparation;
     }
 
     function catDetectionReady() {
@@ -269,19 +280,27 @@
             if (!challenge.nonce || ![-1, 1].includes(challenge.direction)) throw new Error('Camera challenge was unavailable.');
             for (var direction of [challenge.direction, -challenge.direction]) {
                 if (!catDetectionReady()) throw new Error('Keep your cat visible throughout the camera check.');
-                var initial = latestScene, previous = initial, matches = 0;
+                var frames = [latestScene], votes = [];
                 checkStatus.textContent = 'Slide your phone slightly to the ' + (direction === 1 ? 'left' : 'right') + '. Keep it facing your cat and show the area behind them.';
-                var deadline = performance.now() + 4500;
-                while (performance.now() < deadline && matches < 2) {
+                var deadline = performance.now() + cameraMotion.timeoutMs;
+                var passed = false;
+                while (performance.now() < deadline && !passed) {
                     await new Promise(function (resolve) { window.setTimeout(resolve, 120); });
                     if (stream !== checkStream) return;
                     if (!sceneReady || !catDetectionReady()) throw new Error('Keep your cat visible in a well-lit scene and try again.');
                     var current = latestScene;
-                    if (current === previous) continue;
-                    previous = current;
-                    matches = hasRequestedPan(initial, current, direction) ? matches + 1 : 0;
+                    if (current === frames[frames.length - 1]) continue;
+                    // Compare against two recent baselines, with one vote per
+                    // fresh frame so a noisy sample cannot pass a direction.
+                    var matched = hasRequestedPan(frames[0], current, direction)
+                        || (frames.length >= 4 && hasRequestedPan(frames[Math.floor(frames.length / 2)], current, direction));
+                    frames.push(current);
+                    votes.push(Number(matched));
+                    if (frames.length > cameraMotion.windowFrames) frames.shift();
+                    if (votes.length > cameraMotion.windowFrames) votes.shift();
+                    passed = votes.reduce(function (total, vote) { return total + vote; }, 0) >= cameraMotion.requiredSamples;
                 }
-                if (matches < 2) throw new Error('Could not verify the camera movement. Show more of the area behind your cat and slide the phone slowly.');
+                if (!passed) throw new Error('Could not verify the camera movement. Show more of the area behind your cat and slide the phone slowly.');
             }
             challengeNonce = challenge.nonce;
             cameraCheckUntil = Date.now() + 15000;
