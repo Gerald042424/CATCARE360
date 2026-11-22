@@ -99,7 +99,7 @@ $cnvrSteps = [
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4">Submit Update</h3>
-                <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" data-capture-attempt-url="<?= esc(site_url('adopter/updates/capture-attempt'), 'attr') ?>" data-csrf-field="<?= esc(csrf_token(), 'attr') ?>" class="space-y-4">
+                <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" data-camera-challenge-url="<?= esc(site_url('adopter/updates/camera-challenge'), 'attr') ?>" data-capture-attempt-url="<?= esc(site_url('adopter/updates/capture-attempt'), 'attr') ?>" data-csrf-field="<?= esc(csrf_token(), 'attr') ?>" class="space-y-4">
                     <?= csrf_field() ?>
                     <input type="hidden" name="cat_id" value="<?= esc($cat['id'] ?? '') ?>">
                     <input type="hidden" name="capture_attempt" value="">

@@ -698,6 +698,45 @@ class PortalController extends BaseController
         ]);
     }
 
+    public function beginUpdateCameraChallenge()
+    {
+        $session = session();
+        $user = $session->get('adopter_user');
+        if (empty($user['id']) || empty($user['adopter_id'])) {
+            return $this->response->setStatusCode(401)->setJSON(['error' => 'Sign in again to capture a photo.']);
+        }
+
+        $catId = filter_var($this->request->getPost('cat_id'), FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $adoption = $catId === false ? null : $this->activeUpdateAdoption((int) $user['adopter_id'], $catId);
+        if (! $adoption) {
+            return $this->response->setStatusCode(403)->setJSON(['error' => 'No active adoption was found for this cat.']);
+        }
+
+        $nonce = bin2hex(random_bytes(32));
+        $direction = random_int(0, 1) === 0 ? -1 : 1;
+        $session->remove('monitoring_capture_attempt');
+        $session->set('monitoring_camera_challenge', [
+            'nonce_hash' => hash('sha256', $nonce),
+            'user_id' => (int) $user['id'],
+            'adopter_id' => (int) $user['adopter_id'],
+            'adoption_id' => (int) $adoption['id'],
+            'expires_at' => time() + 30,
+        ]);
+
+        return $this->response->setHeader('Cache-Control', 'no-store')
+            ->setJSON(['nonce' => $nonce, 'direction' => $direction]);
+    }
+
+    private function matchesUpdateCameraChallenge($challenge, $nonce, array $user, int $adoptionId): bool
+    {
+        return is_array($challenge) && is_string($nonce) && preg_match('/\A[a-f0-9]{64}\z/', $nonce)
+            && $challenge['expires_at'] > time()
+            && $challenge['user_id'] === (int) $user['id']
+            && $challenge['adopter_id'] === (int) $user['adopter_id']
+            && $challenge['adoption_id'] === $adoptionId
+            && hash_equals($challenge['nonce_hash'], hash('sha256', $nonce));
+    }
+
     public function authorizeUpdateCapture()
     {
         $session = session();
@@ -717,8 +756,14 @@ class PortalController extends BaseController
             return $this->response->setStatusCode(403)->setJSON(['error' => 'No active adoption was found for this cat.']);
         }
 
+        $challenge = $session->get('monitoring_camera_challenge');
+        if (! $this->matchesUpdateCameraChallenge($challenge, $this->request->getPost('challenge_nonce'), $user, (int) $adoption['id'])) {
+            return $this->response->setStatusCode(422)->setJSON(['error' => 'The camera challenge expired or was used. Start another camera check.']);
+        }
+
         $token = bin2hex(random_bytes(32));
         $ttl = 180;
+        $session->remove('monitoring_camera_challenge');
         $session->set('monitoring_capture_attempt', [
             'token_hash' => hash('sha256', $token),
             'photo_hash' => $photoHash,
