@@ -2,9 +2,10 @@
 
 // Starting values for local validation, not production blocking thresholds.
 const rules = {
-    windowSize: 4, minVotes: 3, edgeContrast: 24, edgeCoverage: 0.58,
+    windowSize: 7, minSamples: 5, edgeContrast: 24, edgeCoverage: 0.58,
     minPeriodCorrelation: 0.55, minPeriodContrast: 0.20,
-    minTextureRatio: 1.4, minTemporalDifference: 2
+    minTextureRatio: 1.4, minTemporalDifference: 2,
+    uncertainEnter: 27, uncertainExit: 23, suspectedEnter: 62, suspectedExit: 50
 };
 const frames = [];
 
@@ -134,43 +135,61 @@ function analyze(sample, previous) {
         { left: rectangle.left, right: rectangle.right, top: 0, bottom: rectangle.top - 3 },
         { left: rectangle.left, right: rectangle.right, top: rectangle.bottom + 3, bottom: height }
     ].map(region => texture(values, width, height, region)).filter(region => region.count >= 16) : [];
-    const outsidePeriod = Math.max(0, ...outside.map(region => region.periodicity));
-    const outsideEnergy = Math.max(2, ...outside.map(region => region.laplacian));
-    const localizedPattern = outside.length > 0 && near.laplacian >= 4
-        && near.periodicity >= rules.minPeriodCorrelation && near.periodicity - outsidePeriod >= rules.minPeriodContrast;
-    const textureContrast = outside.length > 0 && near.laplacian / outsideEnergy >= rules.minTextureRatio;
+    const outsidePeriod = outside.length ? Math.max(...outside.map(region => region.periodicity)) : wider.periodicity;
+    const outsideEnergy = Math.max(2, ...(outside.length ? outside.map(region => region.laplacian) : [wider.laplacian]));
     const comparable = previous && previous.width === width && previous.height === height;
-    const sceneDifference = comparable ? difference(values, previous.values, width, full) : null;
     const insideDifference = rectangle && comparable ? difference(values, previous.values, width, rectangle) : null;
     const outsideDifference = rectangle && comparable ? difference(values, previous.values, width, full, rectangle) : null;
-    const localizedChange = insideDifference !== null && insideDifference >= rules.minTemporalDifference
-        && insideDifference >= 2 * outsideDifference + 1;
 
     return {
         values, width, height, videoTime: sample.videoTime,
-        evidence: { rectangle, cat, near, wider, outsidePeriod, outsideEnergy, localizedPattern, textureContrast,
-            sceneDifference, insideDifference, outsideDifference, localizedChange }
+        evidence: { rectangle, cat, near, wider, outsidePeriod, outsideEnergy, insideDifference, outsideDifference }
     };
 }
 
-function summarizeWindow(windowFrames) {
+function ramp(value, weak, strong) {
+    return Math.max(0, Math.min(1, (value - weak) / (strong - weak)));
+}
+
+function summarizeWindow(windowFrames, state) {
     const evidence = windowFrames.map(frame => frame.evidence);
-    const votes = {
-        rectangle: evidence.filter(frame => frame.rectangle).length,
-        localizedPattern: evidence.filter(frame => frame.localizedPattern).length,
-        textureContrast: evidence.filter(frame => frame.textureContrast).length,
-        localizedChange: evidence.filter(frame => frame.localizedChange).length,
-        combined: evidence.filter(frame => frame.rectangle && frame.localizedPattern
-            && (frame.textureContrast || frame.localizedChange)).length
-    };
-    const decision = votes.combined >= rules.minVotes ? 'REPLAY_SUSPECTED'
-        : votes.rectangle || votes.localizedPattern || evidence.some(frame => frame.near.periodicity >= rules.minPeriodCorrelation)
-            ? 'INCONCLUSIVE' : 'NORMAL';
-    return { decision, votes, evidence };
+    const totals = { boundary: 0, pattern: 0, texture: 0, temporal: 0 };
+    let patternSamples = 0;
+    let boundarySamples = 0;
+    for (const frame of evidence) {
+        const backgroundPattern = frame.rectangle ? frame.outsidePeriod : frame.wider.periodicity;
+        const localPattern = Math.max(frame.near.periodicity, frame.cat.periodicity * 0.75);
+        const pattern = ramp(localPattern, 0.30, rules.minPeriodCorrelation)
+            * ramp(localPattern - backgroundPattern, 0.05, rules.minPeriodContrast)
+            * ramp(frame.near.laplacian, 2, 4);
+        const backgroundEnergy = frame.rectangle ? frame.outsideEnergy : Math.max(2, frame.wider.laplacian);
+        if (frame.rectangle) boundarySamples++;
+        if (pattern >= 0.5) patternSamples++;
+        totals.boundary += Number(Boolean(frame.rectangle));
+        totals.pattern += pattern;
+        totals.texture += pattern * ramp(frame.near.laplacian / backgroundEnergy, 1.05, rules.minTextureRatio);
+        if (frame.insideDifference !== null) {
+            totals.temporal += ramp(frame.insideDifference - 2 * frame.outsideDifference, 1, 5)
+                * ramp(frame.insideDifference, 1, rules.minTemporalDifference + 2);
+        }
+    }
+
+    // These are heuristic replay signals, not proof of physical liveness.
+    const components = Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / evidence.length]));
+    const replayScore = Math.round(100 * (0.28 * components.boundary + 0.36 * components.pattern
+        + 0.24 * components.texture + 0.12 * components.temporal));
+    const enoughSignals = boundarySamples >= 3 && patternSamples >= 3;
+    const highThreshold = state === 'REPLAY_SUSPECTED' ? rules.suspectedExit : rules.suspectedEnter;
+    const uncertainThreshold = state === 'NORMAL' ? rules.uncertainEnter : rules.uncertainExit;
+    const candidate = enoughSignals && replayScore >= highThreshold ? 'REPLAY_SUSPECTED'
+        : replayScore >= uncertainThreshold ? 'INCONCLUSIVE' : 'NORMAL';
+    return { candidate, replayScore, components, boundarySamples, patternSamples };
 }
 
 let previous = null;
-let processingMs = 0;
+let decision = 'NORMAL';
+let pendingDecision = null;
+let pendingCount = 0;
 self.onmessage = ({ data }) => {
     if (previous && data.videoTime <= previous.videoTime) {
         self.postMessage({ type: 'sampled' });
@@ -179,24 +198,36 @@ self.onmessage = ({ data }) => {
     if (previous && data.videoTime - previous.videoTime > 2) {
         previous = null;
         frames.length = 0;
-        processingMs = 0;
+        decision = 'NORMAL';
+        pendingDecision = null;
+        pendingCount = 0;
     }
     const started = performance.now();
     previous = analyze(data, previous);
-    frames.push({ evidence: previous.evidence, videoTime: data.videoTime });
-    processingMs += performance.now() - started;
-    if (frames.length < rules.windowSize) {
+    frames.push({ evidence: previous.evidence, videoTime: data.videoTime, processingMs: performance.now() - started });
+    if (frames.length > rules.windowSize) frames.shift();
+    if (frames.length < rules.minSamples) {
         self.postMessage({ type: 'sampled' });
         return;
     }
-    const { decision, votes, evidence } = summarizeWindow(frames);
+    const { candidate, replayScore, components, boundarySamples, patternSamples } = summarizeWindow(frames, decision);
+    if (candidate === decision) {
+        pendingDecision = null;
+        pendingCount = 0;
+    } else {
+        pendingCount = candidate === pendingDecision ? pendingCount + 1 : 1;
+        pendingDecision = candidate;
+        if (pendingCount >= 2) {
+            decision = candidate;
+            pendingDecision = null;
+            pendingCount = 0;
+        }
+    }
     self.postMessage({
-        type: 'result', replayScreening: decision, votes, evidence,
+        type: 'result', replayScreening: decision, replayScore, components, boundarySamples, patternSamples,
         frames: frames.length, windowSeconds: frames.at(-1).videoTime - frames[0].videoTime,
-        averageProcessingMs: processingMs / frames.length
+        averageProcessingMs: frames.reduce((sum, frame) => sum + frame.processingMs, 0) / frames.length
     });
-    frames.length = 0;
-    processingMs = 0;
 };
 
 self.postMessage({ type: 'ready' });

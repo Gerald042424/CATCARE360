@@ -61,14 +61,16 @@
     var replayUnavailable = false;
     var replayVideoTime = -Infinity;
 
-    function showReplayDebug(state, votes) {
+    function showReplayDebug(state, result) {
         if (!replayDebugStatus) return;
         replayDebugState.textContent = 'Replay Check: ' + state;
-        var showVotes = votes && [votes.rectangle, votes.localizedPattern, votes.combined].every(Number.isInteger);
-        replayDebugVotes.textContent = showVotes
-            ? 'Boundary: ' + votes.rectangle + ' | Pattern: ' + votes.localizedPattern + ' | Combined: ' + votes.combined
+        var scores = result && result.components;
+        replayDebugVotes.textContent = scores
+            ? 'Score: ' + result.replayScore + ' | Boundary: ' + scores.boundary.toFixed(2)
+                + ' | Pattern: ' + scores.pattern.toFixed(2) + ' | Texture: ' + scores.texture.toFixed(2)
+                + ' | Temporal: ' + scores.temporal.toFixed(2)
             : '';
-        replayDebugVotes.hidden = !showVotes;
+        replayDebugVotes.hidden = !scores;
         replayDebugStatus.hidden = false;
     }
 
@@ -98,7 +100,7 @@
                     }
                     replayPending = false;
                     if (event.data.type === 'result' && replayDebug) {
-                        showReplayDebug(event.data.replayScreening, event.data.votes);
+                        showReplayDebug(event.data.replayScreening, event.data);
                         console.info('[CatCare 360 replay shadow]', event.data);
                     }
                 };
