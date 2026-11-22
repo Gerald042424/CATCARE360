@@ -66,6 +66,7 @@
     var replayDiagnostics = null;
     var replayLastResult = '—';
     var replayLastError = '—';
+    var replayRawEvidence = '—';
 
     function showReplayPipeline() {
         if (!replayPipeline) return;
@@ -80,6 +81,7 @@
             'Scene Crop: ' + (d ? d.sceneValid ? 'VALID' : 'INVALID' : '—'),
             'Sample Interval: ' + (d && d.intervalMs !== null ? d.intervalMs + ' ms' : '—'),
             'Last Worker Result: ' + replayLastResult,
+            'Raw Evidence: ' + replayRawEvidence,
             'Last Error: ' + replayLastError
         ].join('\n');
     }
@@ -123,6 +125,7 @@
                 replayBuild = '';
                 replayLastResult = 'Waiting for frames';
                 replayLastError = '—';
+                replayRawEvidence = '—';
                 replayWorker = new Worker(replayWorkerUrl);
                 replayWorker.onmessage = function (event) {
                     var result = event.data;
@@ -141,6 +144,17 @@
                             showReplayDebug('ERROR');
                         } else if (result.type === 'result') {
                             replayLastResult = result.replayScreening + ' · ' + result.replayScore;
+                            var raw = result.rawEvidence;
+                            if (raw) {
+                                var background = raw.rectangle ? raw.outsidePeriod : raw.wider.periodicity;
+                                replayRawEvidence = 'Rectangle ' + (raw.rectangle ? 'yes' : 'no')
+                                    + ' | Periodicity cat ' + raw.cat.periodicity.toFixed(2)
+                                    + ', near ' + raw.near.periodicity.toFixed(2)
+                                    + ', background ' + background.toFixed(2)
+                                    + ' | Near edge energy ' + raw.near.laplacian.toFixed(2)
+                                    + ' | Region change ' + (raw.insideDifference === null ? 'n/a'
+                                        : raw.insideDifference.toFixed(2) + ' / ' + raw.outsideDifference.toFixed(2));
+                            }
                             showReplayDebug(result.replayScreening, result);
                             console.info('[CatCare 360 replay shadow]', result);
                         } else {
