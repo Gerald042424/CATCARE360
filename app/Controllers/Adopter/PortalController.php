@@ -874,6 +874,6 @@ class PortalController extends BaseController
         recalculateAdopterMonitoringCompliance((int) $user['adopter_id']);
         (new \App\Services\MonitoringNotification())->notifyAdmins((int) $adoption['id'], $checkpoint, $replacement !== null);
 
-        return redirect()->to('/adopter/portal/' . $adoption['id'])->with('success', strtoupper($checkpoint) . ' update submitted successfully. It is now listed for staff review.');
+        return redirect()->to('/adopter/portal/' . $adoption['id'])->with('success', monitoringCheckpointLabel($checkpoint) . ' update submitted successfully. It is now listed for staff review.');
     }
 }

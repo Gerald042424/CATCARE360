@@ -1,5 +1,17 @@
 <?php
 
+if (! function_exists('monitoringCheckpointLabel')) {
+    function monitoringCheckpointLabel(string $checkpoint): string
+    {
+        return match ($checkpoint) {
+            '3-day' => '3-Day',
+            '3-week' => '3-Week',
+            '3-month' => '3-Month',
+            default => $checkpoint,
+        };
+    }
+}
+
 if (! function_exists('monitoringCheckpoints')) {
     function monitoringCheckpoints(?string $adoptionDate): array
     {

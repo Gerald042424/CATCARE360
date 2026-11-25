@@ -35,7 +35,7 @@ $cnvrSteps = [
             <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700"><i data-lucide="triangle-alert" class="h-5 w-5"></i></span>
             <div>
                 <h2 class="font-semibold">Monitoring update overdue for <?= esc($cat['name']) ?></h2>
-                <p class="mt-1 text-sm leading-6 text-red-800">The <strong><?= esc($nextCheckpoint) ?></strong> update was due on <strong><?= esc(date('F d, Y', strtotime($nextCheckIn))) ?></strong>. Please submit a current photo and wellbeing update as soon as possible.</p>
+                <p class="mt-1 text-sm leading-6 text-red-800">The <strong><?= esc(monitoringCheckpointLabel($nextCheckpoint)) ?></strong> update was due on <strong><?= esc(date('F d, Y', strtotime($nextCheckIn))) ?></strong>. Please submit a current photo and wellbeing update as soon as possible.</p>
             </div>
         </div>
     <?php endif; ?>
@@ -93,13 +93,13 @@ $cnvrSteps = [
         <div class="lg:col-span-2 space-y-6">
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4">3-3-3 Check-ins</h3>
-                <div class="grid grid-cols-3 gap-3 text-center text-xs"><?php foreach (['3-day','3-week','3-month'] as $checkpoint): ?><?php $done = in_array($checkpoint, $completedCheckpoints ?? [], true); ?><div class="rounded-xl border p-3 <?= $done ? 'border-adopted-100 bg-adopted-50 text-adopted-700' : 'border-slate-200 bg-slate-50 text-slate-600' ?>"><i data-lucide="<?= $done ? 'check-circle-2' : 'clock-3' ?>" class="mx-auto mb-1 h-5 w-5"></i><p class="font-semibold"><?= esc($checkpoint) ?></p><p class="mt-1 text-slate-500"><?= !empty($checkpoints[$checkpoint]) ? date('M d', strtotime($checkpoints[$checkpoint])) : '—' ?></p></div><?php endforeach; ?></div>
-                <?php if (!empty($nextCheckpoint)): ?><p class="mt-4 rounded-lg <?= ! empty($isOverdue) ? 'bg-red-50 text-red-800' : 'bg-rescue-50 text-rescue-800' ?> p-3 text-sm"><?= ! empty($isOverdue) ? 'Your overdue update is' : 'Your next required update is' ?> <strong><?= esc($nextCheckpoint) ?></strong>, <?= ! empty($isOverdue) ? 'originally due' : 'due' ?> <?= esc(date('F d, Y', strtotime($nextCheckIn))) ?>.</p><?php endif; ?>
+                <div class="grid grid-cols-3 gap-3 text-center text-xs"><?php foreach (['3-day','3-week','3-month'] as $checkpoint): ?><?php $done = in_array($checkpoint, $completedCheckpoints ?? [], true); ?><div class="rounded-xl border p-3 <?= $done ? 'border-adopted-100 bg-adopted-50 text-adopted-700' : 'border-slate-200 bg-slate-50 text-slate-600' ?>"><i data-lucide="<?= $done ? 'check-circle-2' : 'clock-3' ?>" class="mx-auto mb-1 h-5 w-5"></i><p class="font-semibold"><?= esc(monitoringCheckpointLabel($checkpoint)) ?></p><p class="mt-1 text-slate-500"><?= !empty($checkpoints[$checkpoint]) ? date('M d', strtotime($checkpoints[$checkpoint])) : '—' ?></p></div><?php endforeach; ?></div>
+                <?php if (!empty($nextCheckpoint)): ?><p class="mt-4 rounded-lg <?= ! empty($isOverdue) ? 'bg-red-50 text-red-800' : 'bg-rescue-50 text-rescue-800' ?> p-3 text-sm"><?= ! empty($isOverdue) ? 'Your overdue update is' : 'Your next required update is' ?> <strong><?= esc(monitoringCheckpointLabel($nextCheckpoint)) ?></strong>, <?= ! empty($isOverdue) ? 'originally due' : 'due' ?> <?= esc(date('F d, Y', strtotime($nextCheckIn))) ?>.</p><?php endif; ?>
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
                 <h3 class="text-lg font-semibold text-slate-900 mb-4"><?= ! empty($resubmissionRequested) ? 'Resubmit Check-in' : 'Submit Update' ?></h3>
-                <?php if (! empty($resubmissionRequested)): ?><p class="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Staff requested a new photo for your <strong><?= esc($nextCheckpoint) ?></strong> check-in. Take a fresh photo of your cat and submit it here.</p><?php endif; ?>
+                <?php if (! empty($resubmissionRequested)): ?><p class="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Staff requested a new photo for your <strong><?= esc(monitoringCheckpointLabel($nextCheckpoint)) ?></strong> check-in. Take a fresh photo of your cat and submit it here.</p><?php endif; ?>
                 <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" data-camera-challenge-url="<?= esc(site_url('adopter/updates/camera-challenge'), 'attr') ?>" data-capture-attempt-url="<?= esc(site_url('adopter/updates/capture-attempt'), 'attr') ?>" data-csrf-field="<?= esc(csrf_token(), 'attr') ?>" class="space-y-4">
                     <?= csrf_field() ?>
                     <input type="hidden" name="cat_id" value="<?= esc($cat['id'] ?? '') ?>">
@@ -163,13 +163,13 @@ $cnvrSteps = [
                     <?php if (! empty($recentUpdates)): foreach ($recentUpdates as $update): ?>
                     <div class="overflow-hidden rounded-xl border border-slate-200 hover:border-slate-300 transition-colors <?= ! empty($update['photo_url']) ? 'sm:grid sm:grid-cols-[11rem_1fr]' : '' ?>">
                         <?php if (! empty($update['photo_url'])): ?>
-                        <button type="button" data-photo-url="<?= esc(base_url($update['photo_url']), 'attr') ?>" data-photo-label="<?= esc($update['checkpoint'] . ' monitoring photo', 'attr') ?>" @click="updatePhoto = $el.dataset.photoUrl; updatePhotoLabel = $el.dataset.photoLabel" class="group relative min-h-40 overflow-hidden bg-slate-100 text-left" aria-label="View <?= esc($update['checkpoint']) ?> monitoring photo fullscreen">
-                            <img src="<?= esc(base_url($update['photo_url'])) ?>" alt="<?= esc($update['checkpoint']) ?> monitoring update" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
+                        <button type="button" data-photo-url="<?= esc(base_url($update['photo_url']), 'attr') ?>" data-photo-label="<?= esc($update['checkpoint'] . ' monitoring photo', 'attr') ?>" @click="updatePhoto = $el.dataset.photoUrl; updatePhotoLabel = $el.dataset.photoLabel" class="group relative min-h-40 overflow-hidden bg-slate-100 text-left" aria-label="View <?= esc(monitoringCheckpointLabel((string) $update['checkpoint'])) ?> monitoring photo fullscreen">
+                            <img src="<?= esc(base_url($update['photo_url'])) ?>" alt="<?= esc(monitoringCheckpointLabel((string) $update['checkpoint'])) ?> monitoring update" loading="lazy" class="h-full w-full object-cover transition duration-300 group-hover:scale-105">
                             <span class="absolute bottom-2 right-2 rounded-lg bg-black/65 p-2 text-white"><i data-lucide="maximize-2" class="h-4 w-4"></i></span>
                         </button>
                         <?php endif; ?>
                         <div class="p-4">
-                            <div class="flex items-start justify-between mb-2"><p class="text-sm font-semibold text-slate-900"><?= esc($update['checkpoint']) ?> · <?= esc(ucfirst($update['health_status'])) ?></p><?= statusBadge($update['status']) ?></div>
+                            <div class="flex items-start justify-between mb-2"><p class="text-sm font-semibold text-slate-900"><?= esc(monitoringCheckpointLabel((string) $update['checkpoint'])) ?> · <?= esc(ucfirst($update['health_status'])) ?></p><?= statusBadge($update['status']) ?></div>
                             <p class="text-xs text-slate-500 mb-2"><?= date('M d, Y h:i A', strtotime($update['submission_date'])) ?></p>
                             <p class="text-sm leading-6 text-slate-700"><?= esc($update['behavior_notes']) ?></p>
                         </div>

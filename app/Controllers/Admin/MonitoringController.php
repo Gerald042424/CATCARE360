@@ -134,8 +134,8 @@ class MonitoringController extends BaseController
         $isVerified = $status === 'Verified';
         $heading = $isVerified ? 'Your monitoring update was verified' : 'Your monitoring update needs attention';
         $message = $isVerified
-            ? 'Thank you. Your ' . esc($submission['checkpoint']) . ' update for ' . $catName . ' has been verified by the community team.'
-            : 'Your ' . esc($submission['checkpoint']) . ' update for ' . $catName . ' was flagged for staff follow-up. Please check your adoption portal or contact the community team.';
+            ? 'Thank you. Your ' . esc(monitoringCheckpointLabel((string) $submission['checkpoint'])) . ' update for ' . $catName . ' has been verified by the community team.'
+            : 'Your ' . esc(monitoringCheckpointLabel((string) $submission['checkpoint'])) . ' update for ' . $catName . ' was flagged for staff follow-up. Please check your adoption portal or contact the community team.';
         $color = $isVerified ? '#059669' : '#dc2626';
         $email = service('email');
         $config = config('Email');
@@ -151,6 +151,6 @@ class MonitoringController extends BaseController
     {
         $adoption = db_connect()->table('adoptions')->where('id', $submission['adoption_id'])->get()->getRowArray();
         if (! $adoption) return;
-        (new AnimalJourneyEventModel())->insert(['animal_id' => $adoption['animal_id'], 'event_type' => 'Post-Adoption Monitoring', 'title' => strtoupper((string) $submission['checkpoint']) . ' update ' . strtolower($status), 'description' => 'Administrator reviewed the geo-tagged post-adoption monitoring submission.', 'event_date' => date('Y-m-d')]);
+        (new AnimalJourneyEventModel())->insert(['animal_id' => $adoption['animal_id'], 'event_type' => 'Post-Adoption Monitoring', 'title' => monitoringCheckpointLabel((string) $submission['checkpoint']) . ' update ' . strtolower($status), 'description' => 'Administrator reviewed the geo-tagged post-adoption monitoring submission.', 'event_date' => date('Y-m-d')]);
     }
 }

@@ -35,7 +35,7 @@ class MonitoringNotification
                 : [(new AdopterModel())->find($adopterId)['email'] ?? ''];
             $animal = db_connect()->table('adoptions')->select('animals.name')
                 ->join('animals', 'animals.id = adoptions.animal_id', 'left')->where('adoptions.id', $adoptionId)->get()->getRowArray();
-            $details = ['Cat' => $animal['name'] ?? 'Adopted cat', 'Check-in' => $checkpoint] + $extraDetails;
+            $details = ['Cat' => $animal['name'] ?? 'Adopted cat', 'Check-in' => monitoringCheckpointLabel($checkpoint)] + $extraDetails;
             $message = view('emails/layout', [
                 'label' => 'Post-adoption monitoring',
                 'heading' => $heading,
