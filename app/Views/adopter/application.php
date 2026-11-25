@@ -38,7 +38,7 @@ $statusStyle = static function (string $status): array {
             <?php endforeach; ?>
         </div>
     <?php else: ?>
-        <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm"><div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-rescue-50 text-rescue-600"><i data-lucide="heart" class="h-8 w-8"></i></div><h2 class="text-xl font-semibold text-slate-900">No applications yet</h2><p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">The cats you apply for adoption will appear here with their application status.</p><a href="<?= site_url('adopter/home') ?>" class="mt-6 inline-flex items-center gap-2 rounded-lg bg-rescue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-rescue-700"><i data-lucide="search" class="h-4 w-4"></i>Meet the Cats</a></div>
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm"><div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-rescue-50 text-rescue-600"><i data-lucide="heart" class="h-8 w-8"></i></div><h2 class="text-xl font-semibold text-slate-900">No Applications Yet</h2><p class="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-500">The cats you apply for adoption will appear here with their application status.</p><a href="<?= site_url('adopter/home') ?>" class="mt-6 inline-flex items-center gap-2 rounded-lg bg-rescue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-rescue-700"><i data-lucide="search" class="h-4 w-4"></i>Meet the Cats</a></div>
     <?php endif; ?>
 </div>
 

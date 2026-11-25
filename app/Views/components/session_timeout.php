@@ -12,8 +12,8 @@ $sessionTimeoutStartedAt = (int) (session('auth_session_started_at') ?: time());
         <h2 id="session-timeout-title" class="text-xl font-bold text-slate-900">Your session is about to expire</h2>
         <p class="mt-2 text-sm leading-6 text-slate-600">For your account safety, you will be signed out in <strong id="session-timeout-countdown">2:00</strong> because of inactivity.</p>
         <div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button form="session-timeout-logout-form" class="rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">Sign out now</button>
-            <button id="session-timeout-continue" type="button" class="rounded-lg bg-rescue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rescue-700">Stay signed in</button>
+            <button form="session-timeout-logout-form" class="rounded-lg border border-slate-300 px-4 py-2.5 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50">Sign Out Now</button>
+            <button id="session-timeout-continue" type="button" class="rounded-lg bg-rescue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rescue-700">Stay Signed In</button>
         </div>
     </div>
 </div>

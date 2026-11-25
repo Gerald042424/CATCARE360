@@ -8,14 +8,14 @@ $viewerDocuments = array_values(array_filter(
 <div id="secure-document-viewer" class="fixed inset-0 z-[300] hidden items-center justify-center bg-slate-950/90 p-4" role="dialog" aria-modal="true" aria-labelledby="secure-document-title">
     <div class="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
         <header class="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
-            <div class="min-w-0"><p class="text-xs font-bold uppercase tracking-wider text-rescue-600">Secure document viewer</p><h2 id="secure-document-title" class="truncate text-lg font-bold text-slate-900">Application document</h2></div>
+            <div class="min-w-0"><p class="text-xs font-bold uppercase tracking-wider text-rescue-600">Secure document viewer</p><h2 id="secure-document-title" class="truncate text-lg font-bold text-slate-900">Application Document</h2></div>
             <div class="flex shrink-0 items-center gap-2"><a id="secure-document-new-tab" href="#" target="_blank" rel="noopener" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Open in new tab</a><button id="secure-document-close" type="button" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Close</button></div>
         </header>
         <div class="relative min-h-0 flex-1 overflow-hidden bg-slate-100">
             <div id="secure-document-loading" class="absolute inset-0 grid place-items-center"><div class="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-600 shadow">Loading document…</div></div>
-            <div id="secure-document-error" class="absolute inset-0 hidden place-items-center p-6 text-center"><div class="max-w-md rounded-2xl bg-white p-6 shadow"><h3 class="font-bold text-slate-900">Document preview unavailable</h3><p class="mt-2 text-sm text-slate-600">Try opening the document in a new tab. If it still does not load, sign in again and retry.</p></div></div>
+            <div id="secure-document-error" class="absolute inset-0 hidden place-items-center p-6 text-center"><div class="max-w-md rounded-2xl bg-white p-6 shadow"><h3 class="font-bold text-slate-900">Document Preview Unavailable</h3><p class="mt-2 text-sm text-slate-600">Try opening the document in a new tab. If it still does not load, sign in again and retry.</p></div></div>
             <img id="secure-document-image" alt="" class="hidden h-full w-full object-contain p-3">
-            <iframe id="secure-document-frame" title="Application document preview" class="hidden h-full w-full border-0 bg-white"></iframe>
+            <iframe id="secure-document-frame" title="Application Document preview" class="hidden h-full w-full border-0 bg-white"></iframe>
         </div>
     </div>
 </div>

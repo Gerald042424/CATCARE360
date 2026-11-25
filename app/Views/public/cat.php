@@ -22,7 +22,7 @@
                 </dl>
 
                 <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
-                    <div class="flex items-center justify-between gap-4"><div><h2 class="text-base font-bold text-slate-900">CNVR care record</h2><p class="mt-1 text-xs leading-5 text-slate-500">Community care steps recorded for <?= esc($cat['name']) ?>.</p></div><i data-lucide="shield-check" class="h-6 w-6 text-rescue-600"></i></div>
+                    <div class="flex items-center justify-between gap-4"><div><h2 class="text-base font-bold text-slate-900">CNVR Care Record</h2><p class="mt-1 text-xs leading-5 text-slate-500">Community care steps recorded for <?= esc($cat['name']) ?>.</p></div><i data-lucide="shield-check" class="h-6 w-6 text-rescue-600"></i></div>
                     <div class="mt-4 grid grid-cols-4 gap-2"><?php foreach (['catch' => 'C', 'neuter' => 'N', 'vaccinate' => 'V', 'return' => 'R'] as $step => $label): ?><?php $complete = ! empty($cat['cnvr_' . $step]); ?><div class="rounded-xl px-2 py-3 text-center <?= $complete ? 'bg-adopted-50 text-adopted-700' : 'bg-slate-100 text-slate-400' ?>"><div class="text-lg font-bold"><?= esc($label) ?></div><div class="mt-1 text-[10px] font-semibold"><?= $complete ? 'Recorded' : 'Pending' ?></div></div><?php endforeach; ?></div>
                 </div>
 
@@ -33,7 +33,7 @@
                         <a href="<?= site_url('adopter/apply/' . $cat['id']) ?>" class="btn mt-5 w-full bg-white text-rescue-900 hover:bg-rescue-50"><i data-lucide="heart" class="h-4 w-4"></i>Apply to Adopt <?= esc($cat['name']) ?></a>
                     <?php else: ?>
                         <button type="button" @click="authOpen=true; authTab='signup'; signType='adopter'" class="btn mt-5 w-full bg-white text-rescue-900 hover:bg-rescue-50"><i data-lucide="user-plus" class="h-4 w-4"></i>Create Account to Apply</button>
-                        <button type="button" @click="authOpen=true; authTab='signin'; signType='adopter'" class="mt-3 w-full text-center text-sm font-semibold text-rescue-100 hover:text-white">Already have an account? Sign in</button>
+                        <button type="button" @click="authOpen=true; authTab='signin'; signType='adopter'" class="mt-3 w-full text-center text-sm font-semibold text-rescue-100 hover:text-white">Already have an account? Sign In</button>
                     <?php endif; ?>
                 </div>
             </section>

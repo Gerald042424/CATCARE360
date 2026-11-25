@@ -3,7 +3,7 @@
 
 <div class="min-h-screen grid place-items-center px-6 py-16">
     <div class="max-w-lg w-full">
-        <h1 class="text-3xl font-semibold text-slate-900 mb-2">Create an adopter account</h1>
+        <h1 class="text-3xl font-semibold text-slate-900 mb-2">Create an Adopter Account</h1>
         <p class="text-slate-500 mb-6">Sign up to apply for adoption and manage your adopted pet.</p>
 
         <?php if (session()->getFlashdata('error')): ?>
@@ -14,11 +14,11 @@
             <?= csrf_field() ?>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
-                    <label class="text-sm font-medium text-slate-700 mb-2 block">First name</label>
+                    <label class="text-sm font-medium text-slate-700 mb-2 block">First Name</label>
                     <input name="first_name" value="<?= old('first_name') ?>" required class="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-4 text-sm text-slate-900">
                 </div>
                 <div>
-                    <label class="text-sm font-medium text-slate-700 mb-2 block">Last name</label>
+                    <label class="text-sm font-medium text-slate-700 mb-2 block">Last Name</label>
                     <input name="last_name" value="<?= old('last_name') ?>" required class="w-full bg-white border border-slate-200 rounded-lg py-2.5 px-4 text-sm text-slate-900">
                 </div>
             </div>
@@ -46,7 +46,7 @@
 
             <div class="flex items-center justify-between">
                 <a href="<?= site_url('/') ?>" class="text-sm text-slate-500">Already have an account?</a>
-                <button type="submit" class="bg-rescue-600 hover:bg-rescue-700 text-white px-5 py-2.5 rounded-lg">Create account</button>
+                <button type="submit" class="bg-rescue-600 hover:bg-rescue-700 text-white px-5 py-2.5 rounded-lg">Create Account</button>
             </div>
         </form>
     </div>

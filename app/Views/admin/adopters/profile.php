@@ -27,7 +27,7 @@
         <?php if (count($adoptions) > 1): ?>
             <form method="get" class="card flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div class="flex-1"><label class="label" for="selected-adoption">Active Adoption</label><select id="selected-adoption" name="adoption_id" class="field" onchange="this.form.submit()"><?php foreach ($adoptions as $adoption): ?><option value="<?= (int) $adoption['id'] ?>" <?= (int) ($selectedAdoption['id'] ?? 0) === (int) $adoption['id'] ? 'selected' : '' ?>><?= esc($adoption['name']) ?> · adopted <?= esc(date('M d, Y', strtotime($adoption['adoption_date']))) ?></option><?php endforeach; ?></select></div>
-                <noscript><button class="btn btn-primary">View adoption</button></noscript>
+                <noscript><button class="btn btn-primary">View Adoption</button></noscript>
                 <p class="text-xs text-slate-500 sm:max-w-52">Change the selected cat to view only that adoption's compliance and submissions.</p>
             </form>
         <?php endif; ?>
