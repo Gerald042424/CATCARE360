@@ -62,7 +62,7 @@
     <section class="card">
         <h2 class="text-lg font-bold">Assessment Overview</h2>
         <p class="mt-2 text-sm leading-6 text-slate-600">Groups adoption applications by their weighted readiness score from the application assessment. Use the score range and welfare indicators to guide staff review before making a decision.</p>
-        <a href="<?= site_url('admin/applications') ?>" class="mt-2 inline-block text-sm font-semibold text-rescue-700 underline">View application assessments</a>
+        <a href="<?= site_url('admin/applications') ?>" class="mt-2 inline-block text-sm font-semibold text-rescue-700 underline">View Application Assessments</a>
         <dl class="mt-5 grid grid-cols-3 gap-2 text-center sm:gap-3">
             <div class="rounded-xl bg-adopted-50 p-3 text-adopted-700"><dt class="text-xs font-semibold">80–100%</dt><dd class="mt-1 text-2xl font-bold"><?= number_format($assessment['strong']) ?></dd></div>
             <div class="rounded-xl bg-amber-50 p-3 text-amber-700"><dt class="text-xs font-semibold">60% to under 80%</dt><dd class="mt-1 text-2xl font-bold"><?= number_format($assessment['watch']) ?></dd></div>
@@ -70,7 +70,7 @@
         </dl>
         <dl class="mt-5 space-y-3 text-sm text-slate-600">
             <div>
-                <dt class="font-semibold text-slate-900">Average readiness · <?= $assessment['average'] === null ? 'No scores yet' : number_format($assessment['average'], 2) . '%' ?></dt>
+                <dt class="font-semibold text-slate-900">Average Readiness · <?= $assessment['average'] === null ? 'No scores yet' : number_format($assessment['average'], 2) . '%' ?></dt>
                 <dd>Average of applications with a recorded readiness score.</dd>
             </div>
             <div>
@@ -78,7 +78,7 @@
                 <dd>Applications without a recorded readiness score.</dd>
             </div>
             <div>
-                <dt class="font-semibold text-slate-900">Welfare concerns · <?= number_format($assessment['welfareConcerns']) ?></dt>
+                <dt class="font-semibold text-slate-900">Welfare Concerns · <?= number_format($assessment['welfareConcerns']) ?></dt>
                 <dd>Applications where the indoor living or humane housing check has a recorded result other than “Meets Requirements.” These can also appear in the score ranges above.</dd>
             </div>
         </dl>
