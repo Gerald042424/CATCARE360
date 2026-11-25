@@ -86,6 +86,14 @@ class MonitoringController extends BaseController
     {
         $status = (string) $this->request->getPost('status');
         $resubmission = $status === MonitoringSubmissionModel::RESUBMISSION_REQUESTED;
+        $reason = '';
+        if ($resubmission) {
+            $input = $this->request->getPost('resubmission_reason');
+            $reason = is_string($input) ? trim($input) : '';
+            if ($reason === '' || mb_strlen($reason) > 500) {
+                return redirect()->back()->with('error', 'Enter a reason for resubmission using up to 500 characters.');
+            }
+        }
         if (! in_array($status, ['Verified', 'Flagged'], true) && ! $resubmission) {
             return redirect()->back()->with('error', 'Choose Approve, Flag, or Request Resubmission.');
         }
@@ -107,7 +115,7 @@ class MonitoringController extends BaseController
         $this->recordMonitoringTimelineEvent($submission, $status);
         closeMonitoringCaseWhenComplete((int) $submission['adoption_id']);
         if ($resubmission) {
-            (new MonitoringNotification())->requestResubmission($submission);
+            (new MonitoringNotification())->requestResubmission($submission, $reason);
             return redirect()->to('/admin/monitoring')->with('success', 'Resubmission requested for this check-in.');
         }
         $this->sendReviewNotification($submission, $status);

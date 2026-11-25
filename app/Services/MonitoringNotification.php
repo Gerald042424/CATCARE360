@@ -7,13 +7,14 @@ use App\Models\StaffModel;
 
 class MonitoringNotification
 {
-    public function requestResubmission(array $submission): void
+    public function requestResubmission(array $submission, string $reason): void
     {
         $this->send(
             (int) $submission['adoption_id'], $submission['checkpoint'], (int) $submission['adopter_id'],
             'A new monitoring photo is requested',
             'The community team needs a clearer photo for this check-in. Please open your adoption portal and take a new photo of your cat using the in-app camera.',
-            'Resubmit Check-in', site_url('adopter/portal/' . $submission['adoption_id']) . '#updateForm'
+            'Resubmit Check-in', site_url('adopter/portal/' . $submission['adoption_id']) . '#updateForm',
+            ['Reason' => $reason]
         );
     }
 
@@ -27,14 +28,14 @@ class MonitoringNotification
         );
     }
 
-    private function send(int $adoptionId, string $checkpoint, ?int $adopterId, string $heading, string $intro, string $button, string $url): void
+    private function send(int $adoptionId, string $checkpoint, ?int $adopterId, string $heading, string $intro, string $button, string $url, array $extraDetails = []): void
     {
         try {
             $recipients = $adopterId === null ? (new StaffModel())->activeAdminEmailAddresses()
                 : [(new AdopterModel())->find($adopterId)['email'] ?? ''];
             $animal = db_connect()->table('adoptions')->select('animals.name')
                 ->join('animals', 'animals.id = adoptions.animal_id', 'left')->where('adoptions.id', $adoptionId)->get()->getRowArray();
-            $details = ['Cat' => $animal['name'] ?? 'Adopted cat', 'Check-in' => $checkpoint];
+            $details = ['Cat' => $animal['name'] ?? 'Adopted cat', 'Check-in' => $checkpoint] + $extraDetails;
             $message = view('emails/layout', [
                 'label' => 'Post-adoption monitoring',
                 'heading' => $heading,
