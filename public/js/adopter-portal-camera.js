@@ -49,171 +49,6 @@
     var lastVideoTime = -1;
     var detectorCanvas = document.createElement('canvas');
     var detectorContext = detectorCanvas.getContext('2d', { willReadFrequently: true });
-    var replayDebug = new URLSearchParams(window.location.search).get('replay_debug') === '1';
-    var replayDebugStatus = replayDebug ? document.getElementById('replayDebugStatus') : null;
-    var replayDebugState = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-state]');
-    var replayDebugVotes = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-votes]');
-    var replayPipeline = replayDebugStatus && replayDebugStatus.querySelector('[data-replay-pipeline]');
-    var replayWorkerUrl = new URL('adopter-pet-replay-worker.js', document.currentScript.src);
-    replayWorkerUrl.search = new URL(document.currentScript.src).search;
-    var replayWorker = null;
-    var replayCanvas = null;
-    var replayPending = false;
-    var replayUnavailable = false;
-    var replayVideoTime = -Infinity;
-    var replayRunning = false;
-    var replayBuild = '';
-    var replayDiagnostics = null;
-    var replayLastResult = '—';
-    var replayLastError = '—';
-    var replayRawEvidence = '—';
-
-    function showReplayPipeline() {
-        if (!replayPipeline) return;
-        var d = replayDiagnostics;
-        var stats = d && d.scenePixels;
-        replayPipeline.textContent = [
-            'Replay Worker: ' + (replayRunning ? 'RUNNING' : 'NOT RUNNING') + (replayBuild ? ' · ' + replayBuild : ''),
-            'Samples Received: ' + (d ? d.samplesReceived : 0),
-            'Last Sample Size: ' + (d ? d.sceneWidth + ' × ' + d.sceneHeight : '—'),
-            'Pixel Data: ' + (stats && stats.opaque ? 'VALID · ' + stats.bytes + ' bytes · luma ' + stats.min + '–' + stats.max : d ? 'EMPTY' : '—'),
-            'Cat Crop: ' + (d ? d.catValid ? 'VALID · ' + d.catWidth + ' × ' + d.catHeight : 'INVALID' : '—'),
-            'Scene Crop: ' + (d ? d.sceneValid ? 'VALID' : 'INVALID' : '—'),
-            'Sample Interval: ' + (d && d.intervalMs !== null ? d.intervalMs + ' ms' : '—'),
-            'Last Worker Result: ' + replayLastResult,
-            'Raw Evidence: ' + replayRawEvidence,
-            'Last Error: ' + replayLastError
-        ].join('\n');
-    }
-
-    function showReplayDebug(state, result) {
-        if (!replayDebugStatus) return;
-        replayDebugState.textContent = 'Replay Check: ' + state;
-        var scores = result && result.components;
-        replayDebugVotes.textContent = scores
-            ? 'Score: ' + result.replayScore + ' | Boundary: ' + scores.boundary.toFixed(2)
-                + ' | Pattern: ' + scores.pattern.toFixed(2) + ' | Texture: ' + scores.texture.toFixed(2)
-                + ' | Temporal: ' + scores.temporal.toFixed(2)
-            : '';
-        replayDebugVotes.hidden = !scores;
-        replayDebugStatus.hidden = false;
-        showReplayPipeline();
-    }
-
-    function stopReplayDiagnostics() {
-        if (replayWorker) replayWorker.terminate();
-        replayWorker = null;
-        replayCanvas = null;
-        replayPending = false;
-        replayVideoTime = -Infinity;
-        replayRunning = false;
-        showReplayPipeline();
-    }
-
-    function sampleReplayDiagnostics(box) {
-        if (replayUnavailable || replayPending || video.currentTime - replayVideoTime < 0.7) return;
-        try {
-            if (!replayWorker) {
-                if (typeof Worker !== 'function') {
-                    replayUnavailable = true;
-                    replayLastError = 'Web Worker unavailable.';
-                    showReplayDebug('ERROR');
-                    return;
-                }
-                var started = performance.now();
-                replayDiagnostics = null;
-                replayBuild = '';
-                replayLastResult = 'Waiting for frames';
-                replayLastError = '—';
-                replayRawEvidence = '—';
-                replayWorker = new Worker(replayWorkerUrl);
-                replayWorker.onmessage = function (event) {
-                    var result = event.data;
-                    if (event.data.type === 'ready') {
-                        replayRunning = true;
-                        replayBuild = result.build || 'unversioned worker';
-                        showReplayPipeline();
-                        if (replayDebug) console.info('[CatCare 360 replay shadow] Worker startup (ms)', Math.round(performance.now() - started));
-                        return;
-                    }
-                    replayPending = false;
-                    if (replayDebug) {
-                        replayDiagnostics = result.diagnostics || replayDiagnostics;
-                        if (result.type === 'sampleError') {
-                            replayLastError = result.error;
-                            showReplayDebug('ERROR');
-                        } else if (result.type === 'result') {
-                            replayLastResult = result.replayScreening + ' · ' + result.replayScore;
-                            var raw = result.rawEvidence;
-                            if (raw) {
-                                var background = raw.rectangle ? raw.outsidePeriod : raw.wider.periodicity;
-                                replayRawEvidence = 'Rectangle ' + (raw.rectangle ? 'yes' : 'no')
-                                    + ' | Periodicity cat ' + raw.cat.periodicity.toFixed(2)
-                                    + ', near ' + raw.near.periodicity.toFixed(2)
-                                    + ', background ' + background.toFixed(2)
-                                    + ' | Near edge energy ' + raw.near.laplacian.toFixed(2)
-                                    + ' | Region change ' + (raw.insideDifference === null ? 'n/a'
-                                        : raw.insideDifference.toFixed(2) + ' / ' + raw.outsideDifference.toFixed(2));
-                            }
-                            showReplayDebug(result.replayScreening, result);
-                            console.info('[CatCare 360 replay shadow]', result);
-                        } else {
-                            showReplayPipeline();
-                        }
-                    }
-                };
-                replayWorker.onerror = function (event) {
-                    stopReplayDiagnostics();
-                    replayUnavailable = true;
-                    replayLastError = event.message || 'Replay worker failed to load or execute.';
-                    showReplayDebug('ERROR');
-                    if (replayDebug) console.info('[CatCare 360 replay shadow] INCONCLUSIVE: diagnostics worker unavailable.');
-                };
-                replayCanvas = document.createElement('canvas');
-            }
-
-            var scaleX = video.videoWidth / detectorCanvas.width;
-            var scaleY = video.videoHeight / detectorCanvas.height;
-            var left = Math.max(0, Math.floor(box.originX * scaleX));
-            var top = Math.max(0, Math.floor(box.originY * scaleY));
-            var width = Math.min(video.videoWidth - left, Math.ceil(box.width * scaleX));
-            var height = Math.min(video.videoHeight - top, Math.ceil(box.height * scaleY));
-            if (![left, top, width, height].every(Number.isFinite) || width < 1 || height < 1) {
-                replayLastError = 'Invalid cat bounding box before sampling.';
-                showReplayDebug('ERROR');
-                return;
-            }
-
-            function pixels(x, y, w, h, maxSide) {
-                var scale = Math.min(1, maxSide / Math.max(w, h));
-                replayCanvas.width = Math.max(1, Math.round(w * scale));
-                replayCanvas.height = Math.max(1, Math.round(h * scale));
-                var context = replayCanvas.getContext('2d', { willReadFrequently: true });
-                context.drawImage(video, x, y, w, h, 0, 0, replayCanvas.width, replayCanvas.height);
-                return { width: replayCanvas.width, height: replayCanvas.height, rgba: context.getImageData(0, 0, replayCanvas.width, replayCanvas.height).data };
-            }
-
-            // Keep the entire scene for display boundaries and a closer cat crop
-            // for texture. Neither pixel buffer is stored or uploaded.
-            var scene = pixels(0, 0, video.videoWidth, video.videoHeight, 384);
-            var subject = pixels(left, top, width, height, 192);
-            var catBox = {
-                left: Math.floor(left * scene.width / video.videoWidth),
-                top: Math.floor(top * scene.height / video.videoHeight),
-                right: Math.ceil((left + width) * scene.width / video.videoWidth),
-                bottom: Math.ceil((top + height) * scene.height / video.videoHeight)
-            };
-            replayPending = true;
-            replayVideoTime = video.currentTime;
-            replayWorker.postMessage({ scene: scene, subject: subject, catBox: catBox, videoTime: replayVideoTime, debug: replayDebug }, [scene.rgba.buffer, subject.rgba.buffer]);
-        } catch (reason) {
-            stopReplayDiagnostics();
-            replayUnavailable = true;
-            replayLastError = reason.message || 'Camera sampling unavailable.';
-            showReplayDebug('ERROR');
-            console.info('[CatCare 360 replay shadow] INCONCLUSIVE: camera sampling unavailable.');
-        }
-    }
 
     function loadDetector() {
         if (!detectorPromise) {
@@ -247,7 +82,6 @@
     }
 
     function stopCatDetection() {
-        stopReplayDiagnostics();
         window.clearInterval(detectionTimer);
         detectionTimer = null;
         detectedFrames = 0;
@@ -268,19 +102,13 @@
                         if (cat) {
                             if (performance.now() - lastDetectionAt > catDetection.staleMs) {
                                 detectedFrames = 0;
-                                if (replayWorker) stopReplayDiagnostics();
                             }
                             detectedFrames = Math.min(detectedFrames + 1, catDetection.consecutiveFrames);
                             lastDetectionAt = performance.now();
                             detectionStatus.textContent = detectedFrames >= catDetection.consecutiveFrames
                                 ? 'Cat detected. Capture is available when lighting and GPS are ready.'
                                 : 'Cat detected. Keep your cat in view…';
-                            if (detectedFrames === catDetection.consecutiveFrames) sampleReplayDiagnostics(cat.boundingBox);
                         } else {
-                            if (replayWorker) {
-                                stopReplayDiagnostics();
-                                showReplayDebug('INCONCLUSIVE');
-                            }
                             detectedFrames = 0;
                             lastDetectionAt = -Infinity;
                             detectionStatus.textContent = 'No cat detected. Position your cat within the camera view.';
@@ -536,7 +364,6 @@
             });
             video.srcObject = stream;
             video.classList.remove('hidden');
-            showReplayDebug(replayUnavailable ? 'ERROR' : 'STARTING');
             await video.play();
             showFullCameraFrame();
             cameraReady = true;
@@ -547,7 +374,6 @@
             switchBtn.classList.remove('hidden');
         } catch (err) {
             stopCamera();
-            showReplayDebug('ERROR');
             if (helpEl) {
                 helpEl.textContent = err && err.message === 'Camera permission timed out.'
                     ? 'Camera permission did not respond. Open this site in Chrome or Edge, allow Camera from the lock icon, then try again.'

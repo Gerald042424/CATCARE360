@@ -98,7 +98,8 @@ $cnvrSteps = [
             </div>
 
             <div class="bg-white border border-slate-200 rounded-2xl shadow-sm p-6">
-                <h3 class="text-lg font-semibold text-slate-900 mb-4">Submit Update</h3>
+                <h3 class="text-lg font-semibold text-slate-900 mb-4"><?= ! empty($resubmissionRequested) ? 'Resubmit Check-in' : 'Submit Update' ?></h3>
+                <?php if (! empty($resubmissionRequested)): ?><p class="mb-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Staff requested a new photo for your <strong><?= esc($nextCheckpoint) ?></strong> check-in. Take a fresh photo of your cat and submit it here.</p><?php endif; ?>
                 <form id="updateForm" method="post" action="<?= site_url('adopter/updates/submit') ?>" enctype="multipart/form-data" data-reverse-geocode-url="<?= esc(site_url('adopter/location/reverse')) ?>" data-camera-challenge-url="<?= esc(site_url('adopter/updates/camera-challenge'), 'attr') ?>" data-capture-attempt-url="<?= esc(site_url('adopter/updates/capture-attempt'), 'attr') ?>" data-csrf-field="<?= esc(csrf_token(), 'attr') ?>" class="space-y-4">
                     <?= csrf_field() ?>
                     <input type="hidden" name="cat_id" value="<?= esc($cat['id'] ?? '') ?>">
@@ -118,12 +119,6 @@ $cnvrSteps = [
 
                         <div id="cameraArea" class="mt-2">
                             <video id="cameraStream" class="hidden h-auto w-full max-h-[70vh] rounded-lg border border-slate-200 bg-black object-contain" autoplay playsinline></video>
-                            <div id="replayDebugStatus" hidden class="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600" role="status">
-                                <span class="block text-[11px] text-slate-500">Replay debug · Shadow mode</span>
-                                <span data-replay-state class="font-semibold"></span>
-                                <span data-replay-votes hidden class="block"></span>
-                                <span data-replay-pipeline class="mt-1 block whitespace-pre-line break-words"></span>
-                            </div>
                             <canvas id="captureCanvas" class="hidden"></canvas>
 
                             <div class="mt-3 flex flex-wrap gap-2">

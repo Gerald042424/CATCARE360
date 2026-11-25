@@ -120,20 +120,8 @@ class PortalController extends BaseController
             $adoptionSubmissions,
             static fn (array $submission): bool => strcasecmp((string) ($submission['status'] ?? ''), 'Verified') === 0,
         ), 'checkpoint');
-        // Pending submissions count as submitted so adopters are not warned
-        // while staff review an update they already sent. Rejected updates
-        // remain actionable and may become overdue until they are resubmitted.
-        $submittedCheckpoints = array_column(array_filter(
-            $adoptionSubmissions,
-            static fn (array $submission): bool => in_array(strtolower((string) ($submission['status'] ?? '')), ['pending', 'verified'], true),
-        ), 'checkpoint');
-        $nextCheckpoint = null;
-        foreach (['3-day', '3-week', '3-month'] as $checkpoint) {
-            if (! in_array($checkpoint, $submittedCheckpoints, true)) {
-                $nextCheckpoint = $checkpoint;
-                break;
-            }
-        }
+        $nextUpdate = $updateModel->nextCheckIn($adoptionSubmissions);
+        $nextCheckpoint = $nextUpdate['checkpoint'] ?? null;
         $nextCheckIn = $nextCheckpoint ? ($checkpoints[$nextCheckpoint] ?? null) : null;
         $isOverdue = ! empty($nextCheckIn) && $nextCheckIn < date('Y-m-d');
 
@@ -177,6 +165,7 @@ class PortalController extends BaseController
             'checkpoints' => $checkpoints,
             'completedCheckpoints' => $completedCheckpoints,
             'nextCheckpoint' => $nextCheckpoint,
+            'resubmissionRequested' => isset($nextUpdate['replacement']),
             'isOverdue' => $isOverdue,
             'portalApplication' => $portalApplication,
             'monitoringSnapshot' => $monitoringSnapshot,
@@ -839,13 +828,11 @@ class PortalController extends BaseController
         if (! $this->matchesUpdateCapture($session->get('monitoring_capture_attempt'), $post['capture_attempt'] ?? null, $user, (int) $adoption['id'], $photo->getTempName())) {
             return redirect()->back()->withInput()->with('error', 'The camera capture authorization is missing, expired, or has already been used. Retake the photo to continue.');
         }
-        $dates = monitoringCheckpoints($adoption['adoption_date']);
         $submissionModel = new MonitoringSubmissionModel();
-        $checkpoint = null;
-        foreach (['3-day', '3-week', '3-month'] as $candidate) {
-            if (! $submissionModel->where('adoption_id', $adoption['id'])->where('checkpoint', $candidate)->first()) { $checkpoint = $candidate; break; }
-        }
-        if (! $checkpoint) return redirect()->back()->with('error', 'All required monitoring checkpoints have already been submitted.');
+        $nextUpdate = $submissionModel->nextCheckIn($submissionModel->where('adoption_id', $adoption['id'])->findAll());
+        if (! $nextUpdate) return redirect()->back()->with('error', 'All required monitoring checkpoints have already been submitted.');
+        $checkpoint = $nextUpdate['checkpoint'];
+        $replacement = $nextUpdate['replacement'];
 
         // Consume under the session lock before storing the photo.
         $session->remove('monitoring_capture_attempt');
@@ -857,7 +844,7 @@ class PortalController extends BaseController
             return redirect()->back()->withInput()->with('error', 'Your monitoring photo could not be saved. Please try again.');
         }
 
-        if (! $submissionModel->insert([
+        $data = [
             'adopter_id' => $user['adopter_id'],
             'adoption_id' => $adoption['id'],
             'checkpoint' => $checkpoint,
@@ -875,12 +862,17 @@ class PortalController extends BaseController
             'ip_address' => $this->request->getIPAddress(),
             'status' => 'Pending',
             'submission_date' => date('Y-m-d H:i:s'),
-        ])) {
-            log_message('error', 'Monitoring update insert failed: {errors}', ['errors' => json_encode($submissionModel->errors())]);
+        ];
+        $saved = $replacement
+            ? $submissionModel->updateWithStatus((int) $replacement['id'], MonitoringSubmissionModel::RESUBMISSION_REQUESTED, $data)
+            : $submissionModel->insert($data);
+        if (! $saved) {
+            log_message('error', 'Monitoring update could not be saved: {errors}', ['errors' => json_encode($submissionModel->errors())]);
             return redirect()->back()->withInput()->with('error', 'Your update could not be saved. Please try again.');
         }
 
         recalculateAdopterMonitoringCompliance((int) $user['adopter_id']);
+        (new \App\Services\MonitoringNotification())->notifyAdmins((int) $adoption['id'], $checkpoint, $replacement !== null);
 
         return redirect()->to('/adopter/portal/' . $adoption['id'])->with('success', strtoupper($checkpoint) . ' update submitted successfully. It is now listed for staff review.');
     }

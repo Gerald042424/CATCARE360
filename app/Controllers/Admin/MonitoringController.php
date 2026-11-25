@@ -6,6 +6,7 @@ use App\Controllers\BaseController;
 use App\Models\AdopterModel;
 use App\Models\MonitoringSubmissionModel;
 use App\Models\AnimalJourneyEventModel;
+use App\Services\MonitoringNotification;
 
 class MonitoringController extends BaseController
 {
@@ -21,11 +22,12 @@ class MonitoringController extends BaseController
             ->get()->getResultArray();
 
         $submissions = (new MonitoringSubmissionModel())
-            ->select('monitoring_submissions.*, adopters.name AS adopter_name, adoptions.adoption_date, animals.name AS animal_name')
+            ->select('monitoring_submissions.*, adopters.name AS adopter_name, adoptions.adoption_date, adoptions.status AS adoption_status, animals.name AS animal_name')
             ->join('adopters', 'adopters.id = monitoring_submissions.adopter_id', 'left')
             ->join('adoptions', 'adoptions.id = monitoring_submissions.adoption_id', 'left')
             ->join('animals', 'animals.id = adoptions.animal_id', 'left')
             ->orderBy('submission_date', 'DESC')
+            ->orderBy('monitoring_submissions.id', 'DESC')
             ->findAll();
 
         // Keep all three checkpoints belonging to one adoption together. This
@@ -39,11 +41,12 @@ class MonitoringController extends BaseController
                     'adopter_name' => $submission['adopter_name'] ?: 'Adopter',
                     'animal_name' => $submission['animal_name'] ?: 'Adopted cat',
                     'adoption_date' => $submission['adoption_date'],
+                    'active' => $submission['adoption_status'] === 'Active',
                     'checkpoints' => [],
                     'latest_submission_date' => $submission['submission_date'],
                 ];
             }
-            $submittedCases[$adoptionId]['checkpoints'][$submission['checkpoint']] = $submission;
+            $submittedCases[$adoptionId]['checkpoints'][$submission['checkpoint']] ??= $submission;
         }
 
         return view('admin/monitoring/index', [
@@ -58,13 +61,18 @@ class MonitoringController extends BaseController
     {
         $submissionModel = new MonitoringSubmissionModel();
         $submission = $submissionModel->find($submissionId);
+        if (($submission['status'] ?? null) === MonitoringSubmissionModel::RESUBMISSION_REQUESTED) {
+            return redirect()->back()->with('error', 'Wait for the replacement update before verifying it.');
+        }
         if ($submission) {
             $adopter = (new AdopterModel())->find($submission['adopter_id']);
             $verified = $adopter && $submission['gps_lat'] && $submission['gps_lng'] && $adopter['address_lat'] && $adopter['address_lng']
                 ? verifyGPS((float) $submission['gps_lat'], (float) $submission['gps_lng'], (float) $adopter['address_lat'], (float) $adopter['address_lng'])
                 : false;
             $status = $verified ? 'Verified' : 'Flagged';
-            $submissionModel->update($submissionId, ['gps_verified' => $verified, 'status' => $status]);
+            if (! $submissionModel->updateWithStatus($submissionId, $submission['status'], ['gps_verified' => $verified, 'status' => $status])) {
+                return redirect()->to('/admin/monitoring');
+            }
             recalculateAdopterMonitoringCompliance((int) $submission['adopter_id']);
             $this->recordMonitoringTimelineEvent($submission, $status);
             closeMonitoringCaseWhenComplete((int) $submission['adoption_id']);
@@ -77,19 +85,32 @@ class MonitoringController extends BaseController
     public function review(int $submissionId)
     {
         $status = (string) $this->request->getPost('status');
-        if (! in_array($status, ['Verified', 'Flagged'], true)) {
-            return redirect()->back()->with('error', 'Choose Verified or Flagged.');
+        $resubmission = $status === MonitoringSubmissionModel::RESUBMISSION_REQUESTED;
+        if (! in_array($status, ['Verified', 'Flagged'], true) && ! $resubmission) {
+            return redirect()->back()->with('error', 'Choose Approve, Flag, or Request Resubmission.');
         }
         $submissionModel = new MonitoringSubmissionModel();
         $submission = $submissionModel->find($submissionId);
         if (! $submission) {
             return redirect()->back()->with('error', 'Monitoring update not found.');
         }
-        $submissionModel->update($submissionId, ['status' => $status]);
+        if ($resubmission && ! (new \App\Models\AdoptionModel())->where('status', 'Active')->find($submission['adoption_id'])) {
+            return redirect()->back()->with('error', 'Only active adoptions can receive a resubmission request.');
+        }
+        if ($submission['status'] !== 'Pending' && ! ($resubmission && $submission['status'] === 'Flagged')) {
+            return redirect()->back()->with('error', 'This update has already been reviewed.');
+        }
+        if (! $submissionModel->updateWithStatus($submissionId, $submission['status'], ['status' => $status])) {
+            return redirect()->back()->with('error', 'The update changed. Refresh the page and try again.');
+        }
         recalculateAdopterMonitoringCompliance((int) $submission['adopter_id']);
         $this->recordMonitoringTimelineEvent($submission, $status);
         closeMonitoringCaseWhenComplete((int) $submission['adoption_id']);
-        if ($submission['status'] !== $status) $this->sendReviewNotification($submission, $status);
+        if ($resubmission) {
+            (new MonitoringNotification())->requestResubmission($submission);
+            return redirect()->to('/admin/monitoring')->with('success', 'Resubmission requested for this check-in.');
+        }
+        $this->sendReviewNotification($submission, $status);
 
         return redirect()->to('/admin/monitoring')->with('success', 'Monitoring update reviewed.');
     }
