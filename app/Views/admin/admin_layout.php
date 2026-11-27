@@ -40,8 +40,8 @@
             $nav = [
                 ['Dashboard', 'layout-dashboard', 'admin/dashboard'],
                 ['Cat Management', 'paw-print', 'admin/animals'],
-                ['Applications', 'file-text', 'admin/applications'],
                 ['Adopters', 'heart', 'admin/adopters'],
+                ['Applicants', 'file-text', 'admin/applications'],
                 ['Monitoring', 'activity', 'admin/monitoring'],
                 ['Home Visits', 'house-heart', 'admin/home-visits'],
                 ['Volunteers', 'users', 'admin/volunteers'],

@@ -59,7 +59,7 @@ class ApplicationsController extends BaseController
         if ($filters['score_band'] === 'low') $query->where('adoption_applications.assessment_score <', 60);
         $applications = $query->orderBy('submitted_at', 'DESC')->findAll();
 
-        return view('admin/applications/index', ['title' => 'Applications', 'applications' => $applications, 'filters' => $filters]);
+        return view('admin/applications/index', ['title' => 'Applicants', 'applications' => $applications, 'filters' => $filters]);
     }
 
     /** Scores records created before the automatic scorer was enabled. */
