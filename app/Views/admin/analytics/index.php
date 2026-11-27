@@ -8,19 +8,33 @@ $analyticsHelp = static function (string $label, string $description): void {
           @click.outside="open = false" @keydown.escape="open = false">
         <button type="button" class="rounded px-1 text-sm font-semibold text-rescue-700 focus-visible:outline focus-visible:outline-2"
                 aria-label="<?= esc('About ' . $label, 'attr') ?>" :aria-expanded="open" @click="open = !open">ⓘ</button>
-        <span class="analytics-help-text mt-2 text-sm font-normal leading-6 text-slate-600"
-              :class="{ 'analytics-help-open': open }"><?= esc($description) ?></span>
+        <span class="analytics-help-text text-sm font-normal leading-6 text-slate-600"
+              :class="{ 'analytics-help-open': open }"><span class="analytics-help-inner"><span class="block pt-2"><?= esc($description) ?></span></span></span>
     </span>
     <?php
 };
 ?>
 <style>
-    .analytics-help-text { display: none; }
-    .analytics-help-open { display: block; }
+    .analytics-help-text {
+        display: grid;
+        grid-template-rows: 0fr;
+        opacity: 0;
+        transition: grid-template-rows 340ms ease-in-out, opacity 260ms ease-in-out;
+    }
+
+    .analytics-help-inner {
+        min-height: 0;
+        overflow: hidden;
+    }
+    .analytics-help-open { grid-template-rows: 1fr; opacity: 1; }
 
     @media (hover: hover) and (pointer: fine) {
         .analytics-card:hover > h2 .analytics-help-text,
-        .analytics-card dt:hover .analytics-help-text { display: block; }
+        .analytics-card dt:hover .analytics-help-text { grid-template-rows: 1fr; opacity: 1; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .analytics-help-text { transition: none; }
     }
 </style>
 <div class="mb-6">
