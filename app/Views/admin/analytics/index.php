@@ -1,6 +1,27 @@
 <?= $this->extend('admin/admin_layout') ?>
 <?= $this->section('content') ?>
 
+<?php
+$analyticsHelp = static function (string $label, string $description): void {
+    ?>
+    <span class="analytics-help relative inline-block" x-data="{ open: false }"
+          @click.outside="open = false" @keydown.escape="open = false">
+        <button type="button" class="rounded px-1 text-sm font-semibold text-rescue-700 focus-visible:outline focus-visible:outline-2"
+                aria-label="<?= esc('About ' . $label, 'attr') ?>" :aria-expanded="open" @click="open = !open">ⓘ</button>
+        <span class="analytics-help-text absolute left-0 top-full z-20 w-56 max-w-[65vw] rounded-lg border border-slate-200 bg-white p-3 text-left text-sm font-normal leading-5 text-slate-700 shadow-lg"
+              :class="{ 'analytics-help-open': open }"><?= esc($description) ?></span>
+    </span>
+    <?php
+};
+?>
+<style>
+    .analytics-help-text { display: none; }
+    .analytics-help-open { display: block; }
+
+    @media (hover: hover) and (pointer: fine) {
+        .analytics-help:hover .analytics-help-text { display: block; }
+    }
+</style>
 <div class="mb-6">
     <h1 class="text-3xl font-bold tracking-[-.025em]">Analytics Dashboard</h1>
     <p class="mt-1 text-slate-500">Track adoptions, see what needs staff review, and check completed volunteer work using CatCare 360 records.</p>
@@ -9,9 +30,8 @@
 <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
     <?php foreach ($summary as $item): ?>
         <section class="card">
-            <h2 class="text-sm font-semibold text-slate-700"><?= esc($item['label']) ?></h2>
+            <h2 class="text-sm font-semibold text-slate-700"><?= esc($item['label']) ?> <?php $analyticsHelp($item['label'], $item['description']); ?></h2>
             <p class="metric-value mt-1 text-3xl font-bold <?= esc($item['tone'], 'attr') ?>"><?= number_format($item['value']) ?></p>
-            <p class="mt-2 text-sm leading-6 text-slate-600"><?= esc($item['description']) ?></p>
             <a href="<?= site_url($item['path']) ?>" class="mt-3 inline-block text-sm font-semibold text-rescue-700 underline">View <?= esc($item['source']) ?></a>
         </section>
     <?php endforeach; ?>
@@ -23,8 +43,7 @@
         ['title' => 'Monitoring Review Status', 'description' => 'Counts submitted post-adoption check-ins by review status. Use this breakdown to find updates that still need staff attention.', 'source' => 'Monitoring', 'path' => 'admin/monitoring', 'rows' => $monitoringBreakdown, 'empty' => 'No monitoring records yet.'],
     ] as $section): ?>
         <section class="card">
-            <h2 class="text-lg font-bold"><?= esc($section['title']) ?></h2>
-            <p class="mt-2 text-sm leading-6 text-slate-600"><?= esc($section['description']) ?></p>
+            <h2 class="text-lg font-bold"><?= esc($section['title']) ?> <?php $analyticsHelp($section['title'], $section['description']); ?></h2>
             <a href="<?= site_url($section['path']) ?>" class="mt-2 inline-block text-sm font-semibold text-rescue-700 underline">View <?= esc($section['source']) ?></a>
             <div class="mt-5 space-y-3">
                 <?php if ($section['rows'] === []): ?>
@@ -42,8 +61,7 @@
     <?php endforeach; ?>
 
     <section class="card">
-        <h2 class="text-lg font-bold">Adoption Trend</h2>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Shows up to six recent months with recorded adoptions, grouped by adoption date across all statuses. Compare monthly totals to see when more adoptions were recorded.</p>
+        <h2 class="text-lg font-bold">Adoption Trend <?php $analyticsHelp('Adoption Trend', 'Shows up to six recent months with recorded adoptions, grouped by adoption date across all statuses. Compare monthly totals to see when more adoptions were recorded.'); ?></h2>
         <a href="<?= site_url('admin/reports/preview/adoptions') ?>" class="mt-2 inline-block text-sm font-semibold text-rescue-700 underline">View Adoption Register</a>
         <div class="mt-5 space-y-3">
             <?php if ($monthlyAdoptions === []): ?>
@@ -60,8 +78,7 @@
     </section>
 
     <section class="card">
-        <h2 class="text-lg font-bold">Assessment Overview</h2>
-        <p class="mt-2 text-sm leading-6 text-slate-600">Groups adoption applications by their weighted readiness score from the application assessment. Use the score range and welfare indicators to guide staff review before making a decision.</p>
+        <h2 class="text-lg font-bold">Assessment Overview <?php $analyticsHelp('Assessment Overview', 'Groups adoption applications by their weighted readiness score from the application assessment. Use the score range and welfare indicators to guide staff review before making a decision.'); ?></h2>
         <a href="<?= site_url('admin/applications') ?>" class="mt-2 inline-block text-sm font-semibold text-rescue-700 underline">View Application Assessments</a>
         <dl class="mt-5 grid grid-cols-3 gap-2 text-center sm:gap-3">
             <div class="rounded-xl bg-adopted-50 p-3 text-adopted-700"><dt class="text-xs font-semibold">80–100%</dt><dd class="mt-1 text-2xl font-bold"><?= number_format($assessment['strong']) ?></dd></div>
@@ -70,16 +87,13 @@
         </dl>
         <dl class="mt-5 space-y-3 text-sm text-slate-600">
             <div>
-                <dt class="font-semibold text-slate-900">Average Readiness · <?= $assessment['average'] === null ? 'No scores yet' : number_format($assessment['average'], 2) . '%' ?></dt>
-                <dd>Average of applications with a recorded readiness score.</dd>
+                <dt class="font-semibold text-slate-900">Average Readiness · <?= $assessment['average'] === null ? 'No scores yet' : number_format($assessment['average'], 2) . '%' ?> <?php $analyticsHelp('Average Readiness', 'Average of applications with a recorded readiness score.'); ?></dt>
             </div>
             <div>
-                <dt class="font-semibold text-slate-900">Provisional · <?= number_format($assessment['provisional']) ?></dt>
-                <dd>Applications without a recorded readiness score.</dd>
+                <dt class="font-semibold text-slate-900">Provisional · <?= number_format($assessment['provisional']) ?> <?php $analyticsHelp('Provisional', 'Applications without a recorded readiness score.'); ?></dt>
             </div>
             <div>
-                <dt class="font-semibold text-slate-900">Welfare Concerns · <?= number_format($assessment['welfareConcerns']) ?></dt>
-                <dd>Applications where the indoor living or humane housing check has a recorded result other than “Meets Requirements.” These can also appear in the score ranges above.</dd>
+                <dt class="font-semibold text-slate-900">Welfare Concerns · <?= number_format($assessment['welfareConcerns']) ?> <?php $analyticsHelp('Welfare Concerns', 'Applications where the indoor living or humane housing check has a recorded result other than “Meets Requirements.” These can also appear in the score ranges above.'); ?></dt>
             </div>
         </dl>
     </section>
