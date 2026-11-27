@@ -1,6 +1,6 @@
 <?= $this->extend('admin/admin_layout') ?>
 <?= $this->section('content') ?>
-<div class="mb-6"><h1 class="text-3xl font-bold tracking-[-.025em]">Adopter Management</h1><p class="text-slate-500">One record per adopter. Select an active adoption to view that cat's monitoring data.</p></div>
+<div class="mb-6"><h1 class="text-3xl font-bold tracking-[-.025em]">Applicants</h1><p class="text-slate-500">One record per adopter. Select an active adoption to view that cat's monitoring data.</p></div>
 <?php $monitoredAdopters = array_filter($adopters, static fn (array $adopter): bool => (int) ($adopter['monitoring_due_count'] ?? 0) > 0); ?>
 <div class="mb-6 grid gap-6 md:grid-cols-4"><?php foreach ([['Total Adopters', count($adopters)], ['Fully Compliant', count(array_filter($monitoredAdopters, fn($a)=>(int) $a['compliance_score']>=85))], ['Needs Attention', count(array_filter($monitoredAdopters, fn($a)=>(int) $a['compliance_score']<85))], ['Overdue Visits', array_sum(array_column($adopters, 'overdue_visits'))]] as $s): ?><div class="card"><div class="text-2xl font-bold"><?= esc($s[1]) ?></div><div class="text-sm font-medium text-slate-500"><?= esc($s[0]) ?></div></div><?php endforeach; ?></div>
 <div class="card overflow-x-auto p-0">

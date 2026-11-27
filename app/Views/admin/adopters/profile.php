@@ -2,7 +2,7 @@
 <?= $this->section('content') ?>
 <div class="grid gap-6 xl:grid-cols-[.8fr_1.2fr]">
     <aside class="card">
-        <a href="<?= site_url('admin/adopters') ?>" class="text-sm font-semibold text-rescue-600">← Back to Adopters</a>
+        <a href="<?= site_url('admin/adopters') ?>" class="text-sm font-semibold text-rescue-600">← Back to Applicants</a>
         <div class="mt-6 flex h-24 w-24 items-center justify-center rounded-full bg-rescue-50 text-3xl font-bold text-rescue-700"><?= esc(substr($adopter['name'], 0, 1)) ?></div>
         <h1 class="mt-4 text-3xl font-bold"><?= esc($adopter['name']) ?></h1>
         <p class="text-slate-500"><?= esc($adopter['email']) ?><br><?= esc($adopter['phone']) ?></p>

@@ -19,7 +19,7 @@
 
 <div class="mt-6 grid gap-6 xl:grid-cols-2">
     <?php foreach ([
-        ['title' => 'Application Status', 'description' => 'Counts adoption applications by their current status. Use this breakdown to see how many are awaiting review and how many have received a decision.', 'source' => 'Applicants', 'path' => 'admin/applications', 'rows' => $applicationBreakdown, 'empty' => 'No application records yet.'],
+        ['title' => 'Application Status', 'description' => 'Counts adoption applications by their current status. Use this breakdown to see how many are awaiting review and how many have received a decision.', 'source' => 'Adopters', 'path' => 'admin/applications', 'rows' => $applicationBreakdown, 'empty' => 'No application records yet.'],
         ['title' => 'Monitoring Review Status', 'description' => 'Counts submitted post-adoption check-ins by review status. Use this breakdown to find updates that still need staff attention.', 'source' => 'Monitoring', 'path' => 'admin/monitoring', 'rows' => $monitoringBreakdown, 'empty' => 'No monitoring records yet.'],
     ] as $section): ?>
         <section class="card">

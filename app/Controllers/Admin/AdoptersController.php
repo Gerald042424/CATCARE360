@@ -52,7 +52,7 @@ class AdoptersController extends BaseController
         }
         unset($adopter);
 
-        return view('admin/adopters/index', ['title' => 'Adopter Management', 'adopters' => $adopters]);
+        return view('admin/adopters/index', ['title' => 'Applicants', 'adopters' => $adopters]);
     }
 
     public function profile(int $id)
